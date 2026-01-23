@@ -135,7 +135,7 @@ struct ContentView: View {
         case .signaling: return "waveform"
         case .scan: return "magnifyingglass"
         case .contacts: return "person.2"
-        case .bluetooth: return "bluetooth"
+        case .bluetooth: return "headphones"
         case .voicePrompts: return "mic"
         case .advanced: return "wrench.and.screwdriver"
         }
