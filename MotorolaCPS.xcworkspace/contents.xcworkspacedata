@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <Group
+      location = "container:"
+      name = "Packages">
+      <FileRef
+         location = "group:Packages/RadioCore">
+      </FileRef>
+      <FileRef
+         location = "group:Packages/RadioModels">
+      </FileRef>
+      <FileRef
+         location = "group:Packages/RadioHardware">
+      </FileRef>
+      <FileRef
+         location = "group:Packages/AudioEngine">
+      </FileRef>
+   </Group>
+   <FileRef
+      location = "group:CPSApp/CPSApp.xcodeproj">
+   </FileRef>
+</Workspace>

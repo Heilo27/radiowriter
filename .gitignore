@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+._*
+
+# Proprietary binaries - do not commit
+*.exe
+*.dll
+*.msi
+*.cab
+
+# CPS files that may contain proprietary data
+*.ctb
+*.rdt
+*.mdf
+*.key
+
+# Build artifacts
+build/
+*.o
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# SPM / Xcode build artifacts
+.build/
+.swiftpm/
+DerivedData/
+
+# Large analysis outputs (commit summaries only)
+analysis/raw/
+analysis/extracted_*/
+analysis/*.cab

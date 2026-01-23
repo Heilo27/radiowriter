@@ -1,0 +1,441 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
+		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
+		36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D947EF4413403ED59D491FE8 /* ProgrammingView.swift */; };
+		628F588880242E5548D712D5 /* RadioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9E243FB90AB6835FD64AF52B /* RadioCore */; };
+		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
+		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
+		A8D410CF24E3EDD792424B22 /* RadioHardware in Frameworks */ = {isa = PBXBuildFile; productRef = 6613216EC89E86B998EAE93D /* RadioHardware */; };
+		A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */; };
+		AA80236FB227C0591D019555 /* RadioModels in Frameworks */ = {isa = PBXBuildFile; productRef = 59826F12D220CD4A0AC7D939 /* RadioModels */; };
+		AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21553D5F1A22A99A938D86B2 /* FormEditorView.swift */; };
+		C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA97A75BB7ACA2A288957482 /* CPSApp.swift */; };
+		D95573F3744D70C5280B7453 /* AudioEngine in Frameworks */ = {isa = PBXBuildFile; productRef = F44256D435CF54DEFCA111E7 /* AudioEngine */; };
+		EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		00F220EECD3E92E259A3BA12 /* CPSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CPSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		038A36D46CEF3C6B08C52F3A /* RadioModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioModels; path = ../Packages/RadioModels; sourceTree = SOURCE_ROOT; };
+		1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSCommands.swift; sourceTree = "<group>"; };
+		21553D5F1A22A99A938D86B2 /* FormEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormEditorView.swift; sourceTree = "<group>"; };
+		25B37BF1194EF81CDE179154 /* RadioCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioCore; path = ../Packages/RadioCore; sourceTree = SOURCE_ROOT; };
+		5F80EEF1BFDDF4B913C68855 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		6E94C79F5841B6532AE3C9D1 /* AudioEngine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AudioEngine; path = ../Packages/AudioEngine; sourceTree = SOURCE_ROOT; };
+		6F9791C2F318D4534E3B809B /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		7045699C1220506A0839A451 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		754F2CCF0F90A0DB28A7879F /* RadioHardware */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioHardware; path = ../Packages/RadioHardware; sourceTree = SOURCE_ROOT; };
+		86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelEditorView.swift; sourceTree = "<group>"; };
+		BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugDocument.swift; sourceTree = "<group>"; };
+		CA97A75BB7ACA2A288957482 /* CPSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSApp.swift; sourceTree = "<group>"; };
+		D947EF4413403ED59D491FE8 /* ProgrammingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammingView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6ED4A645B2D32A6F68AD4506 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				628F588880242E5548D712D5 /* RadioCore in Frameworks */,
+				AA80236FB227C0591D019555 /* RadioModels in Frameworks */,
+				A8D410CF24E3EDD792424B22 /* RadioHardware in Frameworks */,
+				D95573F3744D70C5280B7453 /* AudioEngine in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03D26078BCD42639FBE7E519 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				6E94C79F5841B6532AE3C9D1 /* AudioEngine */,
+				25B37BF1194EF81CDE179154 /* RadioCore */,
+				754F2CCF0F90A0DB28A7879F /* RadioHardware */,
+				038A36D46CEF3C6B08C52F3A /* RadioModels */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		11DBB2A078705EA2744390EF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				00F220EECD3E92E259A3BA12 /* CPSApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		18AC9A0B8FF45FDF00054B2A /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CA97A75BB7ACA2A288957482 /* CPSApp.swift */,
+				68A9AB4E1820AAD6F539A660 /* Core */,
+				BE2D8A0E15F01ABABBF6C880 /* Features */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		68A9AB4E1820AAD6F539A660 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				6F9791C2F318D4534E3B809B /* AppCoordinator.swift */,
+				BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */,
+				5F80EEF1BFDDF4B913C68855 /* ContentView.swift */,
+				1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		6C4FE5C4999E778943688865 /* RadioProgramming */ = {
+			isa = PBXGroup;
+			children = (
+				D947EF4413403ED59D491FE8 /* ProgrammingView.swift */,
+			);
+			path = RadioProgramming;
+			sourceTree = "<group>";
+		};
+		A16F87105157E6F5F41806C2 /* Welcome */ = {
+			isa = PBXGroup;
+			children = (
+				7045699C1220506A0839A451 /* WelcomeView.swift */,
+			);
+			path = Welcome;
+			sourceTree = "<group>";
+		};
+		A839EAA825597706527E0D14 = {
+			isa = PBXGroup;
+			children = (
+				03D26078BCD42639FBE7E519 /* Packages */,
+				18AC9A0B8FF45FDF00054B2A /* Sources */,
+				11DBB2A078705EA2744390EF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BE2D8A0E15F01ABABBF6C880 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
+				6C4FE5C4999E778943688865 /* RadioProgramming */,
+				A16F87105157E6F5F41806C2 /* Welcome */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		F5A60B9EE876A6C275BA497A /* RadioConfiguration */ = {
+			isa = PBXGroup;
+			children = (
+				86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */,
+				21553D5F1A22A99A938D86B2 /* FormEditorView.swift */,
+			);
+			path = RadioConfiguration;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C9CD084788574D16204846ED /* CPSApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81D114618D7B62654F1CFA46 /* Build configuration list for PBXNativeTarget "CPSApp" */;
+			buildPhases = (
+				BFF9188E1081C73F6A339567 /* Sources */,
+				6ED4A645B2D32A6F68AD4506 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CPSApp;
+			packageProductDependencies = (
+				9E243FB90AB6835FD64AF52B /* RadioCore */,
+				59826F12D220CD4A0AC7D939 /* RadioModels */,
+				6613216EC89E86B998EAE93D /* RadioHardware */,
+				F44256D435CF54DEFCA111E7 /* AudioEngine */,
+			);
+			productName = CPSApp;
+			productReference = 00F220EECD3E92E259A3BA12 /* CPSApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0C534708B33F4ABB3FF4A153 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = ED524AFBF886E38EFFEE3891 /* Build configuration list for PBXProject "CPSApp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A839EAA825597706527E0D14;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				01E869C6C0587BF57B911750 /* XCLocalSwiftPackageReference "../Packages/AudioEngine" */,
+				C27862E3DBE1825B3B500D14 /* XCLocalSwiftPackageReference "../Packages/RadioCore" */,
+				059A944454F0429236FC6B50 /* XCLocalSwiftPackageReference "../Packages/RadioHardware" */,
+				A37537F39A503C750D4B0413 /* XCLocalSwiftPackageReference "../Packages/RadioModels" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C9CD084788574D16204846ED /* CPSApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BFF9188E1081C73F6A339567 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */,
+				C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */,
+				A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */,
+				EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */,
+				2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */,
+				A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */,
+				AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */,
+				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
+				3626B81A652178A674E65227 /* WelcomeView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		311BD91B9BD646283C7E9F19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CPSApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		7CC9A85FF8E519D6778F2257 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AE866C9B919A531AD84FA9CA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C145F82B4318A63F9D59EEC1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CPSApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		81D114618D7B62654F1CFA46 /* Build configuration list for PBXNativeTarget "CPSApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				311BD91B9BD646283C7E9F19 /* Debug */,
+				C145F82B4318A63F9D59EEC1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		ED524AFBF886E38EFFEE3891 /* Build configuration list for PBXProject "CPSApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CC9A85FF8E519D6778F2257 /* Debug */,
+				AE866C9B919A531AD84FA9CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		01E869C6C0587BF57B911750 /* XCLocalSwiftPackageReference "../Packages/AudioEngine" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/AudioEngine;
+		};
+		059A944454F0429236FC6B50 /* XCLocalSwiftPackageReference "../Packages/RadioHardware" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/RadioHardware;
+		};
+		A37537F39A503C750D4B0413 /* XCLocalSwiftPackageReference "../Packages/RadioModels" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/RadioModels;
+		};
+		C27862E3DBE1825B3B500D14 /* XCLocalSwiftPackageReference "../Packages/RadioCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/RadioCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		59826F12D220CD4A0AC7D939 /* RadioModels */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RadioModels;
+		};
+		6613216EC89E86B998EAE93D /* RadioHardware */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RadioHardware;
+		};
+		9E243FB90AB6835FD64AF52B /* RadioCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RadioCore;
+		};
+		F44256D435CF54DEFCA111E7 /* AudioEngine */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AudioEngine;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 0C534708B33F4ABB3FF4A153 /* Project object */;
+}
