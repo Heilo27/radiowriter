@@ -7,6 +7,8 @@
 *.dll
 *.msi
 *.cab
+*.hdr
+Binaries/
 
 # CPS files that may contain proprietary data
 *.ctb
@@ -16,8 +18,12 @@
 
 # Build artifacts
 build/
+DerivedData/
+DerivedData-*/
 *.o
 *.swp
+*.xcresult
+TestResults-*/
 
 # Python
 __pycache__/
@@ -27,7 +33,10 @@ venv/
 
 # IDE
 .vscode/
+.cursor/
+.codex/
 xcuserdata/
+*.xcuserstate
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcworkspace/xcuserdata/
@@ -35,9 +44,14 @@ xcuserdata/
 # SPM / Xcode build artifacts
 .build/
 .swiftpm/
-DerivedData/
 
 # Large analysis outputs (commit summaries only)
 analysis/raw/
 analysis/extracted_*/
+analysis/payload_*/
+analysis/unshielded/
 analysis/*.cab
+
+# Temporary files
+*.tmp
+*.log
