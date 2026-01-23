@@ -1,11 +1,9 @@
 import SwiftUI
 import RadioModelCore
 
-/// Welcome window shown at app launch.
+/// Welcome screen shown at app launch.
 struct WelcomeView: View {
     @Environment(AppCoordinator.self) private var coordinator
-    @Environment(\.openDocument) private var openDocument
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var selectedModel: String?
 
     var body: some View {
@@ -42,14 +40,14 @@ struct WelcomeView: View {
                     .font(.headline)
 
                 Button {
-                    // New profile action
+                    // Scroll to model picker on the right
                 } label: {
                     Label("New Profile", systemImage: "doc.badge.plus")
                 }
                 .buttonStyle(.link)
 
                 Button {
-                    // Open existing
+                    coordinator.showingOpenDialog = true
                 } label: {
                     Label("Open Existing", systemImage: "folder")
                 }
@@ -99,8 +97,7 @@ struct WelcomeView: View {
                     Spacer()
                     Button("Create Profile") {
                         if let modelID = selectedModel {
-                            _ = coordinator.createNewCodeplug(modelIdentifier: modelID)
-                            dismissWindow(id: "welcome")
+                            coordinator.newDocument(modelIdentifier: modelID)
                         }
                     }
                     .buttonStyle(.borderedProminent)

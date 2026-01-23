@@ -3,6 +3,13 @@ import RadioCore
 import RadioModelCore
 import USBTransport
 import Discovery
+import UniformTypeIdentifiers
+
+/// App navigation phase.
+enum AppPhase {
+    case welcome
+    case editing
+}
 
 /// Central coordinator for the CPS application.
 @Observable
@@ -10,6 +17,14 @@ final class AppCoordinator {
     var radioDetector = RadioDetector()
     var connectionState: ConnectionState = .disconnected
     var selectedModelIdentifier: String?
+
+    var phase: AppPhase = .welcome
+    var currentDocument: CodeplugDocument?
+    var documentURL: URL?
+
+    // File dialog triggers
+    var showingOpenDialog = false
+    var showingSaveDialog = false
 
     init() {
         radioDetector.startScanning()
@@ -23,9 +38,38 @@ final class AppCoordinator {
         }
     }
 
-    /// Creates a new codeplug for the selected model.
-    func createNewCodeplug(modelIdentifier: String) -> Codeplug? {
-        RadioModelRegistry.createDefaultCodeplug(for: modelIdentifier)
+    /// Creates a new document for the given model and transitions to editing.
+    func newDocument(modelIdentifier: String) {
+        let codeplug = RadioModelRegistry.createDefaultCodeplug(for: modelIdentifier)
+        currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: modelIdentifier)
+        documentURL = nil
+        phase = .editing
+    }
+
+    /// Opens a codeplug file from disk and transitions to editing.
+    func openDocument(_ url: URL) throws {
+        let data = try Data(contentsOf: url)
+        let serializer = CodeplugSerializer()
+        let codeplug = try serializer.deserialize(data)
+        currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: codeplug.modelIdentifier)
+        documentURL = url
+        phase = .editing
+    }
+
+    /// Saves the current codeplug to a file.
+    func saveDocument(to url: URL) throws {
+        guard let codeplug = currentDocument?.codeplug else { return }
+        let serializer = CodeplugSerializer()
+        let data = try serializer.serialize(codeplug)
+        try data.write(to: url, options: .atomic)
+        documentURL = url
+    }
+
+    /// Returns to the welcome screen.
+    func closeDocument() {
+        currentDocument = nil
+        documentURL = nil
+        phase = .welcome
     }
 }
 

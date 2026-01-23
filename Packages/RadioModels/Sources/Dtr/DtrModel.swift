@@ -53,6 +53,57 @@ public enum DTR700: RadioModel {
     public static func applyDependencies(field: String, in codeplug: Codeplug) {}
 }
 
+/// DTR550 — 1-watt 900 MHz digital radio with 10 channels (no display).
+public enum DTR550: RadioModel {
+    public static let identifier = "DTR550"
+    public static let displayName = "DTR 550"
+    public static let family: RadioFamily = .dtr
+    public static let codeplugSize = 8192
+    public static let maxChannels = 10
+    public static let frequencyBand: FrequencyBand = .dtr900
+    public static let nodes: [CodeplugNode] = DtrNodes.nodes(maxChannels: maxChannels)
+
+    public static func createDefault() -> Codeplug {
+        DtrDefaults.create(modelIdentifier: identifier, size: codeplugSize, maxChannels: maxChannels)
+    }
+    public static func validate(_ codeplug: Codeplug) -> [ValidationIssue] { [] }
+    public static func applyDependencies(field: String, in codeplug: Codeplug) {}
+}
+
+/// DTR600 — 1-watt 900 MHz digital radio with 30 channels and full display.
+public enum DTR600: RadioModel {
+    public static let identifier = "DTR600"
+    public static let displayName = "DTR 600"
+    public static let family: RadioFamily = .dtr
+    public static let codeplugSize = 16384
+    public static let maxChannels = 30
+    public static let frequencyBand: FrequencyBand = .dtr900
+    public static let nodes: [CodeplugNode] = DtrNodes.nodes(maxChannels: maxChannels)
+
+    public static func createDefault() -> Codeplug {
+        DtrDefaults.create(modelIdentifier: identifier, size: codeplugSize, maxChannels: maxChannels)
+    }
+    public static func validate(_ codeplug: Codeplug) -> [ValidationIssue] { [] }
+    public static func applyDependencies(field: String, in codeplug: Codeplug) {}
+}
+
+/// DTR650 — 1-watt 900 MHz digital radio with display, 10 channels, and text messaging.
+public enum DTR650: RadioModel {
+    public static let identifier = "DTR650"
+    public static let displayName = "DTR 650"
+    public static let family: RadioFamily = .dtr
+    public static let codeplugSize = 8192
+    public static let maxChannels = 10
+    public static let frequencyBand: FrequencyBand = .dtr900
+    public static let nodes: [CodeplugNode] = DtrNodes.nodes(maxChannels: maxChannels)
+
+    public static func createDefault() -> Codeplug {
+        DtrDefaults.create(modelIdentifier: identifier, size: codeplugSize, maxChannels: maxChannels)
+    }
+    public static func validate(_ codeplug: Codeplug) -> [ValidationIssue] { [] }
+    public static func applyDependencies(field: String, in codeplug: Codeplug) {}
+}
+
 // MARK: - DTR Shared
 
 enum DtrNodes {

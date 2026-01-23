@@ -7,7 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "RadioModels", targets: [
-            "RadioModelCore", "CLP", "CLP2", "DLRx", "Dtr", "Fiji", "Nome", "Renoir", "Solo", "Sunb", "Vanu",
+            "RadioModelCore", "APX", "CLP", "CLP2", "CP200", "DLRx", "Dtr", "Fiji", "Nome", "RDM", "Renoir", "RMM", "Solo", "Sunb", "Vanu", "XPR",
         ]),
         .library(name: "RadioModelCore", targets: ["RadioModelCore"]),
     ],
@@ -21,6 +21,11 @@ let package = Package(
             path: "Sources/RadioModelCore"
         ),
         .target(
+            name: "APX",
+            dependencies: ["RadioModelCore", "RadioCore"],
+            path: "Sources/APX"
+        ),
+        .target(
             name: "CLP",
             dependencies: ["RadioModelCore", "RadioCore"],
             path: "Sources/CLP"
@@ -29,6 +34,11 @@ let package = Package(
             name: "CLP2",
             dependencies: ["RadioModelCore", "RadioCore"],
             path: "Sources/CLP2"
+        ),
+        .target(
+            name: "CP200",
+            dependencies: ["RadioModelCore", "RadioCore"],
+            path: "Sources/CP200"
         ),
         .target(
             name: "DLRx",
@@ -51,9 +61,19 @@ let package = Package(
             path: "Sources/Nome"
         ),
         .target(
+            name: "RDM",
+            dependencies: ["RadioModelCore", "RadioCore"],
+            path: "Sources/RDM"
+        ),
+        .target(
             name: "Renoir",
             dependencies: ["RadioModelCore", "RadioCore"],
             path: "Sources/Renoir"
+        ),
+        .target(
+            name: "RMM",
+            dependencies: ["RadioModelCore", "RadioCore"],
+            path: "Sources/RMM"
         ),
         .target(
             name: "Solo",
@@ -70,9 +90,14 @@ let package = Package(
             dependencies: ["RadioModelCore", "RadioCore"],
             path: "Sources/Vanu"
         ),
+        .target(
+            name: "XPR",
+            dependencies: ["RadioModelCore", "RadioCore"],
+            path: "Sources/XPR"
+        ),
         .testTarget(
             name: "RadioModelsTests",
-            dependencies: ["RadioModelCore", "CLP", "CLP2", "DLRx", "Dtr", "Fiji", "Nome", "Renoir", "Solo", "Sunb", "Vanu"],
+            dependencies: ["RadioModelCore", "APX", "CLP", "CLP2", "CP200", "DLRx", "Dtr", "Fiji", "Nome", "RDM", "Renoir", "RMM", "Solo", "Sunb", "Vanu", "XPR"],
             path: "Tests/RadioModelsTests"
         ),
     ]

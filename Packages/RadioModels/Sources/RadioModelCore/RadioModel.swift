@@ -45,19 +45,24 @@ extension RadioModel {
 
 /// A radio product family.
 public enum RadioFamily: String, CaseIterable, Sendable {
+    case apx = "APX"
     case clp = "CLP"
+    case cp200 = "CP200"
     case dlrx = "DLR"
     case dtr = "DTR"
     case fiji = "SL300"
     case nome = "RM"
+    case rdm = "RDM"
     case renoir = "RMU"
+    case rmm = "RMM"
     case solo = "RDU"
     case sunb = "CLS"
     case vanu = "VL/RDU4100"
+    case xpr = "XPR"
 }
 
 /// Frequency band specification.
-public struct FrequencyBand: Sendable {
+public struct FrequencyBand: Sendable, Equatable {
     public let name: String
     public let lowerBound: Double // MHz
     public let upperBound: Double // MHz
@@ -75,6 +80,7 @@ public struct FrequencyBand: Sendable {
     public static let frs = FrequencyBand(name: "FRS", lowerBound: 462.5625, upperBound: 467.7125, channelSpacing: 12.5)
     public static let murs = FrequencyBand(name: "MURS", lowerBound: 151.82, upperBound: 154.6, channelSpacing: 11.25)
     public static let dtr900 = FrequencyBand(name: "900 MHz ISM", lowerBound: 902.0, upperBound: 928.0, channelSpacing: 12.5)
+    public static let band700800 = FrequencyBand(name: "700/800 MHz", lowerBound: 764.0, upperBound: 870.0, channelSpacing: 12.5)
 }
 
 /// A validation issue found in a codeplug.

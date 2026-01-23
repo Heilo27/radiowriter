@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		122E55597F3D22C057E98B38 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */; };
 		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
 		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
 		36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D947EF4413403ED59D491FE8 /* ProgrammingView.swift */; };
@@ -29,6 +30,7 @@
 		21553D5F1A22A99A938D86B2 /* FormEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormEditorView.swift; sourceTree = "<group>"; };
 		25B37BF1194EF81CDE179154 /* RadioCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioCore; path = ../Packages/RadioCore; sourceTree = SOURCE_ROOT; };
 		5F80EEF1BFDDF4B913C68855 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		6E94C79F5841B6532AE3C9D1 /* AudioEngine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AudioEngine; path = ../Packages/AudioEngine; sourceTree = SOURCE_ROOT; };
 		6F9791C2F318D4534E3B809B /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		7045699C1220506A0839A451 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
@@ -90,6 +92,7 @@
 				BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */,
 				5F80EEF1BFDDF4B913C68855 /* ContentView.swift */,
 				1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */,
+				6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -210,6 +213,7 @@
 				A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */,
 				AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */,
 				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
+				122E55597F3D22C057E98B38 /* RootView.swift in Sources */,
 				3626B81A652178A674E65227 /* WelcomeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

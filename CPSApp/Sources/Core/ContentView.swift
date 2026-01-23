@@ -4,12 +4,13 @@ import RadioModelCore
 
 /// Main document view with three-column layout.
 struct ContentView: View {
-    @Binding var document: CodeplugDocument
     @Environment(AppCoordinator.self) private var coordinator
     @State private var selectedCategory: FieldCategory? = .general
     @State private var selectedNodeID: String?
     @State private var showInspector = true
     @State private var searchText = ""
+
+    private var document: CodeplugDocument? { coordinator.currentDocument }
 
     var body: some View {
         NavigationSplitView {
@@ -21,7 +22,7 @@ struct ContentView: View {
                 inspectorPanel
             }
         }
-        .navigationTitle(document.modelIdentifier)
+        .navigationTitle(document?.modelIdentifier ?? "Motorola CPS")
         .toolbar {
             toolbarContent
         }
@@ -32,7 +33,7 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $selectedCategory) {
-            if let codeplug = document.codeplug,
+            if let codeplug = document?.codeplug,
                let model = RadioModelRegistry.model(for: codeplug.modelIdentifier) {
                 ForEach(model.nodes, id: \.id) { node in
                     Label(node.displayName, systemImage: iconForCategory(node.category))
@@ -53,11 +54,11 @@ struct ContentView: View {
 
     @ViewBuilder
     private var contentArea: some View {
-        if let codeplug = document.codeplug {
+        if let codeplug = document?.codeplug, let doc = document {
             if selectedCategory == .channel {
-                ChannelEditorView(codeplug: codeplug, modelIdentifier: document.modelIdentifier)
+                ChannelEditorView(codeplug: codeplug, modelIdentifier: doc.modelIdentifier)
             } else if let category = selectedCategory {
-                FormEditorView(codeplug: codeplug, category: category, modelIdentifier: document.modelIdentifier)
+                FormEditorView(codeplug: codeplug, category: category, modelIdentifier: doc.modelIdentifier)
             } else {
                 ContentUnavailableView("Select a Category", systemImage: "radio", description: Text("Choose a category from the sidebar to edit settings."))
             }
@@ -111,7 +112,7 @@ struct ContentView: View {
             Button("Write", systemImage: "arrow.up.to.line") {
                 // Write radio action
             }
-            .disabled(document.codeplug == nil)
+            .disabled(document?.codeplug == nil)
 
             Button("Clone", systemImage: "doc.on.doc") {
                 // Clone action
