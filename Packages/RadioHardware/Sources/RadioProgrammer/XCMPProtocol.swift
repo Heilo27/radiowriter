@@ -69,6 +69,58 @@ public enum XCMPVersionType: UInt8 {
     case bootloader = 0x50
 }
 
+// MARK: - Clone Data Types
+
+/// Index types for CloneReadRequest.
+/// These define the category of data being accessed.
+public enum CloneIndexType: UInt16 {
+    /// Zone-based index (used with zone ID)
+    case zone = 0x8001
+    /// Channel-based index (used with channel number within zone)
+    case channel = 0x8002
+    /// Contact index
+    case contact = 0x8003
+    /// Scan list index
+    case scanList = 0x8004
+    /// General radio setting (index is setting ID)
+    case radioSetting = 0x0000
+}
+
+/// Data types for CloneReadRequest that specify what data to retrieve.
+/// These are used with the zone/channel clone read format.
+public enum CloneDataType: UInt8 {
+    /// Channel name (returns UTF-16 BE string)
+    case channelName = 0x0F
+    /// Channel alias/display name
+    case channelAlias = 0x10
+    /// RX frequency (returns 4-byte value in 10Hz units)
+    case rxFrequency = 0x01
+    /// TX frequency
+    case txFrequency = 0x02
+    /// Channel type (analog/digital)
+    case channelType = 0x03
+    /// Timeslot (1 or 2 for DMR)
+    case timeslot = 0x04
+    /// Color code (0-15 for DMR)
+    case colorCode = 0x05
+    /// TX power level
+    case txPower = 0x06
+    /// Contact/talkgroup ID
+    case contactID = 0x07
+    /// Scan list assignment
+    case scanListID = 0x08
+    /// Admit criteria
+    case admitCriteria = 0x09
+    /// Squelch level
+    case squelch = 0x0A
+    /// Bandwidth (12.5/20/25 kHz)
+    case bandwidth = 0x0B
+    /// CTCSS/DCS encode tone
+    case txTone = 0x0C
+    /// CTCSS/DCS decode tone
+    case rxTone = 0x0D
+}
+
 // MARK: - XCMP Error Codes
 
 /// XCMP error codes returned in reply packets.
@@ -149,7 +201,7 @@ public struct XCMPPacket {
         return XCMPPacket(opCode: .cpsReadRequest, data: data)
     }
 
-    /// Creates a CloneReadRequest packet.
+    /// Creates a CloneReadRequest packet using raw index type and data type.
     public static func cloneReadRequest(indexType: UInt16, index: UInt16, dataType: UInt16) -> XCMPPacket {
         var data = Data()
         data.append(UInt8(indexType >> 8))
@@ -158,6 +210,32 @@ public struct XCMPPacket {
         data.append(UInt8(index & 0xFF))
         data.append(UInt8(dataType >> 8))
         data.append(UInt8(dataType & 0xFF))
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for zone/channel data.
+    /// This uses the RDAC-style format with zone and channel specifiers.
+    /// - Parameters:
+    ///   - zone: Zone number (0-based)
+    ///   - channel: Channel number within zone (0-based)
+    ///   - dataType: Type of data to retrieve (e.g., channel name)
+    public static func cloneReadRequest(zone: UInt16, channel: UInt16, dataType: CloneDataType) -> XCMPPacket {
+        var data = Data()
+        // Zone index type (0x8001)
+        data.append(0x80)
+        data.append(0x01)
+        // Zone number
+        data.append(UInt8(zone >> 8))
+        data.append(UInt8(zone & 0xFF))
+        // Channel index type (0x8002)
+        data.append(0x80)
+        data.append(0x02)
+        // Channel number
+        data.append(UInt8(channel >> 8))
+        data.append(UInt8(channel & 0xFF))
+        // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
         return XCMPPacket(opCode: .cloneReadRequest, data: data)
     }
 }
@@ -187,6 +265,75 @@ public struct VersionInfoReply {
     public let versionType: XCMPVersionType
     public let errorCode: XCMPErrorCode
     public let version: String
+}
+
+/// Parsed clone read reply.
+public struct CloneReadReply {
+    public let zone: UInt16
+    public let channel: UInt16
+    public let dataType: UInt16
+    public let errorCode: XCMPErrorCode
+    public let data: Data
+
+    /// Parses the data as a UTF-16 BE string (used for channel names).
+    public var stringValue: String? {
+        String(data: data, encoding: .utf16BigEndian)?
+            .trimmingCharacters(in: .controlCharacters)
+            .trimmingCharacters(in: CharacterSet(["\0"]))
+    }
+
+    /// Parses the data as a 4-byte frequency in 10Hz units.
+    public var frequencyHz: UInt32? {
+        guard data.count >= 4 else { return nil }
+        let raw = UInt32(data[0]) << 24 | UInt32(data[1]) << 16 | UInt32(data[2]) << 8 | UInt32(data[3])
+        return raw * 10  // Convert from 10Hz units to Hz
+    }
+
+    /// Parses the data as a single byte value.
+    public var byteValue: UInt8? {
+        data.first
+    }
+
+    /// Parses the data as a 2-byte value.
+    public var uint16Value: UInt16? {
+        guard data.count >= 2 else { return nil }
+        return UInt16(data[0]) << 8 | UInt16(data[1])
+    }
+
+    /// Initializes from raw XCMP reply data.
+    public init?(from xcmpData: Data) {
+        // CloneReadReply format (from Moto.Net analysis):
+        // [3-4]: 0x8001 (zone index type)
+        // [5-6]: zone number
+        // [7-8]: 0x8002 (channel index type)
+        // [9-10]: channel number
+        // [11-12]: data type
+        // [13-14]: data length
+        // [15...]: data
+        guard xcmpData.count >= 15 else { return nil }
+
+        // Check for error code first (byte 0 after opcode removal)
+        let errByte = xcmpData[0]
+        self.errorCode = XCMPErrorCode(rawValue: errByte) ?? .failure
+
+        // If error, no more data
+        if errorCode != .success && xcmpData.count < 15 {
+            self.zone = 0
+            self.channel = 0
+            self.dataType = 0
+            self.data = Data()
+            return
+        }
+
+        // Parse zone/channel format
+        // Note: offset adjusted based on whether error code is included
+        let offset = xcmpData.count >= 16 ? 1 : 0
+        self.zone = UInt16(xcmpData[offset + 3]) << 8 | UInt16(xcmpData[offset + 4])
+        self.channel = UInt16(xcmpData[offset + 7]) << 8 | UInt16(xcmpData[offset + 8])
+        self.dataType = UInt16(xcmpData[offset + 9]) << 8 | UInt16(xcmpData[offset + 10])
+        // Skip length bytes (11-12), get actual data
+        self.data = Data(xcmpData.dropFirst(offset + 13))
+    }
 }
 
 // MARK: - XCMP Client
@@ -264,6 +411,61 @@ public actor XCMPClient {
         if modelLower.contains("dp") { return "dp" }
         if modelLower.contains("dm") { return "dm" }
         return nil
+    }
+
+    // MARK: - Clone Read Operations
+
+    /// Reads channel data from the radio using CloneRead.
+    /// - Parameters:
+    ///   - zone: Zone number (0-based)
+    ///   - channel: Channel number within zone (0-based)
+    ///   - dataType: Type of data to retrieve
+    /// - Returns: CloneReadReply with the requested data
+    public func readChannelData(zone: UInt16, channel: UInt16, dataType: CloneDataType) async throws -> CloneReadReply? {
+        let request = XCMPPacket.cloneReadRequest(zone: zone, channel: channel, dataType: dataType)
+        guard let reply = try await sendAndReceive(request) else { return nil }
+        return CloneReadReply(from: reply.data)
+    }
+
+    /// Gets a channel name.
+    /// - Parameters:
+    ///   - zone: Zone number (0-based)
+    ///   - channel: Channel number within zone (0-based)
+    /// - Returns: Channel name as a string, or nil if not available
+    public func getChannelName(zone: UInt16, channel: UInt16) async throws -> String? {
+        guard let reply = try await readChannelData(zone: zone, channel: channel, dataType: .channelName) else {
+            return nil
+        }
+        return reply.stringValue
+    }
+
+    /// Gets channel RX frequency.
+    /// - Parameters:
+    ///   - zone: Zone number (0-based)
+    ///   - channel: Channel number within zone (0-based)
+    /// - Returns: RX frequency in Hz
+    public func getChannelRxFrequency(zone: UInt16, channel: UInt16) async throws -> UInt32? {
+        guard let reply = try await readChannelData(zone: zone, channel: channel, dataType: .rxFrequency) else {
+            return nil
+        }
+        return reply.frequencyHz
+    }
+
+    /// Gets channel TX frequency.
+    public func getChannelTxFrequency(zone: UInt16, channel: UInt16) async throws -> UInt32? {
+        guard let reply = try await readChannelData(zone: zone, channel: channel, dataType: .txFrequency) else {
+            return nil
+        }
+        return reply.frequencyHz
+    }
+
+    /// Reads data using the generic CloneRead format.
+    public func cloneRead(indexType: UInt16, index: UInt16, dataType: UInt16) async throws -> Data? {
+        let request = XCMPPacket.cloneReadRequest(indexType: indexType, index: index, dataType: dataType)
+        guard let reply = try await sendAndReceive(request) else { return nil }
+        // Skip the header and return raw data
+        guard reply.data.count > 13 else { return nil }
+        return Data(reply.data.dropFirst(13))
     }
 }
 
