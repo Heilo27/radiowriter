@@ -94,8 +94,8 @@ struct ContentView: View {
 
             Spacer()
         }
-        .frame(minWidth: 200, idealWidth: 250)
         .padding(.top)
+        .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 220)
     }
 
     // MARK: - Toolbar
