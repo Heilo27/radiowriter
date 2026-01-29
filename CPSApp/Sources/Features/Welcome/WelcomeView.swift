@@ -55,12 +55,12 @@ struct WelcomeView: View {
                 .buttonStyle(.link)
                 .accessibilityIdentifier("welcome.openExisting")
 
-                if !coordinator.radioDetector.detectedDevices.isEmpty {
+                if !coordinator.detectedDevices.isEmpty {
                     Divider()
                     Text("Connected Radios")
                         .font(.headline)
 
-                    ForEach(coordinator.radioDetector.detectedDevices) { device in
+                    ForEach(coordinator.detectedDevices) { device in
                         Button {
                             // Read from this radio
                         } label: {

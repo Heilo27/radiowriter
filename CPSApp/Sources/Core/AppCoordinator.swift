@@ -15,7 +15,7 @@ enum AppPhase {
 @Observable
 @MainActor
 final class AppCoordinator {
-    var radioDetector = RadioDetector()
+    let radioDetector = RadioDetector()
     var connectionState: ConnectionState = .disconnected
     var selectedModelIdentifier: String?
 
@@ -29,9 +29,27 @@ final class AppCoordinator {
     var showingCloseConfirmation = false
     var pendingCloseAction: (() -> Void)?
 
+    /// Detected devices - tracked separately for proper SwiftUI observation.
+    var detectedDevices: [USBDeviceInfo] = []
+
+    private var observationTask: Task<Void, Never>?
+
     init() {
         radioDetector.startScanning()
+
+        // Start observing the detector's devices
+        observationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { break }
+                let newDevices = self.radioDetector.detectedDevices
+                if newDevices != self.detectedDevices {
+                    self.detectedDevices = newDevices
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
     }
+
 
     /// All available radio models for the UI.
     var availableModels: [RadioModelInfo] {

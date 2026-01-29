@@ -45,26 +45,39 @@ public enum USBError: Error, LocalizedError {
     }
 }
 
+/// Connection type for detected radios.
+public enum RadioConnectionType: Sendable, Equatable {
+    case serial(path: String)
+    case network(ip: String, interface: String)
+}
+
 /// Information about a connected USB device.
-public struct USBDeviceInfo: Sendable, Identifiable {
+public struct USBDeviceInfo: Sendable, Identifiable, Equatable {
     public let id: String
     public let vendorID: UInt16
     public let productID: UInt16
     public let serialNumber: String?
     public let portPath: String
     public let displayName: String
+    public let connectionType: RadioConnectionType
 
-    public init(id: String, vendorID: UInt16, productID: UInt16, serialNumber: String?, portPath: String, displayName: String) {
+    public init(id: String, vendorID: UInt16, productID: UInt16, serialNumber: String?, portPath: String, displayName: String, connectionType: RadioConnectionType? = nil) {
         self.id = id
         self.vendorID = vendorID
         self.productID = productID
         self.serialNumber = serialNumber
         self.portPath = portPath
         self.displayName = displayName
+        self.connectionType = connectionType ?? .serial(path: portPath)
     }
 
     /// FTDI vendor ID used by Motorola programming cables.
     public static let ftdiVendorID: UInt16 = 0x0403
     /// Common FTDI product IDs.
     public static let ftdiProductIDs: Set<UInt16> = [0x6001, 0x6010, 0x6011, 0x6014, 0x6015]
+
+    /// Motorola Solutions vendor ID for direct USB radios.
+    public static let motorolaVendorID: UInt16 = 0x0CAD // 3245 decimal
+    /// Common Motorola radio product IDs (CDC ECM devices).
+    public static let motorolaProductIDs: Set<UInt16> = [0x1022, 0x1021, 0x1020] // APX, XPR, etc.
 }

@@ -105,7 +105,7 @@ struct ContentView: View {
         ToolbarItem(placement: .navigation) {
             RadioStatusIndicator(
                 state: coordinator.connectionState,
-                hasDetectedRadio: !coordinator.radioDetector.detectedDevices.isEmpty
+                hasDetectedRadio: !coordinator.detectedDevices.isEmpty
             )
         }
 
