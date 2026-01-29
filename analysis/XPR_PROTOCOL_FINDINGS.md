@@ -25,7 +25,7 @@ When connected via USB, the XPR 3500e creates a CDC ECM network interface:
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 8002 | Unknown | No response to TCP probes |
+| 8002 | **XNL/CPS** | **CPS Programming port - VERIFIED WORKING** |
 | 8501 | AT Debug | Interactive debug interface with command prompt |
 | 8502 | Unknown | No response to TCP probes |
 
@@ -48,7 +48,7 @@ When connected via USB, the XPR 3500e creates a CDC ECM network interface:
 
 ---
 
-## XCMP/XNL Protocol (Key Discovery)
+## XCMP/XNL Protocol ✅ VERIFIED WORKING
 
 The MOTOTRBO radios use **XCMP/XNL** protocol for control and programming:
 
@@ -56,19 +56,36 @@ The MOTOTRBO radios use **XCMP/XNL** protocol for control and programming:
 ```
 Application Layer:    XCMP (Extended Command and Management Protocol)
 Transport Layer:      XNL (Network Layer) - connection, heartbeat, encapsulation
-Network Layer:        UDP (typically port 4002)
+Network Layer:        TCP port 8002 (for CPS/subscriber mode)
 Physical Layer:       CDC ECM over USB
 ```
 
-### Authentication Required
-XCMP/XNL requires a **challenge-response authentication** with developer keys:
-1. PC requests authentication info from radio
-2. Radio returns challenge data
-3. PC encrypts challenge with developer keys (provided by Motorola)
-4. PC sends encrypted response to radio
-5. Radio verifies and grants access
+**Important:** Direct radio programming uses **TCP port 8002**, not UDP port 4002. UDP 4002 is used for repeater/network mode.
 
-**Important:** Developer keys are proprietary and provided by Motorola under NDA.
+### Authentication Flow ✅ VERIFIED
+1. PC sends `DeviceMasterQuery` (opcode 0x03)
+2. Radio responds with `MasterStatusBroadcast` (opcode 0x02) containing master address
+3. PC sends `DeviceAuthKeyRequest` (opcode 0x04) to master address
+4. Radio responds with `DeviceAuthKeyReply` (opcode 0x05) containing 8-byte challenge
+5. PC encrypts challenge with **TEA algorithm** using extracted key
+6. PC sends `DeviceConnectionRequest` (opcode 0x06) with encrypted challenge
+7. Radio responds with `DeviceConnectionReply` (opcode 0x07) with result code 0x00 = success!
+
+### TEA Encryption Key ✅ EXTRACTED AND VERIFIED
+
+```swift
+// Extracted from XnlAuthentication.dll (MOTOTRBO CPS 2.0)
+let key: [UInt32] = [
+    0x1D30965A,  // bytes 0-3
+    0x55AAF20C,  // bytes 4-7
+    0xC66C93BF,  // bytes 8-11
+    0x5BCD5EBD   // bytes 12-15
+]
+let delta: UInt32 = 0x9E3779B9  // Standard TEA delta
+```
+
+**Source:** `XnlAuthentication.dll` → obfuscated class `iq` → field `a`
+**Raw bytes:** `1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD`
 
 ### Message Structure (XNL)
 ```
@@ -230,19 +247,27 @@ The Business Radio CPS uses internal codenames for different radio families:
 | Solo | Unknown | BL.Solo.*.dll |
 | Vanu | Unknown | BL.Vanu.*.dll |
 
-### MOTOTRBO CPS Keys (Not Yet Extracted)
+### MOTOTRBO CPS Keys ✅ EXTRACTED
 
-The XPR 3500e uses **MOTOTRBO CPS 2.0** (separate software) which has different keys:
-- Codeplug encryption key (43-char Base64)
+The XPR 3500e uses **MOTOTRBO CPS 2.0** which uses TEA encryption for XNL authentication:
+
+#### XNL Authentication Key (TEA) ✅ VERIFIED
+```
+Algorithm: TEA (Tiny Encryption Algorithm)
+Key:       1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD
+Delta:     0x9E3779B9 (standard TEA constant)
+```
+
+**Source:** `XnlAuthentication.dll` from MOTOTRBO CPS 2.0 installation (via Wine)
+**Extraction method:** Static analysis of Dotfuscator-obfuscated .NET assembly
+
+#### Codeplug Encryption Keys (For File Storage)
+- Codeplug encryption key (43-char Base64) - stored in `cpservices.dll`
 - Codeplug IV (22-char Base64)
 - Signing password (22-char Base64)
 - Signing certificate (.pfx)
 
-**Source:** `cpservices.dll` in MOTOTRBO CPS installation
-
-**Note:** The MOTOTRBO CPS 2.0 installer uses InstallShield with proprietary compression.
-We were unable to extract `cpservices.dll` from `mototrbo-cps-na-2.0.exe`.
-A Windows VM with the actual CPS installed may be required.
+**Status:** Not yet extracted - only needed for reading/writing codeplug files, not for radio communication.
 
 ### Key Differences
 
@@ -261,8 +286,11 @@ A Windows VM with the actual CPS installed may be required.
 | MOTOTRBOProgrammer | ✅ Basic structure, identification stub |
 | Auto-detection | ✅ Detects radio on network |
 | Auto-transition | ✅ Opens programming view |
-| Codeplug Read | ❌ Protocol unknown |
-| Codeplug Write | ❌ Protocol unknown |
+| XNL Authentication | ✅ TEA key extracted and verified working |
+| XNL Connection | 🔄 TCP port 8002 - need to implement in app |
+| XCMP Commands | ❌ Need to implement radio status, codeplug commands |
+| Codeplug Read | ❌ Need XCMP protocol implementation |
+| Codeplug Write | ❌ Need XCMP protocol implementation |
 
 ---
 
