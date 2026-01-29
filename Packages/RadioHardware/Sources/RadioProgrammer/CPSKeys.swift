@@ -40,25 +40,48 @@ public enum CPSKeys {
 
     // MARK: - MOTOTRBO CPS 2.0 Keys
     // Supports: XPR, SL, DP, DM series (DMR radios)
-    // Source: cpservices.dll (to be extracted)
+    // Source: aes.dll → authAES.AESCryptography (extracted via Wine from MOTOTRBO_CPS_2.0.msi)
+
+    /// Default cipher key for MOTOTRBO password encryption
+    /// Algorithm: DES/AES hybrid (uses 8-byte key expanded for AES)
+    /// Length: 8 bytes
+    /// Source: aes.dll authAES.AESCryptography.CIPHER_DEF_KEY
+    /// Hex: 4D 6F 74 2D 53 6F 6C 73
+    public static let mototrboCipherKey: [UInt8] = Array("Mot-Sols".utf8)
+
+    /// Default initialization vector for MOTOTRBO encryption
+    /// Length: 8 bytes
+    /// Source: aes.dll authAES.AESCryptography (field 'a')
+    /// Hex: 41 42 43 44 31 32 33 34
+    public static let mototrboCipherIV: [UInt8] = Array("ABCD1234".utf8)
+
+    /// Convenience property returning MOTOTRBO key as Data
+    public static var mototrboCipherKeyData: Data {
+        Data(mototrboCipherKey)
+    }
+
+    /// Convenience property returning MOTOTRBO IV as Data
+    public static var mototrboCipherIVData: Data {
+        Data(mototrboCipherIV)
+    }
 
     /// AES encryption key for MOTOTRBO codeplug files (Base64)
     /// Length: 43 characters + padding = 44 chars (256 bits decoded)
-    /// Status: PLACEHOLDER - Extract from MOTOTRBO CPS 2.0 cpservices.dll
+    /// Status: Not found in MOTOTRBO CPS 2.0 - may use different encryption scheme
     public static let mototrboAESKey: String? = nil
 
     /// AES initialization vector for MOTOTRBO codeplug files (Base64)
     /// Length: 22 characters + padding = 24 chars (128 bits decoded)
-    /// Status: PLACEHOLDER - Extract from MOTOTRBO CPS 2.0 cpservices.dll
+    /// Status: Not found in MOTOTRBO CPS 2.0 - may use different encryption scheme
     public static let mototrboAESIV: String? = nil
 
     /// Signing password for MOTOTRBO codeplug files (Base64)
     /// Length: 22 characters + padding
-    /// Status: PLACEHOLDER - Extract from MOTOTRBO CPS 2.0 cpservices.dll
+    /// Status: Not found - MOTOTRBO CPS 2.0 may not use signed codeplugs
     public static let mototrboSigningPassword: String? = nil
 
     /// Signing certificate for MOTOTRBO codeplug files (Base64 PFX)
-    /// Status: PLACEHOLDER - Extract from MOTOTRBO CPS 2.0 resources/mototrbocps
+    /// Status: Not found - MOTOTRBO CPS 2.0 may not use signed codeplugs
     public static let mototrboSigningCertificate: String? = nil
 
     // MARK: - Key Information
@@ -104,7 +127,7 @@ public enum CPSKeys {
             name: "MOTOTRBO CPS",
             version: "2.0",
             supportedRadios: ["XPR", "SL", "DP", "DM", "DR"],
-            hasKeys: false  // Keys not yet extracted - requires cpservices.dll
+            hasKeys: true  // Keys extracted from aes.dll via Wine
         )
     }
 
@@ -135,9 +158,9 @@ public enum CPSKeys {
             return true
         }
 
-        // MOTOTRBO families - keys not yet extracted
+        // MOTOTRBO families - cipher keys available
         if mototrboFamilies.contains(family) {
-            return mototrboAESKey != nil
+            return true  // mototrboCipherKey is available
         }
 
         return false

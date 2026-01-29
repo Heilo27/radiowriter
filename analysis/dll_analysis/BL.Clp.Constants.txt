@@ -1,0 +1,7 @@
+WARNING: The runtime version supported by this application is unavailable.
+Using default runtime: v4.0.30319
+Method Table (1..3)
+########## BL.Clp.Constants.BDConstants
+1: default bool IsDealer (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.INode 'field')  (param: 1 impl_flags: cil managed )
+2: instance default void '.ctor' ()  (param: 2 impl_flags: cil managed )
+3: default void '.cctor' ()  (param: 2 impl_flags: cil managed )

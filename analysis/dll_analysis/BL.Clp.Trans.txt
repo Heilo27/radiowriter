@@ -1,0 +1,337 @@
+.assembly extern mscorlib
+{
+  .ver 2:0:0:0
+  .publickeytoken = (B7 7A 5C 56 19 34 E0 89 ) // .z\V.4..
+}
+.assembly extern Motorola.CommonTool.DL
+{
+  .ver 1:0:0:0
+}
+.assembly 'BL.Clp.Trans'
+{
+  .custom instance void class [mscorlib]System.Runtime.CompilerServices.CompilationRelaxationsAttribute::'.ctor'(int32) =  (01 00 08 00 00 00 00 00 ) // ........
+
+  .custom instance void class [mscorlib]System.Runtime.CompilerServices.RuntimeCompatibilityAttribute::'.ctor'() =  (
+		01 00 01 00 54 02 16 57 72 61 70 4E 6F 6E 45 78   // ....T..WrapNonEx
+		63 65 70 74 69 6F 6E 54 68 72 6F 77 73 01       ) // ceptionThrows.
+
+  .custom instance void class [mscorlib]System.Diagnostics.DebuggableAttribute::'.ctor'(valuetype [mscorlib]System.Diagnostics.DebuggableAttribute/DebuggingModes) =  (01 00 02 00 00 00 00 00 ) // ........
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyTitleAttribute::'.ctor'(string) =  (
+		01 00 1E 4D 6F 74 6F 72 6F 6C 61 2E 52 62 72 2E   // ...Motorola.Rbr.
+		42 44 2E 54 72 61 6E 73 46 75 6E 63 74 69 6F 6E   // BD.TransFunction
+		73 00 00                                        ) // s..
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyDescriptionAttribute::'.ctor'(string) =  (01 00 00 00 00 ) // .....
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyConfigurationAttribute::'.ctor'(string) =  (01 00 00 00 00 ) // .....
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyCompanyAttribute::'.ctor'(string) =  (01 00 08 4D 6F 74 6F 72 6F 6C 61 00 00 ) // ...Motorola..
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyProductAttribute::'.ctor'(string) =  (
+		01 00 1E 4D 6F 74 6F 72 6F 6C 61 2E 52 62 72 2E   // ...Motorola.Rbr.
+		42 44 2E 54 72 61 6E 73 46 75 6E 63 74 69 6F 6E   // BD.TransFunction
+		73 00 00                                        ) // s..
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyCopyrightAttribute::'.ctor'(string) =  (
+		01 00 1A 43 6F 70 79 72 69 67 68 74 20 C2 A9 20   // ...Copyright .. 
+		4D 6F 74 6F 72 6F 6C 61 20 32 30 30 39 00 00    ) // Motorola 2009..
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyTrademarkAttribute::'.ctor'(string) =  (01 00 00 00 00 ) // .....
+
+  .custom instance void class [mscorlib]System.Runtime.InteropServices.ComVisibleAttribute::'.ctor'(bool) =  (01 00 00 00 00 ) // .....
+
+  .custom instance void class [mscorlib]System.Runtime.InteropServices.GuidAttribute::'.ctor'(string) =  (
+		01 00 24 34 35 31 62 66 62 32 65 2D 36 61 36 36   // ..$451bfb2e-6a66
+		2D 34 65 66 39 2D 62 37 66 62 2D 65 30 63 38 33   // -4ef9-b7fb-e0c83
+		32 65 31 35 64 30 64 00 00                      ) // 2e15d0d..
+
+  .custom instance void class [mscorlib]System.Reflection.AssemblyFileVersionAttribute::'.ctor'(string) =  (01 00 07 31 2E 30 2E 30 2E 30 00 00 ) // ...1.0.0.0..
+
+  .hash algorithm 0x00008004
+  .ver  1:0:0:0
+}
+.module BL.Clp.Trans.dll // GUID = {A108E796-CBFA-4679-8C3E-C224D75EC94B}
+
+
+.namespace BL.Clp.Trans
+{
+  .class public auto ansi beforefieldinit Functions
+  	extends [mscorlib]System.Object
+  {
+
+    // method line 1
+    .method public static hidebysig 
+           default object UnpackTransform_Codeplug_Version (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2050
+	// Code size 52 (0x34)
+	.maxstack 5
+	.locals init (
+		unsigned int8[]	V_0)
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  castclass unsigned int8[]
+	IL_000b:  stloc.0 
+	IL_000c:  ldstr "{0}{1:D2}.{2:D2}"
+	IL_0011:  ldloc.0 
+	IL_0012:  ldc.i4.0 
+	IL_0013:  ldelem.u1 
+	IL_0014:  call char class [mscorlib]System.Convert::ToChar(unsigned int8)
+	IL_0019:  box [mscorlib]System.Char
+	IL_001e:  ldloc.0 
+	IL_001f:  ldc.i4.1 
+	IL_0020:  ldelem.u1 
+	IL_0021:  box [mscorlib]System.Byte
+	IL_0026:  ldloc.0 
+	IL_0027:  ldc.i4.2 
+	IL_0028:  ldelem.u1 
+	IL_0029:  box [mscorlib]System.Byte
+	IL_002e:  call string string::Format(string, object, object, object)
+	IL_0033:  ret 
+    } // end of method Functions::UnpackTransform_Codeplug_Version
+
+    // method line 2
+    .method public static hidebysig 
+           default object PackTransform_Codeplug_Version (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2090
+	// Code size 7 (0x7)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  ret 
+    } // end of method Functions::PackTransform_Codeplug_Version
+
+    // method line 3
+    .method public static hidebysig 
+           default object UnpackTransform_Quiet_Mode (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_Quiet_Mode
+
+    // method line 4
+    .method public static hidebysig 
+           default object PackTransform_Quiet_Mode (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_Quiet_Mode
+
+    // method line 5
+    .method public static hidebysig 
+           default object UnpackTransform_DisableSidetone (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_DisableSidetone
+
+    // method line 6
+    .method public static hidebysig 
+           default object PackTransform_DisableSidetone (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_DisableSidetone
+
+    // method line 7
+    .method public static hidebysig 
+           default object UnpackTransform_DisableCodeplugReset (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_DisableCodeplugReset
+
+    // method line 8
+    .method public static hidebysig 
+           default object PackTransform_DisableCodeplugReset (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_DisableCodeplugReset
+
+    // method line 9
+    .method public static hidebysig 
+           default object UnpackTransform_DisableBatterySave (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_DisableBatterySave
+
+    // method line 10
+    .method public static hidebysig 
+           default object PackTransform_DisableBatterySave (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_DisableBatterySave
+
+    // method line 11
+    .method public static hidebysig 
+           default object UnpackTransform_DisableBTSidetone (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_DisableBTSidetone
+
+    // method line 12
+    .method public static hidebysig 
+           default object PackTransform_DisableBTSidetone (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_DisableBTSidetone
+
+    // method line 13
+    .method public static hidebysig 
+           default object UnpackTransform_DisableTpt (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2098
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  call bool class [mscorlib]System.Convert::ToBoolean(object)
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::UnpackTransform_DisableTpt
+
+    // method line 14
+    .method public static hidebysig 
+           default object PackTransform_DisableTpt (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20ad
+	// Code size 20 (0x14)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField
+	IL_0006:  callvirt instance bool class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IBoolField::get_Value()
+	IL_000b:  ldc.i4.0 
+	IL_000c:  ceq 
+	IL_000e:  box [mscorlib]System.Boolean
+	IL_0013:  ret 
+    } // end of method Functions::PackTransform_DisableTpt
+
+    // method line 15
+    .method public static hidebysig 
+           default object CLPUnpackScanList (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x2090
+	// Code size 7 (0x7)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  callvirt instance object class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField::get_CPValue()
+	IL_0006:  ret 
+    } // end of method Functions::CLPUnpackScanList
+
+    // method line 16
+    .method public static hidebysig 
+           default object CLPPackScanList (class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IField self)  cil managed 
+    {
+        // Method begins at RVA 0x20c2
+	// Code size 12 (0xc)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  isinst [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IScanListField
+	IL_0006:  callvirt instance string class [Motorola.CommonTool.DL]Motorola.CommonTool.DL.Interface.IScanListField::get_Value()
+	IL_000b:  ret 
+    } // end of method Functions::CLPPackScanList
+
+    // method line 17
+    .method public hidebysig specialname rtspecialname 
+           instance default void '.ctor' ()  cil managed 
+    {
+        // Method begins at RVA 0x20cf
+	// Code size 7 (0x7)
+	.maxstack 8
+	IL_0000:  ldarg.0 
+	IL_0001:  call instance void object::'.ctor'()
+	IL_0006:  ret 
+    } // end of method Functions::.ctor
+
+  } // end of class BL.Clp.Trans.Functions
+}
+
