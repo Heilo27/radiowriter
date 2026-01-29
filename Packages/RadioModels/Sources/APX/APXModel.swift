@@ -160,7 +160,7 @@ enum APXNodes {
             ))
         }
 
-        var result: [CodeplugNode] = [
+        let result: [CodeplugNode] = [
             CodeplugNode(id: "apx.general", name: "general", displayName: "General", category: .general, fields: [
                 APXFields.radioId, APXFields.radioAlias, APXFields.numberOfChannels,
                 APXFields.defaultZone, APXFields.backlightTimer, APXFields.introScreenText,
@@ -177,18 +177,16 @@ enum APXNodes {
             CodeplugNode(id: "apx.scan", name: "scan", displayName: "Scan", category: .scan, fields: [
                 APXFields.scanAutoStart, APXFields.priorityScanEnabled,
             ]),
-            CodeplugNode(id: "apx.advanced", name: "advanced", displayName: "Advanced", category: .advanced, fields: [
-                APXFields.totTimeout, APXFields.encryptionType,
-                APXFields.gpsEnabled, APXFields.gpsReportInterval,
-                APXFields.otaEnabled, APXFields.passwordEnabled,
-            ]),
+            CodeplugNode(id: "apx.advanced", name: "advanced", displayName: "Advanced", category: .advanced, fields:
+                [
+                    APXFields.totTimeout, APXFields.encryptionType,
+                    APXFields.gpsEnabled, APXFields.gpsReportInterval,
+                    APXFields.otaEnabled, APXFields.passwordEnabled,
+                ] + (hasTrunking ? [
+                    APXFields.trunkingEnabled, APXFields.systemType, APXFields.wacn, APXFields.systemId,
+                ] : [])
+            ),
         ]
-
-        if hasTrunking {
-            result.append(CodeplugNode(id: "apx.trunking", name: "trunking", displayName: "Trunking", category: .advanced, fields: [
-                APXFields.trunkingEnabled, APXFields.systemType, APXFields.wacn, APXFields.systemId,
-            ]))
-        }
 
         return result
     }
