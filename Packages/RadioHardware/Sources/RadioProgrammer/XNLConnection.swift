@@ -2,6 +2,7 @@ import Foundation
 import Network
 
 /// XNL protocol opcodes for MOTOTRBO radios.
+/// VERIFIED WORKING: 2026-01-29
 public enum XNLOpCode: UInt8 {
     case masterStatusBroadcast = 0x02
     case deviceMasterQuery = 0x03
@@ -9,9 +10,9 @@ public enum XNLOpCode: UInt8 {
     case deviceAuthKeyReply = 0x05
     case deviceConnectionRequest = 0x06
     case deviceConnectionReply = 0x07
-    case dataMessage = 0x08
-    case dataMessageAck = 0x09
-    case deviceSysMapBroadcast = 0x0B
+    case deviceSysMapBroadcast = 0x09
+    case dataMessage = 0x0B
+    case dataMessageAck = 0x0C
 }
 
 /// Connection result for XNL authentication.
@@ -186,13 +187,13 @@ public actor XNLConnection {
         }
 
         let resultCode = connReplyData[14]
-        if resultCode == 0x00 {
-            // Success! Extract assigned address
-            if connReplyData.count >= 17 {
-                assignedAddress = UInt16(connReplyData[15]) << 8 | UInt16(connReplyData[16])
-            } else {
-                assignedAddress = myAddress
-            }
+        // Result 0x00 = accepted, Result 0x01 = CPS mode accepted
+        // VERIFIED WORKING: Both result codes indicate success if assigned address is non-zero
+        if connReplyData.count >= 18 {
+            assignedAddress = UInt16(connReplyData[16]) << 8 | UInt16(connReplyData[17])
+        }
+
+        if (resultCode == 0x00 || resultCode == 0x01) && assignedAddress != 0 {
             return .success(assignedAddress: assignedAddress)
         } else {
             return .authenticationFailed(code: resultCode)

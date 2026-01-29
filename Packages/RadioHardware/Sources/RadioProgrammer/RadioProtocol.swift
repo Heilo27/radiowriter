@@ -7,13 +7,26 @@ public enum RadioProtocolType: String, Sendable {
     case clpSerial
 
     /// MOTOTRBO protocol for XPR, SL, DP, DM series (DMR digital radios)
+    /// Uses XNL/XCMP over TCP port 8002
     case mototrbo
 
     /// ASTRO protocol for APX series (P25 radios)
+    /// Uses ASTRO-specific sequence manager with PBA (Portable Bus Architecture)
     case astro
+
+    /// TETRA protocol for MTM/MTP series (TETRA digital radios)
+    /// Uses TETRA-specific sequence manager
+    case tetra
+
+    /// LTE protocol for LEX series (broadband LTE radios)
+    /// Uses LTE-specific sequence manager
+    case lte
 
     /// CP200 protocol for CP200 series
     case cp200Serial
+
+    /// PBB protocol (likely Portable Broadband)
+    case pbb
 
     /// Unknown/unsupported protocol
     case unknown
@@ -81,36 +94,92 @@ public enum RadioProtocolRegistry {
         ),
 
         // XPR Series (MOTOTRBO) - Network CDC ECM
-        // TCP ports: 8002, 8501 (AT debug), 8502
-        // UDP ports: 4002 (XCMP/XNL), 4005, 5016, 5017, 50000-50002 (IPSC)
-        // Programming uses XCMP/XNL protocol on UDP 4002 (requires auth keys)
-        // Port 8501 provides AT debug interface with VER command for identification
+        // TCP ports: 8002 (XNL/CPS), 8501 (AT debug), 8502
+        // Programming uses XNL/XCMP protocol on TCP 8002
         "xpr": RadioProtocolConfig(
             type: .mototrbo,
             connectionType: .network,
-            port: 8501, // AT debug interface - use for identification
+            port: 8002, // XNL/CPS port
             requiresProgrammingMode: false
         ),
 
-        // SL Series (Fiji) - Network
-        "sl300": RadioProtocolConfig(
+        // SL Series (Fiji) - Network MOTOTRBO
+        "sl": RadioProtocolConfig(
             type: .mototrbo,
             connectionType: .network,
-            port: 50000,
-            requiresProgrammingMode: true
+            port: 8002,
+            requiresProgrammingMode: false
         ),
 
-        // APX Series - ASTRO protocol
+        // DP Series - Network MOTOTRBO
+        "dp": RadioProtocolConfig(
+            type: .mototrbo,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: false
+        ),
+
+        // DM Series - Network MOTOTRBO
+        "dm": RadioProtocolConfig(
+            type: .mototrbo,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: false
+        ),
+
+        // APX Series - ASTRO protocol (P25)
         "apx": RadioProtocolConfig(
             type: .astro,
             connectionType: .network,
-            port: 50000,
+            port: 8002,
             requiresProgrammingMode: true,
             programmingModeInstructions: """
             APX radios require:
             1. Subscriber Programming Software (SPS) mode
             2. Connect via USB
             3. Radio may auto-detect CPS connection
+            """
+        ),
+
+        // XTL Series - ASTRO protocol (P25)
+        "xtl": RadioProtocolConfig(
+            type: .astro,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: true
+        ),
+
+        // MTP Series - TETRA protocol
+        "mtp": RadioProtocolConfig(
+            type: .tetra,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: true,
+            programmingModeInstructions: """
+            TETRA radios require:
+            1. TETRA CPS mode
+            2. Connect via USB
+            """
+        ),
+
+        // MTM Series - TETRA protocol
+        "mtm": RadioProtocolConfig(
+            type: .tetra,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: true
+        ),
+
+        // LEX Series - LTE protocol
+        "lex": RadioProtocolConfig(
+            type: .lte,
+            connectionType: .network,
+            port: 8002,
+            requiresProgrammingMode: true,
+            programmingModeInstructions: """
+            LTE radios require:
+            1. LTE CPS mode
+            2. Connect via USB
             """
         ),
 
@@ -134,6 +203,65 @@ public enum RadioProtocolRegistry {
     /// Returns the protocol configuration for a radio family.
     public static func config(for family: String) -> RadioProtocolConfig? {
         configurations[family.lowercased()]
+    }
+
+    /// Detects the radio family from a model number string.
+    /// - Parameter modelNumber: The radio's model number (e.g., "H02RDH9VA1AN")
+    /// - Returns: The detected radio family or nil if unknown
+    public static func detectFamily(from modelNumber: String) -> String? {
+        let model = modelNumber.uppercased()
+
+        // MOTOTRBO families (XPR, SL, DP, DM)
+        // XPR models typically start with: H02, H98, H99, M27, AAH, etc.
+        if model.hasPrefix("H02") || model.hasPrefix("H98") || model.hasPrefix("H99") ||
+           model.hasPrefix("M27") || model.hasPrefix("AAH") {
+            // Further distinguish by model code patterns
+            if model.contains("RD") { return "xpr" }  // XPR portable
+            if model.contains("RM") { return "dm" }   // DM mobile
+        }
+
+        // ASTRO families (APX, XTL)
+        if model.hasPrefix("APX") || model.hasPrefix("H78") || model.hasPrefix("H45") ||
+           model.hasPrefix("M25") {
+            return "apx"
+        }
+
+        // TETRA families (MTP, MTM)
+        if model.hasPrefix("MTP") || model.hasPrefix("MTM") ||
+           model.hasPrefix("H55") || model.hasPrefix("H56") {
+            return "mtp"
+        }
+
+        // LTE families (LEX)
+        if model.hasPrefix("LEX") || model.hasPrefix("H69") {
+            return "lex"
+        }
+
+        // CLP/CLS/DLR families
+        if model.hasPrefix("CLP") || model.hasPrefix("CLS") ||
+           model.hasPrefix("DLR") || model.hasPrefix("DTR") {
+            return model.hasPrefix("CLP") ? "clp" :
+                   model.hasPrefix("CLS") ? "cls" :
+                   model.hasPrefix("DLR") ? "dlr" : "dtr"
+        }
+
+        // CP200 series
+        if model.hasPrefix("CP") {
+            return "cp200"
+        }
+
+        return nil
+    }
+
+    /// Detects the protocol type from a model number string.
+    /// - Parameter modelNumber: The radio's model number
+    /// - Returns: The detected protocol type
+    public static func detectProtocol(from modelNumber: String) -> RadioProtocolType {
+        guard let family = detectFamily(from: modelNumber),
+              let config = configurations[family] else {
+            return .unknown
+        }
+        return config.type
     }
 }
 

@@ -88,7 +88,13 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
     /// Reads the complete codeplug from the radio.
     ///
-    /// Uses XCMP protocol to read codeplug data in blocks.
+    /// Uses XCMP protocol with PSDT access to read codeplug data.
+    /// Sequence based on Specter analysis of MOTOTRBO CPS DLLs:
+    /// 1. Start component session (0x010F)
+    /// 2. Query PSDT partition addresses (0x010B)
+    /// 3. Read data blocks using component read (0x010E)
+    /// 4. Create archive (0x010F with CreateArchive flag)
+    /// 5. End session (0x010F with Reset flag)
     public func readCodeplug(progress: @Sendable (Double) -> Void) async throws -> Data {
         // Ensure connected
         if !(await isConnected) {
@@ -99,22 +105,124 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.notImplemented("XCMP client not initialized")
         }
 
-        // TODO: Implement codeplug read using XCMP
-        // The process is:
-        // 1. Send CPS unlock command (0x0100)
-        // 2. Read codeplug blocks using CPS read command (0x0104)
-        // 3. Assemble blocks into complete codeplug
-
         progress(0.0)
 
-        // For now, throw not implemented until we capture the exact protocol
-        throw MOTOTRBOError.notImplemented(
-            "XCMP codeplug read protocol needs to be captured from real CPS. " +
-            "XNL authentication works - need XCMP command sequence."
-        )
+        // Generate session ID
+        let sessionID = UInt16.random(in: 1...0xFFFE)
+
+        // Step 1: Start read session
+        let startPacket = XCMPPacket.startReadSession(sessionID: sessionID)
+        guard let startReply = try await client.sendAndReceive(startPacket) else {
+            throw MOTOTRBOError.protocolError("No reply to session start request")
+        }
+
+        // Check for success
+        if startReply.data.count > 0 && startReply.data[0] != 0x00 {
+            let errorCode = startReply.data[0]
+            throw MOTOTRBOError.protocolError("Session start failed with error: 0x\(String(format: "%02X", errorCode))")
+        }
+
+        progress(0.1)
+
+        // Step 2: Query codeplug partition addresses
+        let getStartAddr = XCMPPacket.psdtGetStartAddress(partition: "CP")
+        guard let startAddrReply = try await client.sendAndReceive(getStartAddr) else {
+            throw MOTOTRBOError.protocolError("No reply to PSDT start address query")
+        }
+
+        let getEndAddr = XCMPPacket.psdtGetEndAddress(partition: "CP")
+        guard let endAddrReply = try await client.sendAndReceive(getEndAddr) else {
+            throw MOTOTRBOError.protocolError("No reply to PSDT end address query")
+        }
+
+        // Parse addresses from replies (4 bytes each, big-endian)
+        guard startAddrReply.data.count >= 5, endAddrReply.data.count >= 5 else {
+            throw MOTOTRBOError.protocolError("Invalid PSDT address reply format")
+        }
+
+        let startAddress = UInt32(startAddrReply.data[1]) << 24 |
+                          UInt32(startAddrReply.data[2]) << 16 |
+                          UInt32(startAddrReply.data[3]) << 8 |
+                          UInt32(startAddrReply.data[4])
+
+        let endAddress = UInt32(endAddrReply.data[1]) << 24 |
+                        UInt32(endAddrReply.data[2]) << 16 |
+                        UInt32(endAddrReply.data[3]) << 8 |
+                        UInt32(endAddrReply.data[4])
+
+        let codeplugSize = Int(endAddress - startAddress)
+        guard codeplugSize > 0 && codeplugSize < 50_000_000 else {  // Sanity check: < 50MB
+            throw MOTOTRBOError.protocolError("Invalid codeplug size: \(codeplugSize)")
+        }
+
+        progress(0.2)
+
+        // Step 3: Unlock PSDT partition
+        let unlockPacket = XCMPPacket.psdtUnlock(partition: "CP")
+        _ = try await client.sendAndReceive(unlockPacket)
+
+        progress(0.25)
+
+        // Step 4: Read data in blocks
+        var codeplugData = Data()
+        let blockSize: UInt16 = 1024  // Read 1KB at a time
+        var currentAddress = startAddress
+        let totalBlocks = (codeplugSize + Int(blockSize) - 1) / Int(blockSize)
+        var blocksRead = 0
+
+        while currentAddress < endAddress {
+            let bytesRemaining = endAddress - currentAddress
+            let readSize = min(UInt16(bytesRemaining), blockSize)
+
+            let readPacket = XCMPPacket.cpsReadRequest(address: currentAddress, length: readSize)
+            guard let readReply = try await client.sendAndReceive(readPacket, timeout: 10.0) else {
+                throw MOTOTRBOError.protocolError("No reply to CPS read request at address 0x\(String(format: "%08X", currentAddress))")
+            }
+
+            // Check for error
+            if readReply.data.count < 2 || readReply.data[0] != 0x00 {
+                throw MOTOTRBOError.protocolError("CPS read failed at address 0x\(String(format: "%08X", currentAddress))")
+            }
+
+            // Skip error code byte, append data
+            codeplugData.append(Data(readReply.data.dropFirst()))
+            currentAddress += UInt32(readSize)
+            blocksRead += 1
+
+            // Update progress (0.25 to 0.9 for data transfer)
+            let transferProgress = 0.25 + (0.65 * Double(blocksRead) / Double(totalBlocks))
+            progress(transferProgress)
+        }
+
+        progress(0.9)
+
+        // Step 5: Create archive (optional, for proper CPS format)
+        let archivePacket = XCMPPacket.createArchive(sessionID: sessionID)
+        _ = try await client.sendAndReceive(archivePacket)
+
+        progress(0.95)
+
+        // Step 6: End session
+        let resetPacket = XCMPPacket.resetSession(sessionID: sessionID)
+        _ = try await client.sendAndReceive(resetPacket)
+
+        progress(1.0)
+
+        return codeplugData
     }
 
     /// Writes a codeplug to the radio.
+    ///
+    /// Uses XCMP protocol with PSDT access to write codeplug data.
+    /// Sequence based on Specter analysis of MOTOTRBO CPS DLLs:
+    /// 1. Start component session with write flags (0x010F)
+    /// 2. Unlock PSDT partition (0x010B)
+    /// 3. Optionally erase partition (0x010B with Erase action)
+    /// 4. Transfer data blocks (0x0446)
+    /// 5. Validate CRC (0x010F with ValidateCRC flag)
+    /// 6. Unpack and deploy (0x010F with UnpackFiles | Deploy flags)
+    /// 7. Lock PSDT partition (0x010B)
+    /// 8. End session (0x010F with Reset flag)
     public func writeCodeplug(_ data: Data, progress: @Sendable (Double) -> Void) async throws {
         // Ensure connected
         if !(await isConnected) {
@@ -125,13 +233,110 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.notImplemented("XCMP client not initialized")
         }
 
-        // TODO: Implement codeplug write using XCMP
         progress(0.0)
 
-        throw MOTOTRBOError.notImplemented(
-            "XCMP codeplug write protocol needs to be captured from real CPS. " +
-            "XNL authentication works - need XCMP command sequence."
-        )
+        // Generate session ID
+        let sessionID = UInt16.random(in: 1...0xFFFE)
+
+        // Step 1: Start write session (with programming indicator)
+        let startPacket = XCMPPacket.startWriteSession(sessionID: sessionID)
+        guard let startReply = try await client.sendAndReceive(startPacket) else {
+            throw MOTOTRBOError.protocolError("No reply to write session start request")
+        }
+
+        // Check for success
+        if startReply.data.count > 0 && startReply.data[0] != 0x00 {
+            let errorCode = startReply.data[0]
+            throw MOTOTRBOError.protocolError("Write session start failed with error: 0x\(String(format: "%02X", errorCode))")
+        }
+
+        progress(0.05)
+
+        // Step 2: Initiate codeplug update
+        let updatePacket = XCMPPacket.initiateCodeplugUpdate()
+        _ = try await client.sendAndReceive(updatePacket)
+
+        progress(0.1)
+
+        // Step 3: Unlock PSDT partition
+        let unlockPacket = XCMPPacket.psdtUnlock(partition: "CP")
+        guard let unlockReply = try await client.sendAndReceive(unlockPacket) else {
+            throw MOTOTRBOError.protocolError("No reply to PSDT unlock request")
+        }
+
+        if unlockReply.data.count > 0 && unlockReply.data[0] != 0x00 {
+            throw MOTOTRBOError.protocolError("PSDT unlock failed")
+        }
+
+        progress(0.15)
+
+        // Step 4: Transfer data in blocks
+        let blockSize = 512  // Write 512 bytes at a time
+        let totalBlocks = (data.count + blockSize - 1) / blockSize
+        var blocksSent = 0
+
+        for offset in stride(from: 0, to: data.count, by: blockSize) {
+            let endIndex = min(offset + blockSize, data.count)
+            let blockData = Data(data[offset..<endIndex])
+
+            let transferPacket = XCMPPacket.transferCompressedData(blockData)
+            guard let transferReply = try await client.sendAndReceive(transferPacket, timeout: 10.0) else {
+                throw MOTOTRBOError.protocolError("No reply to data transfer at offset \(offset)")
+            }
+
+            if transferReply.data.count > 0 && transferReply.data[0] != 0x00 {
+                throw MOTOTRBOError.protocolError("Data transfer failed at offset \(offset)")
+            }
+
+            blocksSent += 1
+            // Progress: 0.15 to 0.75 for data transfer
+            let transferProgress = 0.15 + (0.60 * Double(blocksSent) / Double(totalBlocks))
+            progress(transferProgress)
+        }
+
+        progress(0.75)
+
+        // Step 5: Validate CRC
+        let validatePacket = XCMPPacket.validateSessionCRC(sessionID: sessionID)
+        guard let validateReply = try await client.sendAndReceive(validatePacket, timeout: 30.0) else {
+            throw MOTOTRBOError.protocolError("No reply to CRC validation request")
+        }
+
+        if validateReply.data.count > 0 && validateReply.data[0] != 0x00 {
+            throw MOTOTRBOError.protocolError("CRC validation failed")
+        }
+
+        progress(0.80)
+
+        // Step 6: Unpack and deploy
+        let deployPacket = XCMPPacket.unpackAndDeploy(sessionID: sessionID)
+        guard let deployReply = try await client.sendAndReceive(deployPacket, timeout: 60.0) else {
+            throw MOTOTRBOError.protocolError("No reply to deploy request")
+        }
+
+        if deployReply.data.count > 0 && deployReply.data[0] != 0x00 {
+            throw MOTOTRBOError.protocolError("Deploy failed")
+        }
+
+        progress(0.90)
+
+        // Step 7: Validate codeplug
+        let validateCPPacket = XCMPPacket.validateCodeplug()
+        _ = try await client.sendAndReceive(validateCPPacket)
+
+        progress(0.92)
+
+        // Step 8: Lock PSDT partition
+        let lockPacket = XCMPPacket.psdtLock(partition: "CP")
+        _ = try await client.sendAndReceive(lockPacket)
+
+        progress(0.95)
+
+        // Step 9: End session
+        let resetPacket = XCMPPacket.resetSession(sessionID: sessionID)
+        _ = try await client.sendAndReceive(resetPacket)
+
+        progress(1.0)
     }
 
     /// Verifies the written codeplug matches the source.

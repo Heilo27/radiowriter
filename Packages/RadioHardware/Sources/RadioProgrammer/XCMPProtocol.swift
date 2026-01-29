@@ -4,45 +4,88 @@ import Foundation
 
 /// XCMP protocol operation codes for MOTOTRBO radios.
 /// Request codes have the high bit clear, reply codes have 0x8000 OR'd.
+/// Broadcast messages typically have 0xB000 prefix.
 public enum XCMPOpCode: UInt16 {
-    // Status and Info
+    // Status and Info (0x000E, 0x000F)
     case radioStatusRequest = 0x000E
     case radioStatusReply = 0x800E
     case versionInfoRequest = 0x000F
     case versionInfoReply = 0x800F
 
-    // CPS Operations
+    // Codeplug Attributes (0x0025)
+    case codeplugAttributeRequest = 0x0025
+    case codeplugAttributeReply = 0x8025
+
+    // CPS Operations (0x0100-0x010F)
     case cpsUnlockRequest = 0x0100       // Unlock for codeplug access
     case cpsUnlockReply = 0x8100
     case cpsReadRequest = 0x0104         // Read codeplug data
     case cpsReadReply = 0x8104
-    case cpsWriteRequest = 0x0105        // Write codeplug data (assumed)
+    case cpsWriteRequest = 0x0105        // Write codeplug data
     case cpsWriteReply = 0x8105
 
-    // Clone Operations
+    // Clone Operations (0x010A)
     case cloneReadRequest = 0x010A
     case cloneReadReply = 0x810A
+
+    // PSDT Access (0x010B) - Primary codeplug access command
+    case psdtAccessRequest = 0x010B
+    case psdtAccessReply = 0x810B
+    case psdtAccessBroadcast = 0xB10B    // Progress broadcast
+
+    // Radio Update Control (0x010C)
+    case radioUpdateControlRequest = 0x010C
+    case radioUpdateControlReply = 0x810C
+
+    // Component Read (0x010E)
+    case componentReadRequest = 0x010E
+    case componentReadReply = 0x810E
+
+    // Component Session (0x010F) - Session management
+    case componentSessionRequest = 0x010F
+    case componentSessionReply = 0x810F
+
+    // Boot Mode Commands (0x0200-0x0203)
+    case enterBootModeRequest = 0x0200
+    case enterBootModeReply = 0x8200
+    case readMemoryRequest = 0x0201
+    case readMemoryReply = 0x8201
+    case eraseFlashRequest = 0x0203
+    case eraseFlashReply = 0x8203
+
+    // Power Control (0x040A)
+    case radioPowerRequest = 0x040A
+    case radioPowerReply = 0x840A
+
+    // Channel/Zone Selection (0x040D)
+    case channelSelectRequest = 0x040D
+    case channelSelectReply = 0x840D
+
+    // Alarm (0x042E)
+    case alarmStatusRequest = 0x042E
+    case alarmStatusReply = 0x842E
+
+    // Data Transfer (0x0446)
+    case transferDataRequest = 0x0446
+    case transferDataReply = 0x8446
+
+    // Module Info (0x0461)
+    case moduleInfoRequest = 0x0461
+    case moduleInfoReply = 0x8461
 
     // Device Management
     case deviceInitStatusBroadcast = 0xB400
     case tanapaNumberRequest = 0x001F
     case tanapaNumberReply = 0x801F
 
-    // Channel/Zone Selection
-    case channelSelectRequest = 0x040D
-    case channelSelectReply = 0x840D
-
-    // Power Control
-    case radioPowerRequest = 0x040A
-    case radioPowerReply = 0x840A
-
-    // Alarm
-    case alarmStatusRequest = 0x042E
-    case alarmStatusReply = 0x842E
-
     /// Returns the expected reply opcode for a request.
     public var replyOpCode: XCMPOpCode? {
         XCMPOpCode(rawValue: rawValue | 0x8000)
+    }
+
+    /// Returns true if this is a broadcast message.
+    public var isBroadcast: Bool {
+        (rawValue & 0xF000) == 0xB000
     }
 }
 
@@ -131,6 +174,94 @@ public enum XCMPErrorCode: UInt8 {
     case reInitXNL = 0x03
     case notSupported = 0x04
     case busy = 0x05
+}
+
+// MARK: - PSDT Access (0x010B)
+
+/// PSDT (Persistent Storage Data Table) access actions.
+/// Used with XcmpPsdtAccess (0x010B) for codeplug operations.
+public enum PsdtAccessAction: UInt8 {
+    case none = 0x00
+    case getStartAddress = 0x01    // Query start address of partition
+    case getEndAddress = 0x02      // Query end address of partition
+    case lock = 0x03               // Lock partition (prevent access)
+    case unlock = 0x04             // Unlock partition (allow access)
+    case erase = 0x05              // Erase partition contents
+    case copy = 0x06               // Copy data between partitions
+    case imageReorg = 0x07         // Reorganize partition image
+}
+
+/// PSDT access broadcast status values.
+public enum PsdtAccessBroadcastStatus: UInt8 {
+    case success = 0x00
+    case transferInProgress = 0x02
+    case failure = 0xFF
+}
+
+// MARK: - Component Session (0x010F)
+
+/// Component session actions (can be combined as flags).
+/// Used with XcmpComponentSession (0x010F) for programming session management.
+public struct ComponentSessionActions: OptionSet, Sendable {
+    public let rawValue: UInt16
+
+    public init(rawValue: UInt16) {
+        self.rawValue = rawValue
+    }
+
+    // Note: Use [] instead of .none for empty option set
+    public static let reset = ComponentSessionActions(rawValue: 0x0001)
+    public static let startSession = ComponentSessionActions(rawValue: 0x0002)
+    public static let snapshot = ComponentSessionActions(rawValue: 0x0004)
+    public static let validateCRC = ComponentSessionActions(rawValue: 0x0008)
+    public static let unpackFiles = ComponentSessionActions(rawValue: 0x0010)
+    public static let deploy = ComponentSessionActions(rawValue: 0x0020)
+    public static let delayTOD = ComponentSessionActions(rawValue: 0x0040)
+    public static let suppressPN = ComponentSessionActions(rawValue: 0x0080)
+    public static let status = ComponentSessionActions(rawValue: 0x0100)
+    public static let readWrite = ComponentSessionActions(rawValue: 0x0200)
+    public static let createArchive = ComponentSessionActions(rawValue: 0x0400)
+    public static let programmingIndicator = ComponentSessionActions(rawValue: 0x0800)
+}
+
+/// Component session reply result codes.
+public enum ComponentSessionResult: UInt16 {
+    case success = 0x0000
+    case failure = 0x0001
+    case invalidParameter = 0x0004
+    case invalidSessionID = 0x0010
+    case invalidArchive = 0x0011
+    case busy = 0x0012
+}
+
+// MARK: - Radio Update Control (0x010C)
+
+/// Radio update control actions.
+public enum RadioUpdateControlAction: UInt8 {
+    case none = 0x00
+    case radioFirmwareActive = 0x01    // Check if firmware is active
+    case radioCodeplugActive = 0x02    // Check if codeplug is active
+    case radioUpdateFirmware = 0x03    // Initiate firmware update
+    case radioUpdateCodeplug = 0x04    // Initiate codeplug update
+    case radioValidateFirmware = 0x05  // Validate firmware
+    case radioValidateCodeplug = 0x06  // Validate codeplug
+    case radioDefaultAddrMode = 0x07   // Set default addressing mode
+    case radioAbsAddrMode = 0x08       // Set absolute addressing mode
+    case stopBGEraser = 0x09           // Stop background eraser
+    case updateStatus = 0x0A           // Get update status
+    case setDecomp = 0x0B              // Set decompression
+}
+
+// MARK: - Transfer Data (0x0446)
+
+/// Transfer data types for XcmpTransferData.
+public enum TransferDataType: UInt8 {
+    case unknown0 = 0x00
+    case unknown1 = 0x01
+    case unknown2 = 0x02
+    case unknown3 = 0x03
+    case fxp = 0x04           // FXP protocol data
+    case compressFile = 0x05  // Compressed file data
 }
 
 // MARK: - XCMP Packet
@@ -237,6 +368,179 @@ public struct XCMPPacket {
         data.append(0x00)
         data.append(dataType.rawValue)
         return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    // MARK: - PSDT Access Packets (0x010B)
+
+    /// Creates a PSDT access request packet.
+    /// - Parameters:
+    ///   - action: The PSDT action to perform
+    ///   - sourcePartition: Source partition ID (max 4 ASCII chars, e.g., "CP", "ISH")
+    ///   - targetPartition: Target partition ID (for copy operations)
+    public static func psdtAccessRequest(action: PsdtAccessAction, sourcePartition: String, targetPartition: String = "") -> XCMPPacket {
+        var data = Data()
+        data.append(action.rawValue)
+
+        // Source partition ID (4 bytes, ASCII, padded with nulls)
+        let srcBytes = Array(sourcePartition.prefix(4).utf8)
+        for i in 0..<4 {
+            data.append(i < srcBytes.count ? srcBytes[i] : 0x00)
+        }
+
+        // Target partition ID (4 bytes, ASCII, padded with nulls)
+        let tgtBytes = Array(targetPartition.prefix(4).utf8)
+        for i in 0..<4 {
+            data.append(i < tgtBytes.count ? tgtBytes[i] : 0x00)
+        }
+
+        return XCMPPacket(opCode: .psdtAccessRequest, data: data)
+    }
+
+    /// Creates a PSDT get start address request.
+    public static func psdtGetStartAddress(partition: String) -> XCMPPacket {
+        psdtAccessRequest(action: .getStartAddress, sourcePartition: partition)
+    }
+
+    /// Creates a PSDT get end address request.
+    public static func psdtGetEndAddress(partition: String) -> XCMPPacket {
+        psdtAccessRequest(action: .getEndAddress, sourcePartition: partition)
+    }
+
+    /// Creates a PSDT unlock request.
+    public static func psdtUnlock(partition: String) -> XCMPPacket {
+        psdtAccessRequest(action: .unlock, sourcePartition: partition)
+    }
+
+    /// Creates a PSDT lock request.
+    public static func psdtLock(partition: String) -> XCMPPacket {
+        psdtAccessRequest(action: .lock, sourcePartition: partition)
+    }
+
+    /// Creates a PSDT erase request.
+    public static func psdtErase(partition: String) -> XCMPPacket {
+        psdtAccessRequest(action: .erase, sourcePartition: partition)
+    }
+
+    // MARK: - Component Session Packets (0x010F)
+
+    /// Creates a component session request packet.
+    /// - Parameters:
+    ///   - actions: The session actions to perform (can be combined)
+    ///   - sessionID: Unique session identifier
+    ///   - data: Optional additional data
+    public static func componentSessionRequest(actions: ComponentSessionActions, sessionID: UInt16, data: UInt32? = nil) -> XCMPPacket {
+        var payload = Data()
+
+        // Actions (2 bytes, big-endian)
+        payload.append(UInt8(actions.rawValue >> 8))
+        payload.append(UInt8(actions.rawValue & 0xFF))
+
+        // Session ID (2 bytes, big-endian)
+        payload.append(UInt8(sessionID >> 8))
+        payload.append(UInt8(sessionID & 0xFF))
+
+        // Optional data (4 bytes, big-endian)
+        if let data = data {
+            payload.append(UInt8((data >> 24) & 0xFF))
+            payload.append(UInt8((data >> 16) & 0xFF))
+            payload.append(UInt8((data >> 8) & 0xFF))
+            payload.append(UInt8(data & 0xFF))
+        }
+
+        return XCMPPacket(opCode: .componentSessionRequest, data: payload)
+    }
+
+    /// Creates a start session request for reading.
+    public static func startReadSession(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(
+            actions: [.startSession, .readWrite],
+            sessionID: sessionID
+        )
+    }
+
+    /// Creates a start session request for writing.
+    public static func startWriteSession(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(
+            actions: [.startSession, .readWrite, .programmingIndicator],
+            sessionID: sessionID
+        )
+    }
+
+    /// Creates a session reset request.
+    public static func resetSession(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(actions: .reset, sessionID: sessionID)
+    }
+
+    /// Creates a validate CRC request.
+    public static func validateSessionCRC(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(actions: .validateCRC, sessionID: sessionID)
+    }
+
+    /// Creates an unpack and deploy request.
+    public static func unpackAndDeploy(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(
+            actions: [.unpackFiles, .deploy],
+            sessionID: sessionID
+        )
+    }
+
+    /// Creates a create archive request.
+    public static func createArchive(sessionID: UInt16) -> XCMPPacket {
+        componentSessionRequest(actions: .createArchive, sessionID: sessionID)
+    }
+
+    // MARK: - Radio Update Control Packets (0x010C)
+
+    /// Creates a radio update control request.
+    public static func radioUpdateControlRequest(action: RadioUpdateControlAction) -> XCMPPacket {
+        XCMPPacket(opCode: .radioUpdateControlRequest, data: Data([action.rawValue]))
+    }
+
+    /// Creates a check codeplug active request.
+    public static func checkCodeplugActive() -> XCMPPacket {
+        radioUpdateControlRequest(action: .radioCodeplugActive)
+    }
+
+    /// Creates an initiate codeplug update request.
+    public static func initiateCodeplugUpdate() -> XCMPPacket {
+        radioUpdateControlRequest(action: .radioUpdateCodeplug)
+    }
+
+    /// Creates a validate codeplug request.
+    public static func validateCodeplug() -> XCMPPacket {
+        radioUpdateControlRequest(action: .radioValidateCodeplug)
+    }
+
+    // MARK: - Transfer Data Packets (0x0446)
+
+    /// Creates a transfer data request packet.
+    /// - Parameters:
+    ///   - dataType: The type of data being transferred
+    ///   - payload: The data payload
+    public static func transferDataRequest(dataType: TransferDataType, payload: Data) -> XCMPPacket {
+        var data = Data()
+        data.append(dataType.rawValue)
+        data.append(payload)
+        return XCMPPacket(opCode: .transferDataRequest, data: data)
+    }
+
+    /// Creates a compressed file transfer request.
+    public static func transferCompressedData(_ payload: Data) -> XCMPPacket {
+        transferDataRequest(dataType: .compressFile, payload: payload)
+    }
+
+    // MARK: - Module Info Packets (0x0461)
+
+    /// Creates a module info request.
+    public static func moduleInfoRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .moduleInfoRequest, data: Data())
+    }
+
+    // MARK: - Codeplug Attribute Packets (0x0025)
+
+    /// Creates a codeplug attribute request.
+    public static func codeplugAttributeRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .codeplugAttributeRequest, data: Data())
     }
 }
 

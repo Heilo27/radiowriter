@@ -11,15 +11,23 @@ public struct XNLEncryption {
 
     /// TEA key components extracted from obfuscated DLL
     /// Source: XnlAuthentication.dll → iq::a field
+    /// Raw bytes: 1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD
+    ///
+    /// CRITICAL: Key must be interpreted as LITTLE-ENDIAN UInt32 values
+    /// (as .NET BitConverter.ToInt32 reads on x86)
+    /// VERIFIED WORKING: 2026-01-29
     private static let key: [UInt32] = [
-        0x1D30965A,  // bytes 0-3
-        0x55AAF20C,  // bytes 4-7
-        0xC66C93BF,  // bytes 8-11
-        0x5BCD5EBD   // bytes 12-15
+        0x5A96301D,  // bytes 0-3 (LE: 1D 30 96 5A)
+        0x0CF2AA55,  // bytes 4-7 (LE: 55 AA F2 0C)
+        0xBF936CC6,  // bytes 8-11 (LE: C6 6C 93 BF)
+        0xBD5ECD5B   // bytes 12-15 (LE: 5B CD 5E BD)
     ]
 
-    /// Standard TEA delta constant (golden ratio derived)
-    private static let delta: UInt32 = 0x9E3779B9
+    /// MOTOTRBO custom TEA delta constant.
+    /// NOTE: This is NOT the standard TEA delta (0x9E3779B9)!
+    /// Extracted from XnlAuthentication.dll IL instruction: ldc.i4 2030745457
+    /// VERIFIED WORKING: 2026-01-29
+    private static let delta: UInt32 = 0x790AB771
 
     // MARK: - Encryption
 
