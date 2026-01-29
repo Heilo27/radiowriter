@@ -45,6 +45,7 @@ struct WelcomeView: View {
                     Label("New Profile", systemImage: "doc.badge.plus")
                 }
                 .buttonStyle(.link)
+                .accessibilityIdentifier("welcome.newProfile")
 
                 Button {
                     coordinator.showingOpenDialog = true
@@ -52,6 +53,7 @@ struct WelcomeView: View {
                     Label("Open Existing", systemImage: "folder")
                 }
                 .buttonStyle(.link)
+                .accessibilityIdentifier("welcome.openExisting")
 
                 if !coordinator.radioDetector.detectedDevices.isEmpty {
                     Divider()
@@ -65,6 +67,7 @@ struct WelcomeView: View {
                             Label(device.displayName, systemImage: "cable.connector")
                         }
                         .buttonStyle(.link)
+                        .accessibilityIdentifier("welcome.device.\(device.id)")
                     }
                 }
 
@@ -102,6 +105,7 @@ struct WelcomeView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selectedModel == nil)
+                    .accessibilityIdentifier("welcome.createProfile")
                 }
             }
             .padding()
@@ -136,5 +140,8 @@ struct RadioModelCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 2 : 1)
         )
+        .accessibilityIdentifier("radioModel.\(model.id)")
+        .accessibilityLabel("\(model.displayName), \(model.maxChannels) channels, \(model.frequencyBand.name)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

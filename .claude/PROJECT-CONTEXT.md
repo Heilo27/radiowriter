@@ -145,3 +145,102 @@ _Add notes about current research focus, open questions, and next steps here._
 1. Locate CPS binaries for analysis
 2. Capture USB traffic during a programming session
 3. Begin codeplug format documentation
+
+---
+
+## Session Notes (2026-01-28)
+
+### Analysis Completed: CLP Codeplug Format
+
+**Analyst:** Specter
+**Method:** .NET IL disassembly using `monodis`
+
+**Key Discoveries:**
+
+1. **Transform Layer Architecture**
+   - CPS uses Pack/Unpack functions to convert between UI and binary
+   - Many boolean fields stored inverted ("Disable*" pattern)
+   - Version field: 3 bytes = [ASCII char][major][minor] → "R03.00"
+
+2. **Field Naming Convention**
+   - All codeplug fields use `CP_` prefix
+   - `CP_CHANNEL_*` for channel data
+   - `CP_*_ENABLE` for feature flags
+   - `CP_MAX_*` for limits
+
+3. **File I/O Structure**
+   - Codeplug split into `pdata` (main) + `appendData` (metadata)
+   - Radio info stored as embedded XML
+   - Version modifiable in-place
+
+4. **Swift Implementation Assessment**
+   - Architecture is sound ✓
+   - Bit-level packing approach correct ✓
+   - Missing: Transform layer (high priority)
+   - Uncertain: Exact field offsets (need verification)
+   - Unknown: File header structure
+
+**Documentation Created:**
+- `docs/codeplugs/CLP-Format-Analysis.md` - Comprehensive format doc
+- `docs/codeplugs/README.md` - Index and templates
+- `docs/findings/2026-01-28-DLL-Analysis.md` - Technical details
+- `analysis/dll_analysis/` - Raw IL disassembly outputs
+
+**Confidence Levels:**
+- Architecture patterns: **High**
+- Transform requirements: **High**
+- Field naming: **High**
+- Byte offsets: **Low** (needs hex dumps)
+- File format: **Low** (needs sample files)
+
+### Open Questions
+
+1. What is the exact file header structure (magic bytes, size, CRC)?
+2. Are channel names stored interleaved or in a separate block?
+3. How is frequency encoded (confirmed 100 Hz units)?
+4. What is the "inverted custom PL" encoding?
+5. How is power level structured (simple enum or frequency-dependent)?
+6. What is the scan list bit-packing format?
+
+### Next Steps
+
+1. **Immediate (macOS):**
+   - [ ] Locate or create sample `.rdt` files
+   - [ ] Hex dump analysis to verify field offsets
+   - [ ] Compare known values with binary positions
+
+2. **Windows-based (when available):**
+   - [ ] Decompile with ILSpy for full C# source
+   - [ ] Step through `ReadArchiveFile` logic
+   - [ ] Extract encrypted GUI XML configuration
+
+3. **Swift Implementation:**
+   - [ ] Add `Transform` protocol to `FieldDefinition`
+   - [ ] Implement `InvertedBoolTransform`
+   - [ ] Implement `VersionTransform` (3-byte format)
+   - [ ] Verify and correct field offsets
+   - [ ] Add file header parsing
+
+4. **Protocol Analysis (future):**
+   - [ ] USB capture with Wireshark
+   - [ ] Document read/write command protocol
+   - [ ] Map radio ↔ CPS communication
+
+### Limitations Encountered
+
+**Tool Mismatch:**
+- Specter CLI designed for Mach-O binaries (macOS/iOS native)
+- Motorola CPS is .NET (Windows PE/COFF format)
+- Adapted using `monodis` (Mono IL disassembler)
+
+**Cannot Determine from IL:**
+- Exact numeric offsets (computed at runtime from XML)
+- File header structure (parsed in binary I/O)
+- Channel block layout (defined in encrypted XML)
+- Embedded XML format (runtime decryption)
+
+**Requires:**
+- Windows system with ILSpy/dnSpy for full C# decompilation
+- Sample codeplug files for hex analysis
+- USB protocol capture for communication mapping
+

@@ -24,6 +24,10 @@ struct FormEditorView: View {
             .padding()
         }
         .onAppear { loadFields() }
+        .onChange(of: category) { _, _ in
+            loadFields()
+        }
+        .id(category) // Force view recreation when category changes
     }
 
     private var groupedFields: [(String, [FieldDefinition])] {

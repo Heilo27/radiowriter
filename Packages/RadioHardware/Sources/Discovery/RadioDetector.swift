@@ -2,8 +2,10 @@ import Foundation
 import USBTransport
 
 /// Monitors for connected Motorola radios via USB serial ports.
+/// All observable properties are isolated to MainActor for safe SwiftUI access.
 @Observable
-public final class RadioDetector: @unchecked Sendable {
+@MainActor
+public final class RadioDetector: Sendable {
     public private(set) var detectedDevices: [USBDeviceInfo] = []
     public private(set) var isScanning = false
     private var scanTask: Task<Void, Never>?
@@ -15,10 +17,15 @@ public final class RadioDetector: @unchecked Sendable {
         guard !isScanning else { return }
         isScanning = true
 
-        scanTask = Task {
+        scanTask = Task { [weak self] in
             while !Task.isCancelled {
-                await scanForDevices()
+                guard let self else { break }
+                await self.scanForDevices()
+                guard !Task.isCancelled else { break }
                 try? await Task.sleep(for: .seconds(2))
+            }
+            await MainActor.run { [weak self] in
+                self?.isScanning = false
             }
         }
     }
@@ -33,13 +40,11 @@ public final class RadioDetector: @unchecked Sendable {
     /// Performs a single scan for serial devices.
     public func scanForDevices() async {
         let devices = await findSerialPorts()
-        await MainActor.run {
-            self.detectedDevices = devices
-        }
+        self.detectedDevices = devices
     }
 
     /// Finds all serial ports that match Motorola/FTDI devices.
-    private func findSerialPorts() async -> [USBDeviceInfo] {
+    nonisolated private func findSerialPorts() async -> [USBDeviceInfo] {
         var devices: [USBDeviceInfo] = []
 
         // Scan /dev/ for USB serial devices
@@ -68,7 +73,7 @@ public final class RadioDetector: @unchecked Sendable {
         return devices
     }
 
-    private func extractSerial(from portName: String) -> String? {
+    nonisolated private func extractSerial(from portName: String) -> String? {
         // Extract serial from port name like "cu.usbserial-A12345"
         let parts = portName.split(separator: "-")
         return parts.count > 1 ? String(parts.last!) : nil

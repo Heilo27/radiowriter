@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 /// Router view that switches between welcome and editing phases.
 struct RootView: View {
     @Environment(AppCoordinator.self) private var coordinator
+    @State private var errorMessage: String?
+    @State private var showingError = false
 
     var body: some View {
         @Bindable var coordinator = coordinator
@@ -29,11 +31,12 @@ struct RootView: View {
                 do {
                     try coordinator.openDocument(url)
                 } catch {
-                    // TODO: Present error to user
-                    print("Failed to open document: \(error)")
+                    errorMessage = "Failed to open file: \(error.localizedDescription)"
+                    showingError = true
                 }
             case .failure(let error):
-                print("File import failed: \(error)")
+                errorMessage = "Could not access file: \(error.localizedDescription)"
+                showingError = true
             }
         }
         .fileExporter(
@@ -46,8 +49,31 @@ struct RootView: View {
             case .success(let url):
                 coordinator.documentURL = url
             case .failure(let error):
-                print("File export failed: \(error)")
+                errorMessage = "Failed to save file: \(error.localizedDescription)"
+                showingError = true
             }
+        }
+        .alert("Error", isPresented: $showingError) {
+            Button("OK") { showingError = false }
+        } message: {
+            Text(errorMessage ?? "An unknown error occurred")
+        }
+        .confirmationDialog(
+            "You have unsaved changes",
+            isPresented: $coordinator.showingCloseConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Save") {
+                coordinator.saveAndCloseDocument()
+            }
+            Button("Don't Save", role: .destructive) {
+                coordinator.forceCloseDocument()
+            }
+            Button("Cancel", role: .cancel) {
+                coordinator.pendingCloseAction = nil
+            }
+        } message: {
+            Text("Do you want to save your changes before closing?")
         }
     }
 }

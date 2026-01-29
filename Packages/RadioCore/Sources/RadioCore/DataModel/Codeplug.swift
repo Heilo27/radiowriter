@@ -100,6 +100,11 @@ public final class Codeplug: Identifiable, @unchecked Sendable {
         modifiedFields.contains(fieldID)
     }
 
+    /// Whether the codeplug has any unsaved changes.
+    public var hasUnsavedChanges: Bool {
+        !modifiedFields.isEmpty
+    }
+
     /// Clears all modification tracking (e.g., after save).
     public func clearModifications() {
         modifiedFields.removeAll()

@@ -13,6 +13,7 @@ enum AppPhase {
 
 /// Central coordinator for the CPS application.
 @Observable
+@MainActor
 final class AppCoordinator {
     var radioDetector = RadioDetector()
     var connectionState: ConnectionState = .disconnected
@@ -25,6 +26,8 @@ final class AppCoordinator {
     // File dialog triggers
     var showingOpenDialog = false
     var showingSaveDialog = false
+    var showingCloseConfirmation = false
+    var pendingCloseAction: (() -> Void)?
 
     init() {
         radioDetector.startScanning()
@@ -66,10 +69,41 @@ final class AppCoordinator {
     }
 
     /// Returns to the welcome screen.
+    /// Shows confirmation dialog if there are unsaved changes.
     func closeDocument() {
+        if hasUnsavedChanges {
+            pendingCloseAction = { [weak self] in
+                self?.forceCloseDocument()
+            }
+            showingCloseConfirmation = true
+        } else {
+            forceCloseDocument()
+        }
+    }
+
+    /// Closes without checking for unsaved changes.
+    func forceCloseDocument() {
         currentDocument = nil
         documentURL = nil
         phase = .welcome
+    }
+
+    /// Save current document then close.
+    func saveAndCloseDocument() {
+        if let url = documentURL {
+            try? saveDocument(to: url)
+            forceCloseDocument()
+        } else {
+            showingSaveDialog = true
+            pendingCloseAction = { [weak self] in
+                self?.forceCloseDocument()
+            }
+        }
+    }
+
+    /// Whether the current document has unsaved changes.
+    var hasUnsavedChanges: Bool {
+        currentDocument?.codeplug?.hasUnsavedChanges ?? false
     }
 }
 

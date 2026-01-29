@@ -24,7 +24,10 @@ public struct FrequencyTransform: ValueTransform {
 
     public func toRaw(_ display: String) -> UInt32 {
         guard let mhz = Double(display) else { return 0 }
-        return UInt32(mhz * 10000.0)
+        let scaled = mhz * 10000.0
+        // Guard against overflow - UInt32 max is ~429496.7295 MHz (way above any radio frequency)
+        guard scaled >= 0, scaled <= Double(UInt32.max) else { return 0 }
+        return UInt32(scaled)
     }
 }
 
@@ -66,6 +69,49 @@ public struct CTCSSToneTransform: ValueTransform {
         let freq = Double(display.replacingOccurrences(of: " Hz", with: "")) ?? 0
         return UInt8(Self.standardTones.firstIndex(where: { abs($0 - freq) < 0.05 }) ?? 0)
     }
+}
+
+/// Inverted boolean transform for "Disable*" fields.
+/// CPS stores these as the opposite of the UI checkbox state.
+/// UI shows "Quiet Mode: ON" → Binary stores `false`
+public struct InvertedBoolTransform: ValueTransform {
+    public init() {}
+
+    public func toDisplay(_ raw: Bool) -> Bool {
+        !raw
+    }
+
+    public func toRaw(_ display: Bool) -> Bool {
+        !display
+    }
+}
+
+/// Version transform for 3-byte version encoding.
+/// Binary format: [ASCII char][major][minor] → Display: "R03.00"
+public struct VersionTransform: ValueTransform {
+    public init() {}
+
+    public func toDisplay(_ raw: (UInt8, UInt8, UInt8)) -> String {
+        let prefix = Character(UnicodeScalar(raw.0))
+        return "\(prefix)\(String(format: "%02d", raw.1)).\(String(format: "%02d", raw.2))"
+    }
+
+    public func toRaw(_ display: String) -> (UInt8, UInt8, UInt8) {
+        guard display.count >= 5 else { return (0x52, 0, 0) } // Default "R"
+        let prefix = display.first?.asciiValue ?? 0x52
+        let parts = display.dropFirst().split(separator: ".")
+        let major = UInt8(parts.first ?? "0") ?? 0
+        let minor = UInt8(parts.count > 1 ? parts[1] : "0") ?? 0
+        return (prefix, major, minor)
+    }
+}
+
+/// Pass-through transform that doesn't modify values.
+public struct IdentityTransform<T>: ValueTransform {
+    public init() {}
+
+    public func toDisplay(_ raw: T) -> T { raw }
+    public func toRaw(_ display: T) -> T { display }
 }
 
 /// Linear scaling transform (e.g., volume 0-15 to 0-100%).

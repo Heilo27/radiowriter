@@ -51,9 +51,13 @@ public actor SerialConnection: USBConnection {
         // No software flow control
         options.c_iflag &= ~tcflag_t(IXON | IXOFF | IXANY)
 
-        // Read timeout: 1 second
-        options.c_cc.16 = 0  // VMIN
-        options.c_cc.17 = 10 // VTIME (tenths of seconds)
+        // Read timeout configuration
+        // On macOS, c_cc is a tuple - we use withUnsafeMutablePointer to safely access VMIN/VTIME indices
+        withUnsafeMutablePointer(to: &options.c_cc) { ccPtr in
+            let cc = UnsafeMutableRawPointer(ccPtr).assumingMemoryBound(to: cc_t.self)
+            cc[Int(VMIN)] = 0      // Minimum bytes to read (0 = return immediately)
+            cc[Int(VTIME)] = 10    // Read timeout in tenths of seconds (10 = 1 second)
+        }
 
         tcsetattr(fd, TCSANOW, &options)
 

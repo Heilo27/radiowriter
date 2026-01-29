@@ -38,16 +38,19 @@ struct ContentView: View {
                 ForEach(model.nodes, id: \.id) { node in
                     Label(node.displayName, systemImage: iconForCategory(node.category))
                         .tag(node.category)
+                        .accessibilityIdentifier("sidebar.\(node.category.rawValue)")
                 }
             } else {
                 ForEach(FieldCategory.allCases, id: \.self) { category in
                     Label(category.rawValue, systemImage: iconForCategory(category))
                         .tag(category)
+                        .accessibilityIdentifier("sidebar.\(category.rawValue)")
                 }
             }
         }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+        .accessibilityIdentifier("categorySidebar")
     }
 
     // MARK: - Content Area
@@ -108,15 +111,18 @@ struct ContentView: View {
                 // Read radio action
             }
             .disabled(!coordinator.connectionState.isDisconnected)
+            .accessibilityIdentifier("toolbar.read")
 
             Button("Write", systemImage: "arrow.up.to.line") {
                 // Write radio action
             }
             .disabled(document?.codeplug == nil)
+            .accessibilityIdentifier("toolbar.write")
 
             Button("Clone", systemImage: "doc.on.doc") {
                 // Clone action
             }
+            .accessibilityIdentifier("toolbar.clone")
         }
 
         ToolbarItem(placement: .automatic) {
@@ -158,17 +164,31 @@ struct ContentView: View {
 }
 
 /// Radio connection status indicator for the toolbar.
+/// Uses both color AND icons for accessibility (not color-only).
 struct RadioStatusIndicator: View {
     let state: ConnectionState
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.caption)
+                .accessibilityHidden(true)
             Text(state.statusLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var icon: String {
+        switch state {
+        case .disconnected: return "antenna.radiowaves.left.and.right.slash"
+        case .connecting: return "antenna.radiowaves.left.and.right"
+        case .connected: return "checkmark.circle.fill"
+        case .programming: return "arrow.triangle.2.circlepath"
+        case .error: return "exclamationmark.triangle.fill"
         }
     }
 
@@ -179,6 +199,16 @@ struct RadioStatusIndicator: View {
         case .connected: return .green
         case .programming: return .blue
         case .error: return .red
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch state {
+        case .disconnected: return "Radio disconnected"
+        case .connecting: return "Connecting to radio"
+        case .connected(let port): return "Radio connected on \(port)"
+        case .programming: return "Programming radio in progress"
+        case .error(let msg): return "Radio error: \(msg)"
         }
     }
 }

@@ -51,12 +51,16 @@ struct ChannelEditorView: View {
             }
             .contextMenu(forSelectionType: Int.self) { indices in
                 Button("Copy Channel") {}
+                    .accessibilityIdentifier("contextMenu.copyChannel")
                 Button("Paste Channel") {}
+                    .accessibilityIdentifier("contextMenu.pasteChannel")
                 Divider()
                 Button("Clear Channel") {}
+                    .accessibilityIdentifier("contextMenu.clearChannel")
             } primaryAction: { indices in
                 // Double-click to edit
             }
+            .accessibilityIdentifier("channelTable")
 
             // Status bar
             HStack {
@@ -109,8 +113,37 @@ struct ChannelEditorView: View {
     private func binding(for index: Int, keyPath: WritableKeyPath<ChannelRow, String>) -> Binding<String> {
         Binding(
             get: { channels[index][keyPath: keyPath] },
-            set: { channels[index][keyPath: keyPath] = $0 }
+            set: { newValue in
+                // Validate based on field type
+                if keyPath == \.frequencyDisplay {
+                    guard isValidFrequency(newValue) else { return }
+                } else if keyPath == \.name {
+                    guard isValidChannelName(newValue) else { return }
+                }
+                channels[index][keyPath: keyPath] = newValue
+            }
         )
+    }
+
+    /// Validates frequency input (must be a valid MHz value in typical radio ranges).
+    private func isValidFrequency(_ value: String) -> Bool {
+        // Allow empty or partial input during typing
+        if value.isEmpty { return true }
+
+        // Must be a valid number
+        guard let mhz = Double(value) else { return false }
+
+        // Basic range check for typical business radio frequencies (136-174 VHF, 400-527 UHF)
+        // Allow wider range for flexibility
+        return mhz >= 100.0 && mhz <= 600.0
+    }
+
+    /// Validates channel name (max 8 characters, printable ASCII).
+    private func isValidChannelName(_ value: String) -> Bool {
+        // Allow up to 8 characters
+        guard value.count <= 8 else { return false }
+        // Allow only printable ASCII
+        return value.allSatisfy { $0.isASCII && !$0.isNewline }
     }
 }
 
