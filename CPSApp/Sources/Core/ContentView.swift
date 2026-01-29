@@ -169,7 +169,7 @@ struct RadioStatusIndicator: View {
     let state: ConnectionState
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Image(systemName: icon)
                 .foregroundStyle(color)
                 .font(.caption)
@@ -178,6 +178,7 @@ struct RadioStatusIndicator: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
