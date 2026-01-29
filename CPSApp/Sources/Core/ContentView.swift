@@ -103,7 +103,10 @@ struct ContentView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            RadioStatusIndicator(state: coordinator.connectionState)
+            RadioStatusIndicator(
+                state: coordinator.connectionState,
+                hasDetectedRadio: !coordinator.radioDetector.detectedDevices.isEmpty
+            )
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
@@ -167,6 +170,7 @@ struct ContentView: View {
 /// Uses both color AND icons for accessibility (not color-only).
 struct RadioStatusIndicator: View {
     let state: ConnectionState
+    let hasDetectedRadio: Bool
 
     var body: some View {
         HStack(spacing: 6) {
@@ -174,7 +178,7 @@ struct RadioStatusIndicator: View {
                 .foregroundStyle(color)
                 .font(.caption)
                 .accessibilityHidden(true)
-            Text(state.statusLabel)
+            Text(statusLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -183,9 +187,17 @@ struct RadioStatusIndicator: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
+    private var statusLabel: String {
+        if case .disconnected = state, hasDetectedRadio {
+            return "Radio Detected"
+        }
+        return state.statusLabel
+    }
+
     private var icon: String {
         switch state {
-        case .disconnected: return "antenna.radiowaves.left.and.right.slash"
+        case .disconnected:
+            return hasDetectedRadio ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash"
         case .connecting: return "antenna.radiowaves.left.and.right"
         case .connected: return "checkmark.circle.fill"
         case .programming: return "arrow.triangle.2.circlepath"
@@ -195,7 +207,8 @@ struct RadioStatusIndicator: View {
 
     private var color: Color {
         switch state {
-        case .disconnected: return .gray
+        case .disconnected:
+            return hasDetectedRadio ? .green : .gray
         case .connecting: return .yellow
         case .connected: return .green
         case .programming: return .blue
@@ -205,7 +218,8 @@ struct RadioStatusIndicator: View {
 
     private var accessibilityLabel: String {
         switch state {
-        case .disconnected: return "Radio disconnected"
+        case .disconnected:
+            return hasDetectedRadio ? "Radio detected, not connected" : "No radio detected"
         case .connecting: return "Connecting to radio"
         case .connected(let port): return "Radio connected on \(port)"
         case .programming: return "Programming radio in progress"
