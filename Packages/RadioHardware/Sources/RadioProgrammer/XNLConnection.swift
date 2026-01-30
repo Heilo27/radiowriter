@@ -70,13 +70,21 @@ public actor XNLConnection {
         // Wait for TCP connection
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                var hasResumed = false
                 conn.stateUpdateHandler = { state in
+                    guard !hasResumed else { return }
                     switch state {
                     case .ready:
+                        hasResumed = true
+                        conn.stateUpdateHandler = nil
                         continuation.resume()
                     case .failed(let error):
+                        hasResumed = true
+                        conn.stateUpdateHandler = nil
                         continuation.resume(throwing: error)
                     case .cancelled:
+                        hasResumed = true
+                        conn.stateUpdateHandler = nil
                         continuation.resume(throwing: NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection cancelled"]))
                     default:
                         break
@@ -89,7 +97,34 @@ public actor XNLConnection {
         }
 
         // Perform XNL authentication
-        return await authenticate()
+        let authResult = await authenticate()
+
+        // If authentication succeeded, drain any initial broadcast messages
+        if case .success = authResult {
+            await drainBroadcasts()
+        }
+
+        return authResult
+    }
+
+    /// Drains any broadcast messages sent by the radio after authentication.
+    /// The radio typically sends DevSysMapBroadcast and DevInitStatusBroadcast after connection.
+    private func drainBroadcasts() async {
+        // Read packets for up to 1 second to clear any broadcasts
+        for _ in 0..<5 {
+            guard let data = await receivePacket(timeout: 0.3) else {
+                break  // No more packets
+            }
+            // Just discard - these are broadcasts
+            if data.count >= 4 {
+                let opcode = data[3]
+                // Continue draining if it's a broadcast or system message
+                if opcode == XNLOpCode.deviceSysMapBroadcast.rawValue ||
+                   opcode == XNLOpCode.masterStatusBroadcast.rawValue {
+                    continue
+                }
+            }
+        }
     }
 
     /// Disconnects from the radio.
@@ -278,27 +313,73 @@ public actor XNLConnection {
     /// - Parameters:
     ///   - xcmpData: The XCMP payload data
     ///   - timeout: Timeout in seconds
+    ///   - debug: Print debug info
     /// - Returns: Response data or nil on timeout
-    public func sendXCMP(_ xcmpData: Data, timeout: TimeInterval = 5.0) async throws -> Data? {
+    public func sendXCMP(_ xcmpData: Data, timeout: TimeInterval = 5.0, debug: Bool = false) async throws -> Data? {
         guard isAuthenticated else {
             throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
         }
 
-        // Wrap XCMP in XNL DataMessage
-        let packet = buildXNLPacket(opcode: .dataMessage, dest: masterAddress, src: assignedAddress, txID: nextTransactionID(), data: xcmpData)
+        // Wrap XCMP in XNL DataMessage with XCMP flag set
+        var packet = buildXNLPacket(opcode: .dataMessage, dest: masterAddress, src: assignedAddress, txID: nextTransactionID(), data: xcmpData)
+        // Set XCMP flag (byte 4) to indicate XCMP payload
+        packet[4] = 0x01
+
+        if debug {
+            print("[XNL TX] \(packet.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
         try await send(packet)
 
-        // Wait for response (DataMessage or DataMessageAck)
-        for _ in 0..<10 {
+        // Wait for response
+        // Radio sends: 1) DataMessageAck (0x0C) - just an acknowledgment, no data
+        //              2) DataMessage (0x0B) - actual XCMP response with payload
+        // We need to skip the ACK and wait for the actual response
+        for attempt in 0..<10 {
             guard let data = await receivePacket(timeout: timeout) else {
+                if debug { print("[XNL RX] Timeout (attempt \(attempt + 1))") }
                 return nil
             }
+
+            if debug {
+                print("[XNL RX] \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            }
+
             if data.count >= 14 {
                 let opcode = data[3]
-                if opcode == XNLOpCode.dataMessage.rawValue || opcode == XNLOpCode.dataMessageAck.rawValue {
-                    // Extract XCMP payload (skip XNL header)
+                let xcmpFlag = data[4]
+
+                if debug {
+                    print("         Opcode: 0x\(String(format: "%02X", opcode)), XCMP flag: \(xcmpFlag)")
+                }
+
+                // Skip DataMessageAck (0x0C) - it's just an acknowledgment
+                if opcode == XNLOpCode.dataMessageAck.rawValue {
+                    if debug { print("         (ACK received, waiting for response...)") }
+                    continue  // Keep waiting for actual DataMessage response
+                }
+
+                // Skip DevSysMapBroadcast (0x09) - system broadcast, not our response
+                if opcode == XNLOpCode.deviceSysMapBroadcast.rawValue {
+                    if debug { print("         (SysMapBroadcast, skipping...)") }
+                    continue
+                }
+
+                // DataMessage (0x0B) contains the actual XCMP response
+                if opcode == XNLOpCode.dataMessage.rawValue {
+                    // Check if it's a broadcast XCMP message (0xBxxx opcodes)
                     if data.count > 14 {
-                        return Data(data[14...])
+                        let xcmpOpcode = UInt16(data[14]) << 8 | UInt16(data[15])
+                        if xcmpOpcode & 0xF000 == 0xB000 {
+                            if debug { print("         (XCMP broadcast 0x\(String(format: "%04X", xcmpOpcode)), skipping...)") }
+                            continue
+                        }
+                    }
+                    // Extract XCMP payload (skip XNL header: 14 bytes)
+                    if data.count > 14 {
+                        let xcmpPayload = Data(data[14...])
+                        if debug { print("         XCMP payload: \(xcmpPayload.map { String(format: "%02X", $0) }.joined(separator: " "))") }
+                        return xcmpPayload
                     }
                     return Data()
                 }

@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "RadioHardware", targets: ["USBTransport", "RadioProgrammer", "Discovery"]),
+        .executable(name: "XPRTest", targets: ["XPRTest"]),
     ],
     dependencies: [
         .package(path: "../RadioCore"),
@@ -28,6 +29,12 @@ let package = Package(
             name: "Discovery",
             dependencies: ["USBTransport"],
             path: "Sources/Discovery"
+        ),
+        .executableTarget(
+            name: "XPRTest",
+            dependencies: ["RadioProgrammer"],
+            path: "Sources/XPRTest",
+            swiftSettings: [.unsafeFlags(["-parse-as-library"])]
         ),
         .testTarget(
             name: "RadioHardwareTests",
