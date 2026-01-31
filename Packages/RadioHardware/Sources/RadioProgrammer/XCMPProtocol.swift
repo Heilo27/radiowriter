@@ -964,22 +964,34 @@ public struct CloneReadReply {
 
     /// Initializes from raw XCMP reply data.
     public init?(from xcmpData: Data) {
-        // CloneReadReply format (from Moto.Net analysis):
-        // [3-4]: 0x8001 (zone index type)
-        // [5-6]: zone number
-        // [7-8]: 0x8002 (channel index type)
-        // [9-10]: channel number
-        // [11-12]: data type
-        // [13-14]: data length
-        // [15...]: data
-        guard xcmpData.count >= 15 else { return nil }
+        // CloneReadReply format:
+        // The reply echoes back the request structure with data appended.
+        // Format after opcode is stripped:
+        // [0]: result code (0x00 = success)
+        // [1-2]: 0x8001 (zone index type) - or direct payload if no result byte
+        // [3-4]: zone number
+        // [5-6]: 0x8002 (channel index type)
+        // [7-8]: channel number
+        // [9-10]: data type (0x00 XX)
+        // [11-12]: data length
+        // [13+]: actual data
+        //
+        // For zone-only reads (no channel), format is shorter:
+        // [0]: result code
+        // [1-2]: 0x8001 (zone index type)
+        // [3-4]: zone number
+        // [5-6]: data type
+        // [7-8]: data length
+        // [9+]: actual data
 
-        // Check for error code first (byte 0 after opcode removal)
+        guard xcmpData.count >= 6 else { return nil }
+
+        // Check for error code first (byte 0)
         let errByte = xcmpData[0]
         self.errorCode = XCMPErrorCode(rawValue: errByte) ?? .failure
 
-        // If error, no more data
-        if errorCode != .success && xcmpData.count < 15 {
+        // If error, return minimal result
+        if errorCode != .success {
             self.zone = 0
             self.channel = 0
             self.dataType = 0
@@ -987,14 +999,104 @@ public struct CloneReadReply {
             return
         }
 
-        // Parse zone/channel format
-        // Note: offset adjusted based on whether error code is included
-        let offset = xcmpData.count >= 16 ? 1 : 0
-        self.zone = UInt16(xcmpData[offset + 3]) << 8 | UInt16(xcmpData[offset + 4])
-        self.channel = UInt16(xcmpData[offset + 7]) << 8 | UInt16(xcmpData[offset + 8])
-        self.dataType = UInt16(xcmpData[offset + 9]) << 8 | UInt16(xcmpData[offset + 10])
-        // Skip length bytes (11-12), get actual data
-        self.data = Data(xcmpData.dropFirst(offset + 13))
+        // Look for zone marker (0x8001) to find the start of structured data
+        var offset = 0
+        for i in 0..<min(4, xcmpData.count - 1) {
+            if xcmpData[i] == 0x80 && xcmpData[i + 1] == 0x01 {
+                offset = i
+                break
+            }
+        }
+
+        // Check if we have channel marker (0x8002) - indicates zone+channel format
+        var hasChannel = false
+        var channelOffset = 0
+        for i in offset..<min(xcmpData.count - 1, offset + 8) {
+            if xcmpData[i] == 0x80 && xcmpData[i + 1] == 0x02 {
+                hasChannel = true
+                channelOffset = i
+                break
+            }
+        }
+
+        if hasChannel {
+            // Zone + Channel format
+            // zone at offset+2,offset+3 (after 0x8001 marker)
+            guard xcmpData.count > offset + 3 else {
+                self.zone = 0
+                self.channel = 0
+                self.dataType = 0
+                self.data = Data()
+                return
+            }
+            self.zone = UInt16(xcmpData[offset + 2]) << 8 | UInt16(xcmpData[offset + 3])
+
+            // channel at channelOffset+2,channelOffset+3 (after 0x8002 marker)
+            guard xcmpData.count > channelOffset + 3 else {
+                self.channel = 0
+                self.dataType = 0
+                self.data = Data()
+                return
+            }
+            self.channel = UInt16(xcmpData[channelOffset + 2]) << 8 | UInt16(xcmpData[channelOffset + 3])
+
+            // Data type after channel
+            let dtOffset = channelOffset + 4
+            guard xcmpData.count > dtOffset + 1 else {
+                self.dataType = 0
+                self.data = Data()
+                return
+            }
+            self.dataType = UInt16(xcmpData[dtOffset]) << 8 | UInt16(xcmpData[dtOffset + 1])
+
+            // Data length and data
+            let lenOffset = dtOffset + 2
+            guard xcmpData.count > lenOffset + 1 else {
+                self.data = Data()
+                return
+            }
+            let dataLen = Int(UInt16(xcmpData[lenOffset]) << 8 | UInt16(xcmpData[lenOffset + 1]))
+            let dataStart = lenOffset + 2
+            if xcmpData.count > dataStart {
+                self.data = Data(xcmpData[dataStart..<min(dataStart + dataLen, xcmpData.count)])
+            } else {
+                self.data = Data()
+            }
+        } else {
+            // Zone-only format (no channel)
+            guard xcmpData.count > offset + 3 else {
+                self.zone = 0
+                self.channel = 0
+                self.dataType = 0
+                self.data = Data()
+                return
+            }
+            self.zone = UInt16(xcmpData[offset + 2]) << 8 | UInt16(xcmpData[offset + 3])
+            self.channel = 0
+
+            // Data type after zone
+            let dtOffset = offset + 4
+            guard xcmpData.count > dtOffset + 1 else {
+                self.dataType = 0
+                self.data = Data()
+                return
+            }
+            self.dataType = UInt16(xcmpData[dtOffset]) << 8 | UInt16(xcmpData[dtOffset + 1])
+
+            // Data length and data
+            let lenOffset = dtOffset + 2
+            guard xcmpData.count > lenOffset + 1 else {
+                self.data = Data()
+                return
+            }
+            let dataLen = Int(UInt16(xcmpData[lenOffset]) << 8 | UInt16(xcmpData[lenOffset + 1]))
+            let dataStart = lenOffset + 2
+            if xcmpData.count > dataStart {
+                self.data = Data(xcmpData[dataStart..<min(dataStart + dataLen, xcmpData.count)])
+            } else {
+                self.data = Data()
+            }
+        }
     }
 }
 

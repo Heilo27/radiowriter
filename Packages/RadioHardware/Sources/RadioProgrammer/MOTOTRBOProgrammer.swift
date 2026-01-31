@@ -340,28 +340,51 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         progress(0.08)
 
         // Step 4: Query zone structure
+        // Try multiple methods to determine zone count
         if debug { print("[READ] Querying zones...") }
-        let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug)
-        let zoneCount = max(zoneResult?.zoneCount ?? 1, 1)
 
-        if debug { print("[READ] Found \(zoneCount) zones") }
+        var zoneCount = 0
+
+        // Method 1: Try FeatureSetRequest (0x0037)
+        if let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug) {
+            zoneCount = zoneResult.zoneCount
+            if debug { print("[READ] FeatureSet query returned \(zoneCount) zones") }
+        }
+
+        // Method 2: Try reading zone count from radio settings
+        if zoneCount == 0 {
+            if let countReply = try await client.readRadioSetting(dataType: .zoneCount, debug: debug),
+               let count = countReply.byteValue {
+                zoneCount = Int(count)
+                if debug { print("[READ] Radio settings returned \(zoneCount) zones") }
+            }
+        }
+
+        // Method 3: Default to scanning and detecting zones
+        let maxZones = zoneCount > 0 ? zoneCount : 16  // Scan up to 16 zones if count unknown
+        let maxChannelsPerZone = 64  // Increased to handle larger zones
+
+        if debug { print("[READ] Will scan up to \(maxZones) zones") }
         progress(0.10)
 
         // Step 5: Read zones and channels
         // Progress allocation: 10% to 50% for zones/channels
-        let maxChannelsPerZone = 16
+        var emptyZoneCount = 0
 
-        for zoneIndex in 0..<zoneCount {
+        for zoneIndex in 0..<maxZones {
             var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
 
             // Try to read zone name
             if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
                 zone.name = zoneName
                 if debug { print("[READ] Zone \(zoneIndex): \(zoneName)") }
+            } else if debug {
+                print("[READ] Zone \(zoneIndex): No name returned")
             }
 
             // Read channels in this zone
             var channelIndex = 0
+            var emptyChannelCount = 0
 
             while channelIndex < maxChannelsPerZone {
                 // Try to read channel name first to see if channel exists
@@ -371,11 +394,22 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     dataType: .channelName
                 )
 
-                // If no name returned or error, assume no more channels
-                guard let name = nameReply?.stringValue, !name.isEmpty else {
-                    if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex) channels") }
-                    break
+                // Parse the response
+                let name = nameReply?.stringValue
+
+                // If no name returned or error, check if we should continue
+                if name == nil || name?.isEmpty == true {
+                    emptyChannelCount += 1
+                    // Stop after 2 consecutive empty channels
+                    if emptyChannelCount >= 2 {
+                        if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex - emptyChannelCount + 1) channels") }
+                        break
+                    }
+                    channelIndex += 1
+                    continue
                 }
+
+                emptyChannelCount = 0  // Reset on valid channel
 
                 // Read full channel data
                 let channelData = try await client.readCompleteChannel(
@@ -388,12 +422,20 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 channelIndex += 1
 
                 // Update progress (10% to 50%)
-                let channelProgress = 0.10 + (0.40 * Double(zoneIndex * maxChannelsPerZone + channelIndex) / Double(zoneCount * maxChannelsPerZone))
+                let channelProgress = 0.10 + (0.40 * Double(zoneIndex * 10 + min(channelIndex, 10)) / Double(maxZones * 10))
                 progress(min(channelProgress, 0.50))
             }
 
             if !zone.channels.isEmpty {
                 result.zones.append(zone)
+                emptyZoneCount = 0  // Reset on valid zone
+            } else {
+                emptyZoneCount += 1
+                // Stop scanning if we've found zones and hit 2 consecutive empty zones
+                if result.zones.count > 0 && emptyZoneCount >= 2 {
+                    if debug { print("[READ] Stopping zone scan after \(result.zones.count) zones") }
+                    break
+                }
             }
         }
 

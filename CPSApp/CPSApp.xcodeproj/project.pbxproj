@@ -15,6 +15,7 @@
 		5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */; };
 		6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */; };
 		8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */; };
+		AC5B7AK8H7C24D5EFG980134 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */; };
 		628F588880242E5548D712D5 /* RadioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9E243FB90AB6835FD64AF52B /* RadioCore */; };
 		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
 		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
@@ -47,6 +48,7 @@
 		6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
 		7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
 		9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RxGroupListsView.swift; sourceTree = "<group>"; };
+		BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */,
+				BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */,
 				9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */,
 				7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */,
 				5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */,
@@ -238,6 +241,7 @@
 				5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */,
 				6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */,
 				8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */,
+				AC5B7AK8H7C24D5EFG980134 /* GeneralSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

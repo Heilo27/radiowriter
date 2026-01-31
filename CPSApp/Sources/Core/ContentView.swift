@@ -69,7 +69,7 @@ struct ContentView: View {
             case .signaling:
                 RxGroupListsView()  // RX Group Lists are signaling-related
             case .general:
-                ParsedCodeplugCategoryView(category: .general)
+                GeneralSettingsView()
             case .some(let category):
                 // For other categories, show placeholder or form editor
                 if let codeplug = document?.codeplug, let doc = document {
