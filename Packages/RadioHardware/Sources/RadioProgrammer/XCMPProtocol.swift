@@ -5,33 +5,66 @@ import Foundation
 /// XCMP protocol operation codes for MOTOTRBO radios.
 /// Request codes have the high bit clear, reply codes have 0x8000 OR'd.
 /// Broadcast messages typically have 0xB000 prefix.
+///
+/// VERIFIED FROM CPS 2.0 CAPTURE (2026-01-30):
+/// - Reading uses 0x0012 (SecurityKey), 0x0010 (Model), 0x000F (Version),
+///   0x0011 (Serial), 0x001F (CodeplugId), 0x002E (CodeplugRead)
+/// - NO programming mode (0x0106) required for reading!
 public enum XCMPOpCode: UInt16 {
-    // Status and Info (0x000E, 0x000F)
+    // === VERIFIED WORKING FROM CPS CAPTURE ===
+
+    // Device Info Commands (used by CPS for reading)
+    case versionInfoRequest = 0x000F      // Param: 0x00=full, 0x41=build, P/R/Q variants
+    case versionInfoReply = 0x800F
+    case modelNumberRequest = 0x0010      // Param: 0x00
+    case modelNumberReply = 0x8010
+    case serialNumberRequest = 0x0011     // Param: 0x00
+    case serialNumberReply = 0x8011
+    case securityKeyRequest = 0x0012      // No params - returns 16-byte session key
+    case securityKeyReply = 0x8012
+    case codeplugIdRequest = 0x001F       // Params: 0x00 0x00
+    case codeplugIdReply = 0x801F
+
+    // Codeplug Read (record-based, NOT linear addressing!)
+    case codeplugReadRequest = 0x002E     // Record list format
+    case codeplugReadReply = 0x802E
+
+    // Status Commands
+    case statusFlagsRequest = 0x003D      // Params: 0x00 0x00
+    case statusFlagsReply = 0x803D
+    case featureSetRequest = 0x0037       // 3 bytes params
+    case featureSetReply = 0x8037
+    case languagePackRequest = 0x002C     // 1 byte param
+    case languagePackReply = 0x802C
+
+    // === LEGACY/UNVERIFIED OPCODES ===
+
+    // Status and Info (0x000E)
     case radioStatusRequest = 0x000E
     case radioStatusReply = 0x800E
-    case versionInfoRequest = 0x000F
-    case versionInfoReply = 0x800F
 
     // Codeplug Attributes (0x0025)
     case codeplugAttributeRequest = 0x0025
     case codeplugAttributeReply = 0x8025
 
-    // CPS Operations (0x0100-0x010F)
-    case cpsUnlockRequest = 0x0100       // Unlock for codeplug access
+    // CPS Operations (0x0100-0x010F) - May be for WRITE only
+    case cpsUnlockRequest = 0x0100
     case cpsUnlockReply = 0x8100
-    case cpsReadRequest = 0x0104         // Read codeplug data
+    case cpsReadRequest = 0x0104
     case cpsReadReply = 0x8104
-    case cpsWriteRequest = 0x0105        // Write codeplug data
+    case cpsWriteRequest = 0x0105
     case cpsWriteReply = 0x8105
+    case ishProgramModeRequest = 0x0106   // May only be needed for writes
+    case ishProgramModeReply = 0x8106
 
     // Clone Operations (0x010A)
     case cloneReadRequest = 0x010A
     case cloneReadReply = 0x810A
 
-    // PSDT Access (0x010B) - Primary codeplug access command
+    // PSDT Access (0x010B)
     case psdtAccessRequest = 0x010B
     case psdtAccessReply = 0x810B
-    case psdtAccessBroadcast = 0xB10B    // Progress broadcast
+    case psdtAccessBroadcast = 0xB10B
 
     // Radio Update Control (0x010C)
     case radioUpdateControlRequest = 0x010C
@@ -41,7 +74,7 @@ public enum XCMPOpCode: UInt16 {
     case componentReadRequest = 0x010E
     case componentReadReply = 0x810E
 
-    // Component Session (0x010F) - Session management
+    // Component Session (0x010F)
     case componentSessionRequest = 0x010F
     case componentSessionReply = 0x810F
 
@@ -75,8 +108,6 @@ public enum XCMPOpCode: UInt16 {
 
     // Device Management
     case deviceInitStatusBroadcast = 0xB400
-    case tanapaNumberRequest = 0x001F
-    case tanapaNumberReply = 0x801F
 
     /// Returns the expected reply opcode for a request.
     public var replyOpCode: XCMPOpCode? {
@@ -132,10 +163,7 @@ public enum CloneIndexType: UInt16 {
 /// Data types for CloneReadRequest that specify what data to retrieve.
 /// These are used with the zone/channel clone read format.
 public enum CloneDataType: UInt8 {
-    /// Channel name (returns UTF-16 BE string)
-    case channelName = 0x0F
-    /// Channel alias/display name
-    case channelAlias = 0x10
+    // MARK: - Basic Channel Settings
     /// RX frequency (returns 4-byte value in 10Hz units)
     case rxFrequency = 0x01
     /// TX frequency
@@ -162,6 +190,108 @@ public enum CloneDataType: UInt8 {
     case txTone = 0x0C
     /// CTCSS/DCS decode tone
     case rxTone = 0x0D
+    /// Channel name (returns UTF-16 BE string)
+    case channelName = 0x0F
+    /// Channel alias/display name
+    case channelAlias = 0x10
+
+    // MARK: - Analog Settings
+    /// RX squelch type (carrier, CTCSS, DCS, tight)
+    case rxSquelchType = 0x11
+    /// TX CTCSS frequency (in 0.1 Hz units)
+    case txCTCSS = 0x12
+    /// RX CTCSS frequency (in 0.1 Hz units)
+    case rxCTCSS = 0x13
+    /// TX DCS code (octal)
+    case txDCS = 0x14
+    /// RX DCS code (octal)
+    case rxDCS = 0x15
+    /// DCS invert flag
+    case dcsInvert = 0x16
+    /// Scramble enable
+    case scrambleEnable = 0x17
+    /// Voice emphasis
+    case voiceEmphasis = 0x18
+
+    // MARK: - Digital (DMR) Settings
+    /// RX group list ID
+    case rxGroupListID = 0x19
+    /// TX contact type (individual/group/all)
+    case txContactType = 0x1A
+    /// Extended range direct mode
+    case extendedRangeDirectMode = 0x1B
+    /// Inbound color code (different from outbound)
+    case inboundColorCode = 0x1C
+    /// Outbound color code
+    case outboundColorCode = 0x1D
+    /// Dual capacity direct mode
+    case dualCapacityDirectMode = 0x1E
+    /// Timing leader preference
+    case timingLeaderPreference = 0x1F
+
+    // MARK: - Privacy/Encryption
+    /// Privacy type (none, basic, enhanced, AES)
+    case privacyType = 0x20
+    /// Privacy key index
+    case privacyKey = 0x21
+    /// Privacy alias name
+    case privacyAlias = 0x22
+    /// Ignore RX clear voice
+    case ignoreRxClearVoice = 0x23
+    /// Fixed privacy key decryption
+    case fixedPrivacyKeyDecryption = 0x24
+
+    // MARK: - Signaling
+    /// ARS enabled
+    case arsEnabled = 0x25
+    /// Enhanced GNSS enabled
+    case enhancedGNSS = 0x26
+    /// Lone worker enabled
+    case loneWorker = 0x27
+    /// Emergency alarm acknowledge
+    case emergencyAlarmAck = 0x28
+    /// TX interrupt type
+    case txInterruptType = 0x29
+    /// ARTS enabled
+    case artsEnabled = 0x2A
+    /// RAS alias
+    case rasAlias = 0x2B
+
+    // MARK: - Power & Timing
+    /// RX only flag
+    case rxOnly = 0x2C
+    /// TOT timeout
+    case totTimeout = 0x2D
+    /// Allow talkaround
+    case allowTalkaround = 0x2E
+    /// Auto scan
+    case autoScan = 0x2F
+
+    // MARK: - MOTOTRBO Features
+    /// MOTOTRBO link enabled
+    case mototrboLink = 0x30
+    /// Compressed UDP header
+    case compressedUDPHeader = 0x31
+    /// Text message type (DMR/MOTOTRBO)
+    case textMessageType = 0x32
+    /// Over-the-air battery management
+    case otaBatteryManagement = 0x33
+    /// Audio enhancement
+    case audioEnhancement = 0x34
+    /// Phone system name
+    case phoneSystem = 0x35
+    /// Window size
+    case windowSize = 0x36
+
+    // MARK: - Voice Announcements
+    /// Voice announcement file
+    case voiceAnnouncement = 0x37
+
+    // MARK: - Zone Info
+    /// Zone name
+    case zoneName = 0x40
+    /// Zone channel count
+    case zoneChannelCount = 0x41
 }
 
 // MARK: - XCMP Error Codes
@@ -297,7 +427,61 @@ public struct XCMPPacket {
         return XCMPPacket(opCode: opCode, data: Data(data.dropFirst(2)))
     }
 
-    // MARK: - Factory Methods
+    // MARK: - Factory Methods (VERIFIED from CPS 2.0 Capture)
+
+    /// Creates a SecurityKeyRequest (0x0012) - CPS sends this first after auth.
+    /// Returns 16-byte session key in reply.
+    public static func securityKeyRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .securityKeyRequest, data: Data())
+    }
+
+    /// Creates a ModelNumberRequest (0x0010) with param 0x00.
+    public static func modelNumberRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .modelNumberRequest, data: Data([0x00]))
+    }
+
+    /// Creates a SerialNumberRequest (0x0011) with param 0x00.
+    public static func serialNumberRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .serialNumberRequest, data: Data([0x00]))
+    }
+
+    /// Creates a CodeplugIdRequest (0x001F) with params 0x00 0x00.
+    public static func codeplugIdRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .codeplugIdRequest, data: Data([0x00, 0x00]))
+    }
+
+    /// Creates a StatusFlagsRequest (0x003D) with params 0x00 0x00.
+    public static func statusFlagsRequest() -> XCMPPacket {
+        XCMPPacket(opCode: .statusFlagsRequest, data: Data([0x00, 0x00]))
+    }
+
+    /// Creates a CodeplugRead request (0x002E) for specific record IDs.
+    /// Format: [count] 01 00 [record1] [record2] ...
+    /// Each record: 09 01 04 80 [id:2] 00 01 00 00 00
+    public static func codeplugReadRequest(recordIDs: [UInt16]) -> XCMPPacket {
+        var data = Data()
+        data.append(UInt8(recordIDs.count))  // Record count
+        data.append(0x01)
+        data.append(0x00)
+
+        for recordID in recordIDs {
+            data.append(0x09)
+            data.append(0x01)
+            data.append(0x04)
+            data.append(0x80)
+            data.append(UInt8(recordID >> 8))
+            data.append(UInt8(recordID & 0xFF))
+            data.append(0x00)
+            data.append(0x01)
+            data.append(0x00)
+            data.append(0x00)
+            data.append(0x00)
+        }
+
+        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+    }
+
+    // MARK: - Legacy Factory Methods
 
     /// Creates a RadioStatusRequest packet.
     public static func radioStatusRequest(_ statusType: XCMPStatusType) -> XCMPPacket {
@@ -604,6 +788,12 @@ public struct CloneReadReply {
         return UInt16(data[0]) << 8 | UInt16(data[1])
     }
 
+    /// Parses the data as a 4-byte value.
+    public var uint32Value: UInt32? {
+        guard data.count >= 4 else { return nil }
+        return UInt32(data[0]) << 24 | UInt32(data[1]) << 16 | UInt32(data[2]) << 8 | UInt32(data[3])
+    }
+
     /// Initializes from raw XCMP reply data.
     public init?(from xcmpData: Data) {
         // CloneReadReply format (from Moto.Net analysis):
@@ -651,29 +841,117 @@ public actor XCMPClient {
     }
 
     /// Sends an XCMP packet and waits for a reply.
-    public func sendAndReceive(_ packet: XCMPPacket, timeout: TimeInterval = 5.0) async throws -> XCMPPacket? {
+    public func sendAndReceive(_ packet: XCMPPacket, timeout: TimeInterval = 5.0, debug: Bool = false) async throws -> XCMPPacket? {
         let xcmpData = packet.encode()
-        guard let responseData = try await xnlConnection.sendXCMP(xcmpData, timeout: timeout) else {
+        guard let responseData = try await xnlConnection.sendXCMP(xcmpData, timeout: timeout, debug: debug) else {
             return nil
         }
         return XCMPPacket.decode(responseData)
     }
 
-    /// Gets the radio model number.
+    // MARK: - VERIFIED CPS Protocol Methods
+
+    /// Gets the security key (0x0012) - CPS calls this first after auth.
+    /// Returns 16-byte session key.
+    public func getSecurityKey(debug: Bool = false) async throws -> Data? {
+        let request = XCMPPacket.securityKeyRequest()
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        // Reply format: [result 1B] [key 16B]
+        guard reply.data.count >= 17, reply.data[0] == 0x00 else { return nil }
+        return Data(reply.data[1...16])
+    }
+
+    /// Gets model number using verified CPS protocol (0x0010).
+    public func getModelNumberCPS(debug: Bool = false) async throws -> String? {
+        let request = XCMPPacket.modelNumberRequest()
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        // Reply format: [result 1B] [model string]
+        guard reply.data.count > 1, reply.data[0] == 0x00 else { return nil }
+        return String(data: Data(reply.data[1...]), encoding: .utf8)?
+            .trimmingCharacters(in: .controlCharacters)
+            .trimmingCharacters(in: CharacterSet(["\0"]))
+    }
+
+    /// Gets serial number using verified CPS protocol (0x0011).
+    public func getSerialNumberCPS(debug: Bool = false) async throws -> String? {
+        let request = XCMPPacket.serialNumberRequest()
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        // Reply format: [result 1B] [serial string]
+        guard reply.data.count > 1, reply.data[0] == 0x00 else { return nil }
+        return String(data: Data(reply.data[1...]), encoding: .utf8)?
+            .trimmingCharacters(in: .controlCharacters)
+            .trimmingCharacters(in: CharacterSet(["\0"]))
+    }
+
+    /// Gets firmware version using verified CPS protocol (0x000F).
+    /// - Parameter type: 0x00 for full version (R02.21.01.1001), 0x41 for build (211036)
+    public func getFirmwareVersionCPS(type: UInt8 = 0x00, debug: Bool = false) async throws -> String? {
+        let request = XCMPPacket(opCode: .versionInfoRequest, data: Data([type]))
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        // Reply format: [result 1B] [version string]
+        guard reply.data.count > 1, reply.data[0] == 0x00 else { return nil }
+        return String(data: Data(reply.data[1...]), encoding: .utf8)?
+            .trimmingCharacters(in: .controlCharacters)
+            .trimmingCharacters(in: CharacterSet(["\0"]))
+    }
+
+    /// Gets codeplug ID using verified CPS protocol (0x001F).
+    public func getCodeplugID(debug: Bool = false) async throws -> String? {
+        let request = XCMPPacket.codeplugIdRequest()
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        // Reply format: [result 1B] [codeplug ID string]
+        guard reply.data.count > 1, reply.data[0] == 0x00 else { return nil }
+        return String(data: Data(reply.data[1...]), encoding: .utf8)?
+            .trimmingCharacters(in: .controlCharacters)
+            .trimmingCharacters(in: CharacterSet(["\0"]))
+    }
+
+    /// Reads codeplug records using verified CPS protocol (0x002E).
+    /// - Parameter recordIDs: List of record IDs to read
+    /// - Returns: Raw response data containing all requested records
+    public func readCodeplugRecords(_ recordIDs: [UInt16], debug: Bool = false) async throws -> Data? {
+        let request = XCMPPacket.codeplugReadRequest(recordIDs: recordIDs)
+        guard let reply = try await sendAndReceive(request, timeout: 10.0, debug: debug) else { return nil }
+        return reply.data
+    }
+
+    /// Performs complete device identification using verified CPS protocol.
+    public func identifyCPS(debug: Bool = false) async throws -> RadioIdentification {
+        // Get security key first (CPS does this)
+        _ = try await getSecurityKey(debug: debug)
+
+        let model = try await getModelNumberCPS(debug: debug) ?? "Unknown"
+        let serial = try await getSerialNumberCPS(debug: debug)
+        let firmware = try await getFirmwareVersionCPS(type: 0x00, debug: debug)
+        let codeplugID = try await getCodeplugID(debug: debug)
+
+        return RadioIdentification(
+            modelNumber: model,
+            serialNumber: serial,
+            firmwareVersion: firmware,
+            radioFamily: guessRadioFamily(from: model),
+            codeplugVersion: codeplugID,  // Codeplug ID from 0x001F
+            radioID: nil  // CPS doesn't query radio ID during read
+        )
+    }
+
+    // MARK: - Legacy Methods (may not work with all radios)
+
+    /// Gets the radio model number (legacy method).
     public func getModelNumber() async throws -> String? {
         let request = XCMPPacket.radioStatusRequest(.modelNumber)
         guard let reply = try await sendAndReceive(request) else { return nil }
         return String(data: reply.data.dropFirst(), encoding: .utf8)?.trimmingCharacters(in: .controlCharacters)
     }
 
-    /// Gets the radio serial number.
+    /// Gets the radio serial number (legacy method).
     public func getSerialNumber() async throws -> String? {
         let request = XCMPPacket.radioStatusRequest(.serialNumber)
         guard let reply = try await sendAndReceive(request) else { return nil }
         return String(data: reply.data.dropFirst(), encoding: .utf8)?.trimmingCharacters(in: .controlCharacters)
     }
 
-    /// Gets the radio ID.
+    /// Gets the radio ID (legacy method).
     public func getRadioID() async throws -> UInt32? {
         let request = XCMPPacket.radioStatusRequest(.radioID)
         guard let reply = try await sendAndReceive(request) else { return nil }
@@ -682,7 +960,7 @@ public actor XCMPClient {
         return UInt32(reply.data[1]) << 16 | UInt32(reply.data[2]) << 8 | UInt32(reply.data[3])
     }
 
-    /// Gets firmware version.
+    /// Gets firmware version (legacy method).
     public func getFirmwareVersion() async throws -> String? {
         let request = XCMPPacket.versionInfoRequest(.firmware)
         guard let reply = try await sendAndReceive(request) else { return nil }
@@ -691,7 +969,7 @@ public actor XCMPClient {
         return String(data: reply.data.dropFirst(2), encoding: .utf8)?.trimmingCharacters(in: .controlCharacters)
     }
 
-    /// Gets full radio identification.
+    /// Gets full radio identification (legacy method).
     public func identify() async throws -> RadioIdentification {
         let model = try await getModelNumber() ?? "Unknown"
         let serial = try await getSerialNumber()
@@ -770,6 +1048,498 @@ public actor XCMPClient {
         // Skip the header and return raw data
         guard reply.data.count > 13 else { return nil }
         return Data(reply.data.dropFirst(13))
+    }
+
+    // MARK: - Zone and Channel Reading
+
+    /// Queries zone information using XCMP 0x0037.
+    /// - Parameter queryType: 0x01 for zone count, 0x03 for zone list
+    public func queryZones(queryType: UInt8 = 0x01, debug: Bool = false) async throws -> ZoneQueryResult? {
+        // XCMP 0x0037: Zone/Feature Query
+        // Format: 0x0037 [type] [subtype] [extra]
+        let request = XCMPPacket(opCode: .featureSetRequest, data: Data([queryType, 0x01, 0x00]))
+        guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
+
+        if debug {
+            print("[ZONE] Query response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
+        return ZoneQueryResult(from: reply.data)
+    }
+
+    /// Queries zone details including channel count per zone.
+    public func queryZoneDetails(debug: Bool = false) async throws -> ZoneDetailsResult? {
+        let request = XCMPPacket(opCode: .featureSetRequest, data: Data([0x01, 0x03, 0x00]))
+        guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
+
+        if debug {
+            print("[ZONE] Details response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
+        return ZoneDetailsResult(from: reply.data)
+    }
+
+    /// Reads a complete channel's data using CloneRead.
+    /// - Parameters:
+    ///   - zone: Zone index (0-based)
+    ///   - channel: Channel index within zone (0-based)
+    /// - Returns: ChannelData with all available fields
+    public func readCompleteChannel(zone: UInt16, channel: UInt16, debug: Bool = false) async throws -> ChannelData {
+        var channelData = ChannelData(zoneIndex: Int(zone), channelIndex: Int(channel))
+
+        // MARK: - Basic Settings (always read)
+
+        // Channel Name
+        if let nameReply = try await readChannelData(zone: zone, channel: channel, dataType: .channelName) {
+            channelData.name = nameReply.stringValue ?? "CH\(channel + 1)"
+        }
+
+        // RX Frequency
+        if let rxReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxFrequency) {
+            channelData.rxFrequencyHz = rxReply.frequencyHz ?? 0
+        }
+
+        // TX Frequency
+        if let txReply = try await readChannelData(zone: zone, channel: channel, dataType: .txFrequency) {
+            channelData.txFrequencyHz = txReply.frequencyHz ?? 0
+        }
+
+        // Channel Type (Analog/Digital)
+        if let typeReply = try await readChannelData(zone: zone, channel: channel, dataType: .channelType) {
+            channelData.isDigital = (typeReply.byteValue ?? 0) != 0
+        }
+
+        // TX Power
+        if let powerReply = try await readChannelData(zone: zone, channel: channel, dataType: .txPower) {
+            channelData.txPowerHigh = (powerReply.byteValue ?? 1) != 0
+        }
+
+        // Bandwidth
+        if let bwReply = try await readChannelData(zone: zone, channel: channel, dataType: .bandwidth) {
+            channelData.bandwidthWide = (bwReply.byteValue ?? 0) != 0
+        }
+
+        // MARK: - Digital (DMR) Settings
+
+        if channelData.isDigital {
+            // Time Slot
+            if let tsReply = try await readChannelData(zone: zone, channel: channel, dataType: .timeslot) {
+                channelData.timeSlot = Int(tsReply.byteValue ?? 1)
+            }
+
+            // Color Code
+            if let ccReply = try await readChannelData(zone: zone, channel: channel, dataType: .colorCode) {
+                channelData.colorCode = Int(ccReply.byteValue ?? 1)
+            }
+
+            // Contact ID
+            if let contactReply = try await readChannelData(zone: zone, channel: channel, dataType: .contactID) {
+                channelData.contactID = contactReply.uint32Value ?? 0
+            }
+
+            // RX Group List
+            if let rxGroupReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxGroupListID) {
+                channelData.rxGroupListID = rxGroupReply.byteValue ?? 0
+            }
+
+            // Inbound Color Code
+            if let inCCReply = try await readChannelData(zone: zone, channel: channel, dataType: .inboundColorCode) {
+                channelData.inboundColorCode = Int(inCCReply.byteValue ?? 1)
+            }
+
+            // Outbound Color Code
+            if let outCCReply = try await readChannelData(zone: zone, channel: channel, dataType: .outboundColorCode) {
+                channelData.outboundColorCode = Int(outCCReply.byteValue ?? 1)
+            }
+
+            // Dual Capacity Direct Mode
+            if let dcdmReply = try await readChannelData(zone: zone, channel: channel, dataType: .dualCapacityDirectMode) {
+                channelData.dualCapacityDirectMode = (dcdmReply.byteValue ?? 0) != 0
+            }
+
+            // Timing Leader Preference
+            if let tlpReply = try await readChannelData(zone: zone, channel: channel, dataType: .timingLeaderPreference) {
+                channelData.timingLeaderPreference = Int(tlpReply.byteValue ?? 0)
+            }
+
+            // Extended Range Direct Mode
+            if let erdmReply = try await readChannelData(zone: zone, channel: channel, dataType: .extendedRangeDirectMode) {
+                channelData.extendedRangeDirectMode = (erdmReply.byteValue ?? 0) != 0
+            }
+
+            // Window Size
+            if let wsReply = try await readChannelData(zone: zone, channel: channel, dataType: .windowSize) {
+                channelData.windowSize = wsReply.byteValue ?? 1
+            }
+
+            // Compressed UDP Header
+            if let udpReply = try await readChannelData(zone: zone, channel: channel, dataType: .compressedUDPHeader) {
+                channelData.compressedUDPHeader = (udpReply.byteValue ?? 0) != 0
+            }
+
+            // Text Message Type
+            if let tmtReply = try await readChannelData(zone: zone, channel: channel, dataType: .textMessageType) {
+                channelData.textMessageType = Int(tmtReply.byteValue ?? 0)
+            }
+        }
+
+        // MARK: - Analog Settings
+
+        if !channelData.isDigital {
+            // RX Squelch Type
+            if let sqReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxSquelchType) {
+                channelData.rxSquelchType = Int(sqReply.byteValue ?? 0)
+            }
+
+            // TX CTCSS
+            if let txCtcssReply = try await readChannelData(zone: zone, channel: channel, dataType: .txCTCSS) {
+                channelData.txCTCSSHz = Double(txCtcssReply.uint16Value ?? 0) / 10.0
+            }
+
+            // RX CTCSS
+            if let rxCtcssReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxCTCSS) {
+                channelData.rxCTCSSHz = Double(rxCtcssReply.uint16Value ?? 0) / 10.0
+            }
+
+            // TX DCS
+            if let txDcsReply = try await readChannelData(zone: zone, channel: channel, dataType: .txDCS) {
+                channelData.txDCSCode = txDcsReply.uint16Value ?? 0
+            }
+
+            // RX DCS
+            if let rxDcsReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxDCS) {
+                channelData.rxDCSCode = rxDcsReply.uint16Value ?? 0
+            }
+
+            // DCS Invert
+            if let dcsInvReply = try await readChannelData(zone: zone, channel: channel, dataType: .dcsInvert) {
+                channelData.dcsInvert = (dcsInvReply.byteValue ?? 0) != 0
+            }
+
+            // Scramble Enable
+            if let scrambleReply = try await readChannelData(zone: zone, channel: channel, dataType: .scrambleEnable) {
+                channelData.scrambleEnabled = (scrambleReply.byteValue ?? 0) != 0
+            }
+
+            // Voice Emphasis
+            if let veReply = try await readChannelData(zone: zone, channel: channel, dataType: .voiceEmphasis) {
+                channelData.voiceEmphasis = (veReply.byteValue ?? 0) != 0
+            }
+        }
+
+        // MARK: - Privacy Settings (both analog and digital)
+
+        // Privacy Type
+        if let ptReply = try await readChannelData(zone: zone, channel: channel, dataType: .privacyType) {
+            channelData.privacyType = Int(ptReply.byteValue ?? 0)
+        }
+
+        // Privacy Key
+        if let pkReply = try await readChannelData(zone: zone, channel: channel, dataType: .privacyKey) {
+            channelData.privacyKey = pkReply.byteValue ?? 0
+        }
+
+        // Ignore RX Clear Voice
+        if let ircvReply = try await readChannelData(zone: zone, channel: channel, dataType: .ignoreRxClearVoice) {
+            channelData.ignoreRxClearVoice = (ircvReply.byteValue ?? 0) != 0
+        }
+
+        // MARK: - Signaling Settings
+
+        // ARS Enabled
+        if let arsReply = try await readChannelData(zone: zone, channel: channel, dataType: .arsEnabled) {
+            channelData.arsEnabled = (arsReply.byteValue ?? 0) != 0
+        }
+
+        // Enhanced GNSS
+        if let gnssReply = try await readChannelData(zone: zone, channel: channel, dataType: .enhancedGNSS) {
+            channelData.enhancedGNSSEnabled = (gnssReply.byteValue ?? 0) != 0
+        }
+
+        // Lone Worker
+        if let lwReply = try await readChannelData(zone: zone, channel: channel, dataType: .loneWorker) {
+            channelData.loneWorker = (lwReply.byteValue ?? 0) != 0
+        }
+
+        // Emergency Alarm Ack
+        if let eaaReply = try await readChannelData(zone: zone, channel: channel, dataType: .emergencyAlarmAck) {
+            channelData.emergencyAlarmAck = (eaaReply.byteValue ?? 0) != 0
+        }
+
+        // TX Interrupt Type
+        if let txiReply = try await readChannelData(zone: zone, channel: channel, dataType: .txInterruptType) {
+            channelData.txInterruptType = Int(txiReply.byteValue ?? 0)
+        }
+
+        // ARTS Enabled
+        if let artsReply = try await readChannelData(zone: zone, channel: channel, dataType: .artsEnabled) {
+            channelData.artsEnabled = (artsReply.byteValue ?? 0) != 0
+        }
+
+        // MARK: - Power & Timing
+
+        // RX Only
+        if let rxOnlyReply = try await readChannelData(zone: zone, channel: channel, dataType: .rxOnly) {
+            channelData.rxOnly = (rxOnlyReply.byteValue ?? 0) != 0
+        }
+
+        // TOT Timeout
+        if let totReply = try await readChannelData(zone: zone, channel: channel, dataType: .totTimeout) {
+            channelData.totTimeout = totReply.uint16Value ?? 60
+        }
+
+        // Allow Talkaround
+        if let taReply = try await readChannelData(zone: zone, channel: channel, dataType: .allowTalkaround) {
+            channelData.allowTalkaround = (taReply.byteValue ?? 1) != 0
+        }
+
+        // Auto Scan
+        if let asReply = try await readChannelData(zone: zone, channel: channel, dataType: .autoScan) {
+            channelData.autoScan = (asReply.byteValue ?? 0) != 0
+        }
+
+        // Scan List ID
+        if let slReply = try await readChannelData(zone: zone, channel: channel, dataType: .scanListID) {
+            channelData.scanListID = slReply.byteValue ?? 0
+        }
+
+        // MARK: - MOTOTRBO Features
+
+        // MOTOTRBO Link
+        if let mtlReply = try await readChannelData(zone: zone, channel: channel, dataType: .mototrboLink) {
+            channelData.mototrboLinkEnabled = (mtlReply.byteValue ?? 0) != 0
+        }
+
+        // OTA Battery Management
+        if let otaReply = try await readChannelData(zone: zone, channel: channel, dataType: .otaBatteryManagement) {
+            channelData.otaBatteryManagement = (otaReply.byteValue ?? 0) != 0
+        }
+
+        // Audio Enhancement
+        if let aeReply = try await readChannelData(zone: zone, channel: channel, dataType: .audioEnhancement) {
+            channelData.audioEnhancement = (aeReply.byteValue ?? 0) != 0
+        }
+
+        if debug {
+            print("[CHANNEL] Zone \(zone) CH \(channel): \(channelData.name) " +
+                  "\(channelData.channelTypeDisplay) RX:\(channelData.rxFrequencyMHz) " +
+                  "TX:\(channelData.txFrequencyMHz) CC:\(channelData.colorCode) TS:\(channelData.timeSlot)")
+        }
+
+        return channelData
+    }
+
+    /// Reads all channels for a zone.
+    /// - Parameters:
+    ///   - zone: Zone index (0-based)
+    ///   - channelCount: Number of channels in this zone
+    ///   - progress: Optional progress callback (0.0 to 1.0)
+    public func readZoneChannels(
+        zone: UInt16,
+        channelCount: Int,
+        progress: ((Double) -> Void)? = nil,
+        debug: Bool = false
+    ) async throws -> [ChannelData] {
+        var channels: [ChannelData] = []
+
+        for i in 0..<channelCount {
+            let channelData = try await readCompleteChannel(zone: zone, channel: UInt16(i), debug: debug)
+            channels.append(channelData)
+            progress?(Double(i + 1) / Double(channelCount))
+        }
+
+        return channels
+    }
+}
+
+// MARK: - Zone Query Results
+
+/// Result from zone query (0x0037).
+public struct ZoneQueryResult {
+    public let zoneCount: Int
+    public let maxZones: Int
+    public let rawData: Data
+
+    public init?(from data: Data) {
+        guard data.count >= 3 else { return nil }
+        // Response format varies, try to extract zone info
+        // Typical: [result] [zone_count] [max_zones] ...
+        if data[0] == 0x00 || data[0] == 0x01 {
+            // Success
+            self.zoneCount = data.count > 1 ? Int(data[1]) : 0
+            self.maxZones = data.count > 2 ? Int(data[2]) : 250
+        } else {
+            // Error or different format
+            self.zoneCount = 0
+            self.maxZones = 250
+        }
+        self.rawData = data
+    }
+}
+
+/// Result from zone details query.
+public struct ZoneDetailsResult {
+    public let zones: [(name: String, channelCount: Int)]
+    public let rawData: Data
+
+    public init?(from data: Data) {
+        self.rawData = data
+        let zones: [(String, Int)] = []
+        // Parse zone details from response
+        // Format is radio-specific, may need adjustment
+        self.zones = zones
+    }
+}
+
+// MARK: - Channel Data
+
+/// Parsed channel data from CloneRead operations.
+/// Contains all configurable settings for a channel.
+public struct ChannelData: Sendable {
+    // MARK: - Identity
+    public var zoneIndex: Int = 0
+    public var channelIndex: Int = 0
+    public var name: String = ""
+    public var alias: String = ""
+
+    // MARK: - Frequencies
+    public var rxFrequencyHz: UInt32 = 0
+    public var txFrequencyHz: UInt32 = 0
+
+    public var rxFrequencyMHz: Double { Double(rxFrequencyHz) / 1_000_000.0 }
+    public var txFrequencyMHz: Double { Double(txFrequencyHz) / 1_000_000.0 }
+
+    /// TX offset in MHz (positive = +offset, negative = -offset, 0 = simplex)
+    public var txOffsetMHz: Double {
+        (Double(txFrequencyHz) - Double(rxFrequencyHz)) / 1_000_000.0
+    }
+
+    // MARK: - Channel Type
+    public var isDigital: Bool = true
+
+    // MARK: - Digital (DMR) Settings
+    public var timeSlot: Int = 1
+    public var colorCode: Int = 1
+    public var inboundColorCode: Int = 1
+    public var outboundColorCode: Int = 1
+    public var contactID: UInt32 = 0
+    public var contactType: Int = 0  // 0=Private, 1=Group, 2=All Call
+    public var rxGroupListID: UInt8 = 0
+    public var dualCapacityDirectMode: Bool = false
+    public var timingLeaderPreference: Int = 0  // 0=Either, 1=Preferred, 2=Followed
+    public var extendedRangeDirectMode: Bool = false
+    public var windowSize: UInt8 = 1
+
+    // MARK: - Power & Bandwidth
+    public var txPowerHigh: Bool = true
+    public var bandwidthWide: Bool = false  // false=12.5kHz, true=25kHz
+
+    // MARK: - Analog Settings
+    public var rxSquelchType: Int = 0  // 0=Carrier, 1=CTCSS/DCS, 2=Tight
+    public var txCTCSSHz: Double = 0  // In Hz (e.g., 100.0)
+    public var rxCTCSSHz: Double = 0
+    public var txDCSCode: UInt16 = 0  // Octal code (e.g., 023)
+    public var rxDCSCode: UInt16 = 0
+    public var dcsInvert: Bool = false
+    public var scrambleEnabled: Bool = false
+    public var voiceEmphasis: Bool = false
+
+    // MARK: - Privacy/Encryption
+    public var privacyType: Int = 0  // 0=None, 1=Basic, 2=Enhanced, 3=AES
+    public var privacyKey: UInt8 = 0
+    public var privacyAlias: String = ""
+    public var ignoreRxClearVoice: Bool = false
+    public var fixedPrivacyKeyDecryption: Bool = false
+
+    // MARK: - Signaling
+    public var arsEnabled: Bool = false
+    public var enhancedGNSSEnabled: Bool = false
+    public var loneWorker: Bool = false
+    public var emergencyAlarmAck: Bool = false
+    public var txInterruptType: Int = 0  // 0=Disabled, 1=Always Allow
+    public var artsEnabled: Bool = false
+    public var rasAlias: String = ""
+
+    // MARK: - Power & Timing
+    public var rxOnly: Bool = false
+    public var totTimeout: UInt16 = 60
+    public var allowTalkaround: Bool = true
+    public var autoScan: Bool = false
+    public var scanListID: UInt8 = 0
+    public var admitCriteria: Int = 0
+
+    // MARK: - MOTOTRBO Features
+    public var mototrboLinkEnabled: Bool = false
+    public var compressedUDPHeader: Bool = false
+    public var textMessageType: Int = 0  // 0=DMR, 1=MOTOTRBO
+    public var otaBatteryManagement: Bool = false
+    public var audioEnhancement: Bool = false
+    public var phoneSystem: String = ""
+
+    // MARK: - Voice Announcement
+    public var voiceAnnouncement: String = ""
+
+    public init(zoneIndex: Int = 0, channelIndex: Int = 0) {
+        self.zoneIndex = zoneIndex
+        self.channelIndex = channelIndex
+    }
+
+    // MARK: - Display Helpers
+
+    /// Human-readable channel type
+    public var channelTypeDisplay: String {
+        isDigital ? "Digital (DMR)" : "Analog"
+    }
+
+    /// Human-readable bandwidth
+    public var bandwidthDisplay: String {
+        bandwidthWide ? "25 kHz" : "12.5 kHz"
+    }
+
+    /// Human-readable power level
+    public var powerDisplay: String {
+        txPowerHigh ? "High" : "Low"
+    }
+
+    /// Human-readable squelch type
+    public var squelchTypeDisplay: String {
+        switch rxSquelchType {
+        case 0: return "Carrier"
+        case 1: return "CTCSS/DCS"
+        case 2: return "Tight"
+        default: return "Unknown"
+        }
+    }
+
+    /// Human-readable privacy type
+    public var privacyTypeDisplay: String {
+        switch privacyType {
+        case 0: return "None"
+        case 1: return "Basic"
+        case 2: return "Enhanced"
+        case 3: return "AES-256"
+        default: return "Unknown"
+        }
+    }
+
+    /// Human-readable timing leader preference
+    public var timingLeaderDisplay: String {
+        switch timingLeaderPreference {
+        case 0: return "Either"
+        case 1: return "Preferred"
+        case 2: return "Followed"
+        default: return "Unknown"
+        }
+    }
+
+    /// Human-readable contact type
+    public var contactTypeDisplay: String {
+        switch contactType {
+        case 0: return "Private Call"
+        case 1: return "Group Call"
+        case 2: return "All Call"
+        default: return "Unknown"
+        }
     }
 }
 

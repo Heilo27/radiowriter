@@ -53,6 +53,9 @@ struct RootView: View {
                 showingError = true
             }
         }
+        .sheet(isPresented: $coordinator.showingProgrammingSheet) {
+            ProgrammingView()
+        }
         .alert("Error", isPresented: $showingError) {
             Button("OK") { showingError = false }
         } message: {

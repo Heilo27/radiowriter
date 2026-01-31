@@ -244,3 +244,43 @@ _Add notes about current research focus, open questions, and next steps here._
 - Sample codeplug files for hex analysis
 - USB protocol capture for communication mapping
 
+
+## Analysis Results (2026-01-29)
+
+### XCMP Protocol Discovery
+
+Successfully reverse engineered key MOTOTRBO CPS DLLs to understand codeplug read/write protocol.
+
+**Documents Created:**
+- `/Users/home/Documents/Development/MotorolaCPS/analysis/protocols/XCMP-Codeplug-Protocol.md`
+- `/Users/home/Documents/Development/MotorolaCPS/analysis/protocols/XCMP-Command-Reference.md`
+
+**Key Findings:**
+
+1. **XcmpPsdtAccess (Opcode 0x010B)** - Partition access command
+   - Actions: GetStartAddress, GetEndAddress, Lock, Unlock, Erase, Copy, ImageReorg
+   - Used to access PSDT (Persistent Storage Data Table) partitions
+   - Partition IDs are 4-byte ASCII strings
+
+2. **XcmpComponentSession (Opcode 0x010F)** - Session management
+   - Actions are flags (can be combined): StartSession, ReadWrite, ValidateCRC, UnpackFiles, Deploy, CreateArchive, Reset
+   - Each session has unique ID (ushort)
+   - Replies indicate success/failure with detailed result codes
+
+3. **XcmpPsdtAccessBroadcast** - Progress monitoring
+   - Unsolicited updates during operations
+   - Provides completion percentage and status
+
+**Confidence Levels:**
+- HIGH: Opcodes for PsdtAccess and ComponentSession
+- HIGH: Complete enums for actions and results
+- MEDIUM: Command sequences (inferred from method flow)
+- LOW: Partition IDs, block sizes, XcmpTransferData/ComponentRead opcodes
+
+**Next Steps:**
+1. Capture live USB traffic during CPS operations
+2. Verify command sequences with actual packets
+3. Identify remaining opcodes (XcmpComponentRead, XcmpTransferData)
+4. Document partition IDs and data formats
+5. Test compression algorithm used for data transfer
+

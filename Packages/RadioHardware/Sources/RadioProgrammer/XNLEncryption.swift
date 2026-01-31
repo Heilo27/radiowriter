@@ -131,4 +131,47 @@ public struct XNLEncryption {
             }
         }
     }
+
+    // MARK: - Radio Key Encryption (LFSR-based)
+
+    /// Initial state for the LFSR used in radio key encryption.
+    /// Extracted from PcrSequenceManager.dll → RadioSecurity.EncryptRadioKey()
+    private static let lfsrInitialState: UInt32 = 0x51E50001
+
+    /// Encrypts a 32-byte radio key using LFSR-based algorithm.
+    /// Used for the RcmpUnlockSecurity command (0x0301).
+    /// - Parameter radioKey: 32-byte key from RcmpReadRadioKey response
+    /// - Returns: 32-byte encrypted key for unlock command
+    public static func encryptRadioKey(_ radioKey: Data) -> Data? {
+        guard radioKey.count == 32 else { return nil }
+
+        var output = [UInt8](repeating: 0, count: 32)
+        var state: UInt32 = lfsrInitialState
+
+        for i in 0..<32 {
+            var byte = radioKey[i]
+
+            for bit in stride(from: 7, through: 0, by: -1) {
+                // Get bit from state at position 9
+                let stateBit = Int((state >> 9) & 1)
+
+                // Get bit from input byte at mirror position
+                let inputByte = radioKey[31 - i]
+                let inputBit = Int((inputByte >> (bit & 0x1F)) & 1)
+
+                // XOR to get feedback bit
+                let feedback = stateBit ^ inputBit
+
+                // Update LFSR state
+                state = (state << 1) &+ UInt32(feedback)
+
+                // XOR byte with feedback bit shifted to position
+                byte ^= UInt8(truncatingIfNeeded: feedback << (bit & 0x1F))
+            }
+
+            output[i] = byte
+        }
+
+        return Data(output)
+    }
 }

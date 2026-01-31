@@ -72,6 +72,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     // MARK: - RadioFamilyProgrammer
 
     /// Identifies the connected MOTOTRBO radio using XCMP protocol.
+    /// Uses the verified CPS 2.0 protocol (SecurityKey, ModelNumber, etc.)
     public func identify() async throws -> RadioIdentification {
         // Connect if not already connected
         if !(await isConnected) {
@@ -82,11 +83,274 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.notImplemented("XCMP client not initialized")
         }
 
-        // Use XCMP to get radio info
-        return try await client.identify()
+        // Use verified CPS protocol to get radio info
+        return try await client.identifyCPS(debug: false)
     }
 
-    /// Reads the complete codeplug from the radio.
+    /// Identifies the radio with debug output enabled.
+    public func identifyWithDebug() async throws -> RadioIdentification {
+        if !(await isConnected) {
+            try await connect()
+        }
+
+        guard let client = xcmpClient else {
+            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+        }
+
+        return try await client.identifyCPS(debug: true)
+    }
+
+    // MARK: - Record ID Constants
+
+    /// Standard record IDs common to all MOTOTRBO radios.
+    /// Captured from CPS 2.0 communication with XPR 3500e.
+    public static let standardRecordIDs: [UInt16] = [
+        // Device Information (0x000A - 0x0019)
+        0x000A, 0x000B, 0x000C, 0x0018, 0x0019,
+        // General Settings (0x0026 - 0x0051)
+        0x0026, 0x0027, 0x0028, 0x0029, 0x0034,
+        0x0042, 0x0043, 0x0047, 0x004C, 0x004E, 0x004F, 0x0051,
+        // Channel/Zone Data (0x005E - 0x006F)
+        0x005E, 0x005F, 0x0060, 0x0061, 0x0062, 0x0063, 0x0064, 0x0065, 0x0066,
+        0x006B, 0x006C, 0x006D, 0x006F,
+        // Network/System Settings (0x0072 - 0x008F)
+        0x0072, 0x0073, 0x0074, 0x0075, 0x0077,
+        0x007A, 0x007B, 0x007C, 0x007D, 0x007E,
+        0x0080, 0x0081, 0x0082, 0x0083, 0x0084, 0x0085, 0x0087, 0x0088, 0x008F,
+        // Advanced Features (0x0093 - 0x00A9)
+        0x0093, 0x0097, 0x009A, 0x009B, 0x009D,
+        0x00A1, 0x00A2, 0x00A5, 0x00A6, 0x00A7, 0x00A8, 0x00A9,
+        // Extended/Firmware (0x0F00+)
+        0x0F55, 0x0F80, 0x0F81
+    ]
+
+    /// Additional record IDs for DM (mobile) series radios.
+    public static let mobileRecordIDs: [UInt16] = [
+        0x00B0, 0x00B1, 0x00B2, 0x00B3, 0x00B4, 0x00B5,  // Ignition/vehicle
+        0x00C0, 0x00C1, 0x00C2, 0x00C3,                  // Horn/light alerts
+    ]
+
+    /// Returns record IDs appropriate for the given radio family.
+    /// - Parameter family: Radio family identifier (e.g., "xpr", "dm", "sl", "dp")
+    /// - Returns: Array of record IDs to read
+    public static func recordIDs(for family: String?) -> [UInt16] {
+        guard let family = family?.lowercased() else {
+            return standardRecordIDs
+        }
+
+        switch family {
+        case "dm":
+            // Mobile radios have additional vehicle-related records
+            return standardRecordIDs + mobileRecordIDs
+        case "xpr", "sl", "fiji", "dp":
+            // Portable radios use standard records
+            return standardRecordIDs
+        default:
+            return standardRecordIDs
+        }
+    }
+
+    /// Legacy alias for backward compatibility.
+    public static var knownRecordIDs: [UInt16] { standardRecordIDs }
+
+    /// Reads codeplug records using the verified CPS 2.0 protocol.
+    ///
+    /// Sequence verified from CPS capture:
+    /// 1. SecurityKey (0x0012) - get session key
+    /// 2. Device info queries (0x0010, 0x000F, 0x0011, 0x001F)
+    /// 3. CodeplugRead (0x002E) - read records by ID
+    ///
+    /// NO programming mode entry required for reading!
+    ///
+    /// - Parameters:
+    ///   - progress: Progress callback (0.0 to 1.0)
+    ///   - debug: Enable debug output
+    ///   - family: Radio family for selecting appropriate record IDs (nil for auto-detect)
+    public func readCodeplugCPS(progress: @Sendable (Double) -> Void, debug: Bool = false, family: String? = nil) async throws -> Data {
+        // Ensure connected
+        if !(await isConnected) {
+            try await connect()
+        }
+
+        guard let client = xcmpClient else {
+            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+        }
+
+        progress(0.0)
+
+        // Step 1: Get security key (CPS does this first)
+        if debug { print("[READ] Getting security key...") }
+        guard let securityKey = try await client.getSecurityKey(debug: debug) else {
+            throw MOTOTRBOError.protocolError("Failed to get security key")
+        }
+        if debug { print("[READ] Security key: \(securityKey.map { String(format: "%02X", $0) }.joined(separator: " "))") }
+
+        progress(0.1)
+
+        // Step 2: Get device info
+        if debug { print("[READ] Getting device info...") }
+        let model = try await client.getModelNumberCPS(debug: debug)
+        let firmware = try await client.getFirmwareVersionCPS(debug: debug)
+        let serial = try await client.getSerialNumberCPS(debug: debug)
+        let codeplugID = try await client.getCodeplugID(debug: debug)
+
+        if debug {
+            print("[READ] Model: \(model ?? "unknown")")
+            print("[READ] Firmware: \(firmware ?? "unknown")")
+            print("[READ] Serial: \(serial ?? "unknown")")
+            print("[READ] Codeplug ID: \(codeplugID ?? "unknown")")
+        }
+
+        progress(0.2)
+
+        // Detect family from model if not provided
+        let radioFamily = family ?? RadioProtocolRegistry.detectFamily(from: model ?? "")
+
+        // Step 3: Read codeplug records in batches
+        if debug { print("[READ] Reading codeplug records for family: \(radioFamily ?? "unknown")...") }
+
+        var allData = Data()
+        let recordIDs = Self.recordIDs(for: radioFamily)
+        let batchSize = 5  // Read 5 records at a time (like CPS does)
+        let totalBatches = (recordIDs.count + batchSize - 1) / batchSize
+
+        for (batchIndex, startIndex) in stride(from: 0, to: recordIDs.count, by: batchSize).enumerated() {
+            let endIndex = min(startIndex + batchSize, recordIDs.count)
+            let batchRecords = Array(recordIDs[startIndex..<endIndex])
+
+            if debug { print("[READ] Batch \(batchIndex + 1)/\(totalBatches): records \(batchRecords.map { String(format: "0x%04X", $0) }.joined(separator: ", "))") }
+
+            if let recordData = try await client.readCodeplugRecords(batchRecords, debug: debug) {
+                allData.append(recordData)
+                if debug { print("[READ] Got \(recordData.count) bytes") }
+            }
+
+            // Update progress (0.2 to 0.9)
+            let readProgress = 0.2 + (0.7 * Double(batchIndex + 1) / Double(totalBatches))
+            progress(readProgress)
+        }
+
+        progress(1.0)
+
+        if debug { print("[READ] Complete! Total data: \(allData.count) bytes") }
+
+        return allData
+    }
+
+    /// Reads zones and channels from the radio using CloneRead protocol.
+    ///
+    /// This method reads:
+    /// 1. Device info (model, serial, firmware)
+    /// 2. Zone structure
+    /// 3. All channels in each zone with their settings
+    ///
+    /// - Parameters:
+    ///   - progress: Progress callback (0.0 to 1.0)
+    ///   - debug: Enable debug output
+    /// - Returns: ParsedCodeplug with zones and channels
+    public func readZonesAndChannels(
+        progress: @Sendable (Double) -> Void,
+        debug: Bool = false
+    ) async throws -> ParsedCodeplug {
+        // Ensure connected
+        if !(await isConnected) {
+            try await connect()
+        }
+
+        guard let client = xcmpClient else {
+            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+        }
+
+        var result = ParsedCodeplug()
+
+        progress(0.0)
+
+        // Step 1: Get security key
+        if debug { print("[READ] Getting security key...") }
+        _ = try await client.getSecurityKey(debug: debug)
+        progress(0.05)
+
+        // Step 2: Get device info
+        if debug { print("[READ] Getting device info...") }
+        result.modelNumber = try await client.getModelNumberCPS(debug: debug) ?? "Unknown"
+        result.serialNumber = try await client.getSerialNumberCPS(debug: debug) ?? ""
+        result.firmwareVersion = try await client.getFirmwareVersionCPS(debug: debug) ?? ""
+        result.codeplugVersion = try await client.getCodeplugID(debug: debug) ?? ""
+
+        if debug {
+            print("[READ] Model: \(result.modelNumber)")
+            print("[READ] Serial: \(result.serialNumber)")
+            print("[READ] Firmware: \(result.firmwareVersion)")
+        }
+
+        progress(0.1)
+
+        // Step 3: Query zone structure
+        if debug { print("[READ] Querying zones...") }
+        let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug)
+        let zoneCount = zoneResult?.zoneCount ?? 1
+
+        if debug { print("[READ] Found \(zoneCount) zones") }
+        progress(0.15)
+
+        // Step 4: Read channels for each zone
+        // For XPR 3500e, typical structure is 1 zone with up to 16 channels
+        // We'll try to read channels until we get empty responses
+
+        for zoneIndex in 0..<max(zoneCount, 1) {
+            var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
+
+            // Try to read zone name (may not be available via CloneRead)
+            // Zone names might be in the codeplug records
+
+            // Read channels in this zone
+            var channelIndex = 0
+            let maxChannelsPerZone = 16
+
+            while channelIndex < maxChannelsPerZone {
+                // Try to read channel name first to see if channel exists
+                let nameReply = try await client.readChannelData(
+                    zone: UInt16(zoneIndex),
+                    channel: UInt16(channelIndex),
+                    dataType: .channelName
+                )
+
+                // If no name returned or error, assume no more channels
+                guard let name = nameReply?.stringValue, !name.isEmpty else {
+                    if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex) channels") }
+                    break
+                }
+
+                // Read full channel data
+                let channelData = try await client.readCompleteChannel(
+                    zone: UInt16(zoneIndex),
+                    channel: UInt16(channelIndex),
+                    debug: debug
+                )
+
+                zone.channels.append(channelData)
+                channelIndex += 1
+
+                // Update progress
+                let channelProgress = 0.15 + (0.8 * Double(zoneIndex * maxChannelsPerZone + channelIndex) / Double(max(zoneCount, 1) * maxChannelsPerZone))
+                progress(min(channelProgress, 0.95))
+            }
+
+            if !zone.channels.isEmpty {
+                result.zones.append(zone)
+            }
+        }
+
+        progress(1.0)
+
+        if debug {
+            print("[READ] Complete! Read \(result.zones.count) zones with \(result.totalChannels) total channels")
+        }
+
+        return result
+    }
+
+    /// Reads the complete codeplug from the radio (legacy method).
     ///
     /// Uses XCMP protocol with PSDT access to read codeplug data.
     /// Sequence based on Specter analysis of MOTOTRBO CPS DLLs:
@@ -491,6 +755,113 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             group.cancelAll()
             return result
         }
+    }
+}
+
+// MARK: - Parsed Codeplug Structure
+
+/// Parsed codeplug data from MOTOTRBO radio.
+/// This is the structured representation of zone/channel data.
+public struct ParsedCodeplug: Sendable {
+    public var modelNumber: String = ""
+    public var serialNumber: String = ""
+    public var firmwareVersion: String = ""
+    public var codeplugVersion: String = ""
+
+    // General settings
+    public var radioID: UInt32 = 1
+    public var radioAlias: String = "Radio"
+
+    // Zones and channels
+    public var zones: [ParsedZone] = []
+
+    // Contacts
+    public var contacts: [ParsedContact] = []
+
+    // Scan lists
+    public var scanLists: [ParsedScanList] = []
+
+    // RX Group lists
+    public var rxGroupLists: [ParsedRxGroupList] = []
+
+    /// Total number of channels across all zones.
+    public var totalChannels: Int {
+        zones.reduce(0) { $0 + $1.channels.count }
+    }
+
+    public init() {}
+}
+
+/// A zone in the parsed codeplug.
+public struct ParsedZone: Sendable {
+    public var name: String = "Zone"
+    public var position: Int = 0
+    public var channels: [ChannelData] = []
+
+    public init(name: String = "Zone", position: Int = 0) {
+        self.name = name
+        self.position = position
+    }
+}
+
+/// A contact in the parsed codeplug.
+public struct ParsedContact: Sendable, Identifiable {
+    public var id = UUID()
+    public var name: String = "Contact"
+    public var contactType: ContactCallType = .group
+    public var dmrID: UInt32 = 0
+    public var callReceiveTone: Bool = true
+    public var callAlert: Bool = false
+
+    public init(name: String = "Contact", dmrID: UInt32 = 0, type: ContactCallType = .group) {
+        self.name = name
+        self.dmrID = dmrID
+        self.contactType = type
+    }
+}
+
+/// Contact call types.
+public enum ContactCallType: String, Sendable, CaseIterable {
+    case privateCall = "Private Call"
+    case group = "Group Call"
+    case allCall = "All Call"
+}
+
+/// A scan list in the parsed codeplug.
+public struct ParsedScanList: Sendable, Identifiable {
+    public var id = UUID()
+    public var name: String = "Scan List"
+    public var channelMembers: [ScanListMember] = []
+    public var priorityChannel1Index: Int? = nil
+    public var priorityChannel2Index: Int? = nil
+    public var talkbackEnabled: Bool = true
+    public var holdTime: UInt16 = 500  // ms
+
+    public init(name: String = "Scan List") {
+        self.name = name
+    }
+}
+
+/// A member of a scan list.
+public struct ScanListMember: Sendable, Identifiable {
+    public var id = UUID()
+    public var zoneIndex: Int
+    public var channelIndex: Int
+
+    public init(zoneIndex: Int, channelIndex: Int) {
+        self.zoneIndex = zoneIndex
+        self.channelIndex = channelIndex
+    }
+}
+
+/// An RX group list in the parsed codeplug.
+public struct ParsedRxGroupList: Sendable, Identifiable {
+    public var id = UUID()
+    public var name: String = "RX Group"
+    public var contactIndices: [Int] = []  // Indices into contacts array
+
+    public init(name: String = "RX Group") {
+        self.name = name
     }
 }
 

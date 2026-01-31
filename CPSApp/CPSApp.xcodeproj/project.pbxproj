@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,6 +11,10 @@
 		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
 		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
 		36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D947EF4413403ED59D491FE8 /* ProgrammingView.swift */; };
+		4A7C92F1E8D34B5A6C0F1234 /* ZoneChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */; };
+		5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */; };
+		6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */; };
+		8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */; };
 		628F588880242E5548D712D5 /* RadioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9E243FB90AB6835FD64AF52B /* RadioCore */; };
 		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
 		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
@@ -39,6 +43,10 @@
 		BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugDocument.swift; sourceTree = "<group>"; };
 		CA97A75BB7ACA2A288957482 /* CPSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSApp.swift; sourceTree = "<group>"; };
 		D947EF4413403ED59D491FE8 /* ProgrammingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammingView.swift; sourceTree = "<group>"; };
+		5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneChannelView.swift; sourceTree = "<group>"; };
+		6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
+		7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
+		9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RxGroupListsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,11 +133,23 @@
 		BE2D8A0E15F01ABABBF6C880 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				6C9E04F3A0B56D7C8E213456 /* Codeplug */,
 				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
 				6C4FE5C4999E778943688865 /* RadioProgramming */,
 				A16F87105157E6F5F41806C2 /* Welcome */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		6C9E04F3A0B56D7C8E213456 /* Codeplug */ = {
+			isa = PBXGroup;
+			children = (
+				6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */,
+				9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */,
+				7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */,
+				5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */,
+			);
+			path = Codeplug;
 			sourceTree = "<group>";
 		};
 		F5A60B9EE876A6C275BA497A /* RadioConfiguration */ = {
@@ -191,7 +211,6 @@
 				059A944454F0429236FC6B50 /* XCLocalSwiftPackageReference "../Packages/RadioHardware" */,
 				A37537F39A503C750D4B0413 /* XCLocalSwiftPackageReference "../Packages/RadioModels" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -215,6 +234,10 @@
 				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
 				122E55597F3D22C057E98B38 /* RootView.swift in Sources */,
 				3626B81A652178A674E65227 /* WelcomeView.swift in Sources */,
+				4A7C92F1E8D34B5A6C0F1234 /* ZoneChannelView.swift in Sources */,
+				5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */,
+				6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */,
+				8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,8 +248,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 752QKBCTJR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -235,6 +260,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};
@@ -363,8 +389,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				"DEVELOPMENT_TEAM[sdk=macosx*]" = 752QKBCTJR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -373,6 +401,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};

@@ -1,187 +1,122 @@
-# MOTOTRBO CPS 2.0 Analysis
+# MOTOTRBO CPS Reverse Engineering Analysis
 
-This directory contains reverse engineering analysis of Motorola's MOTOTRBO CPS (Customer Programming Software) version 2.0.
+Analysis of Motorola Customer Programming Software DLLs to understand XCMP protocol and codeplug formats.
 
----
+## Key Documents
 
-## Analysis Documents
+### Protocol Analysis (Network Captures)
+1. **[XNL_XCMP_Protocol_Comparison.md](XNL_XCMP_Protocol_Comparison.md)** - Comparative analysis of two CPS sessions
+2. **[XNL_XCMP_Packet_Formats.md](XNL_XCMP_Packet_Formats.md)** - Byte-level packet format reference
+3. **[Protocol_Flow_Diagram.md](Protocol_Flow_Diagram.md)** - Visual protocol flow and state machines
 
-| Document | Status | Description |
-|----------|--------|-------------|
-| **MOTOTRBO_CPS_2.0_initial_analysis.md** | Complete | Comprehensive overview of installer structure, metadata, and initial findings |
-| **technical_findings.md** | In Progress | Detailed technical analysis organized by topic (protocols, codeplug format, DLLs, etc.) |
-| **NEXT_STEPS.md** | Active | Roadmap for continued analysis with phased approach |
-
----
-
-## Current Phase
-
-**Phase 0: Initial Reconnaissance** ✅ COMPLETE
-
-We have analyzed the installer executable and extracted:
-- Binary metadata and version information
-- Digital signature verification
-- System dependencies
-- Compression format
-- Build information
-
-**Next Phase: Environment Setup**
-
-The next step is to install CPS in a Windows VM and extract the actual application binaries for deeper analysis.
-
----
+### DLL Analysis (Static Reverse Engineering)
+4. **[XCMP_OPCODES.md](XCMP_OPCODES.md)** - Complete list of 58+ XCMP command opcodes
+5. **[XCMP_COMMAND_DETAILS.md](XCMP_COMMAND_DETAILS.md)** - Detailed command structures and sequences
 
 ## Quick Reference
 
-### Target Information
-```
-File: MOTOTRBO_CPS_2.0.exe
-Size: 615 MB (645,078,392 bytes)
-Type: PE32 executable (InstallShield)
-Version: 2.122.70.0
-Build Date: 2015-06-08
-Signed By: Motorola Solutions, Inc.
-```
+### Radio Identification
+- `0x000F` - RcmpVersionInformation
+- `0x000E` - RcmpReadWriteSerialNumber  
+- `0x0461` - XcmpModuleInfo
 
-### Analysis Limitations
+### Codeplug Operations
+- `0x010B` - XcmpPsdtAccess (primary read/write)
+- `0xB10B` - XcmpPsdtAccessBroadcast (status updates)
+- `0x010E` - XcmpComponentRead
+- `0x010F` - XcmpComponentSession
+- `0x0025` - RcmpReadWriteCodeplugAttribute
 
-The installer is compressed using InstallShield. To proceed with protocol and codeplug analysis, we need:
-1. Windows VM with CPS installed
-2. Extracted application binaries
-3. USB protocol capture capability
-4. Sample codeplug files
+### Update Control
+- `0x010C` - XcmpRadioUpdateControl
+- `0x0446` - XcmpTransferData
 
----
+## Analysis Tools Used
 
-## Key Findings Summary
+- **monodis** - .NET IL disassembler
+- **Python scripts** - Opcode extraction from IL code
+- **Manual analysis** - Understanding class structures and enums
 
-### What We Know
-- ✅ Installer is authentic (verified digital signature)
-- ✅ Uses standard Windows APIs for I/O
-- ✅ Includes cryptographic libraries (CRYPT32.dll)
-- ✅ Built with InstallShield 22.0.284
-- ✅ Compressed with zlib 1.2.3
+## DLL Files Analyzed
 
-### What We Need to Discover
-- ❓ Supported radio models
-- ❓ USB communication protocol
-- ❓ Codeplug binary format
-- ❓ Protocol commands and responses
-- ❓ USB Vendor/Product IDs
-- ❓ Serial port parameters
-- ❓ Authentication mechanism
+Located in: `/Users/home/.wine_mototrbo/drive_c/MOTOTRBO/`
 
----
+- `Common.Communication.RcmpWrapper.dll` (170KB) - XCMP protocol definitions ⭐
+- `Common.Communication.PcrSequenceManager.dll` (506KB) - Programming sequences
+- `Common.Communication.XNL.dll` (61KB) - Transport layer
+- `Motorola.CommonCPS.RadioManagement.CommandHandler.dll` (1.6MB) - Command handlers
 
-## Methodology
+## Decompiled IL Files
 
-Our reverse engineering approach follows industry best practices:
+Located in: `dll-decompilation/`
 
-1. **Static Analysis** - Examine binaries without execution
-   - String extraction
-   - Import table analysis
-   - Decompilation
-   - Resource extraction
+- `RcmpWrapper_full.il` (1.4MB)
+- `PcrSequenceManager_full.il` (4.7MB)
+- `XNL_full.il` (483KB)
+- `CommandHandler_full.il` (16MB)
 
-2. **Dynamic Analysis** - Observe runtime behavior
-   - USB traffic capture
-   - Process monitoring
-   - Memory analysis
-   - Network traffic (if any)
+## Key Findings
 
-3. **Format Analysis** - Understand data structures
-   - Codeplug file analysis
-   - Binary diff comparison
-   - Structure mapping
-   - Checksum identification
+### From Network Captures (2026-01-30)
+1. **XNL Authentication** uses TEA encryption with 8-byte challenge/response
+2. **Transaction ID Correlation** - XNL_KEY offset 0x0F becomes XCMP transaction prefix
+3. **Deterministic Encryption** - Device ID (0x0012) produces identical ciphertext across sessions
+4. **XCMP Commands Mapped**:
+   - 0x0010: Model Number → "H02RDH9VA1AN"
+   - 0x000F: Serial/Version → "211036" or "R02.21.01.1001"
+   - 0x0011: DSP Firmware → "867TXM0273"
+   - 0x0012: Device ID (15 bytes encrypted)
+5. **Response Flag** - All XCMP responses OR 0x8000 with command code
 
-4. **Implementation** - Build Swift equivalent
-   - Protocol implementation
-   - Codeplug parser
-   - USB communication layer
-   - GUI application
+### From DLL Analysis (2026-01-29)
+6. **PSDT (Persistent Stored Data Table)** is Motorola's term for the codeplug
+7. **Section IDs** are 4-character ASCII strings identifying codeplug sections
+8. **Broadcast messages** use high-byte opcodes (0xB10B, 0x3440)
+9. **Boot mode** (0x0200) required for low-level memory operations
+10. **Component sessions** (0x010F) manage data access lifecycle
 
----
+## Analysis Confidence
 
-## Legal & Ethical Considerations
+- **Opcodes**: HIGH - Direct extraction from DLL constants
+- **Command names**: HIGH - From class names
+- **Enum values**: HIGH - From IL code
+- **Payload structures**: MEDIUM - Inferred from constructors
+- **Section IDs**: LOW - Need protocol capture
+- **Exact formats**: LOW - Need packet analysis
 
-This analysis is conducted for:
-- **Educational purposes** - Understanding DMR radio protocols
-- **Interoperability** - Building compatible software
-- **Research** - Documenting proprietary formats
+## Critical Blockers
 
-We are **NOT**:
-- Circumventing copy protection
-- Extracting proprietary algorithms
-- Redistributing Motorola software
-- Violating intellectual property rights
+### 🔴 TEA Key Extraction Required
+Cannot authenticate with radio without the 16-byte TEA key.
 
-All analysis focuses on protocol documentation and data format understanding to enable interoperable software development.
+**Options:**
+1. Disassemble CPS.exe with Specter (focus on crypto functions)
+2. Memory dump during CPS session
+3. Test key derivation from radio identity (model + serial + magic)
+4. Extract from known plaintext (challenge/response pairs)
 
----
+## Next Steps
 
-## Tools Used
+### Priority 1: Complete Authentication
+1. ✅ Document XNL authentication flow (DONE)
+2. ✅ Map transaction ID correlation (DONE)
+3. ⚠️ **Extract TEA key** (BLOCKER)
+4. Implement TEA encryption/decryption
+5. Test authentication with live radio
 
-### macOS Tools
-- `file` - Identify file types
-- `strings` - Extract readable strings
-- `7z` - Archive extraction
-- `xxd` / `hexdump` - Hex analysis
+### Priority 2: Expand Command Set
+1. Capture full codeplug read/write session
+2. Map memory read/write commands (0x010B PSDT)
+3. Identify section IDs for codeplug sections
+4. Document error response codes
+5. Understand data format for each command
 
-### Windows Tools (Required for Phase 2+)
-- Ghidra - Free decompiler
-- x64dbg - Debugger
-- Wireshark + USBPcap - Protocol capture
-- Sysinternals Suite - Process monitoring
-- HxD - Hex editor
+## Legal Notes
+
+This analysis is for educational and interoperability purposes. No proprietary code is redistributed. Analysis focuses on protocol documentation and open-source implementation possibilities.
 
 ---
 
-## Progress Tracking
-
-### Milestones
-
-- [x] Phase 0: Initial reconnaissance
-- [ ] Phase 1: Environment setup
-- [ ] Phase 2: Static binary analysis
-- [ ] Phase 3: USB protocol capture
-- [ ] Phase 4: Codeplug format analysis
-- [ ] Phase 5: Swift implementation
-
-### Estimated Timeline
-
-- **Phase 0:** Complete (2 hours)
-- **Phase 1:** 4 hours
-- **Phase 2:** 16 hours
-- **Phase 3:** 12 hours
-- **Phase 4:** 20 hours
-- **Phase 5:** 40 hours
-
-**Total:** ~94 hours (~2-3 weeks)
-
----
-
-## Contributing
-
-This is an internal HeiloProjects research project. Analysis findings are documented for:
-- Knowledge sharing within the team
-- Future reference and implementation
-- Protocol documentation
-
----
-
-## Next Actions
-
-See **NEXT_STEPS.md** for detailed roadmap.
-
-**Immediate next step:**
-1. Set up Windows 11 VM
-2. Install MOTOTRBO CPS 2.0
-3. Document installed file structure
-4. Begin Phase 2 analysis
-
----
-
-*Analysis conducted by Specter (Binary Analysis Agent)*
-*Part of the MotorolaCPS Reverse Engineering Project*
-*Last updated: 2026-01-29*
+**Analysis Date**: 2026-01-29
+**Analyst**: Specter (AI Binary Analyst)
+**CPS Version**: MOTOTRBO CPS (Wine installation)

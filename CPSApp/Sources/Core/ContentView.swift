@@ -57,7 +57,32 @@ struct ContentView: View {
 
     @ViewBuilder
     private var contentArea: some View {
-        if let codeplug = document?.codeplug, let doc = document {
+        // Priority 1: Show parsed codeplug from radio (zones/channels view)
+        if coordinator.parsedCodeplug != nil {
+            switch selectedCategory {
+            case .channel:
+                ZoneChannelView()
+            case .contacts:
+                ContactsView()
+            case .scan:
+                ScanListsView()
+            case .signaling:
+                RxGroupListsView()  // RX Group Lists are signaling-related
+            case .general:
+                ParsedCodeplugCategoryView(category: .general)
+            case .some(let category):
+                // For other categories, show placeholder or form editor
+                if let codeplug = document?.codeplug, let doc = document {
+                    FormEditorView(codeplug: codeplug, category: category, modelIdentifier: doc.modelIdentifier)
+                } else {
+                    ParsedCodeplugCategoryView(category: category)
+                }
+            case .none:
+                ContentUnavailableView("Select a Category", systemImage: "radio", description: Text("Choose a category from the sidebar to view settings."))
+            }
+        }
+        // Priority 2: Show traditional document-based editing
+        else if let codeplug = document?.codeplug, let doc = document {
             if selectedCategory == .channel {
                 ChannelEditorView(codeplug: codeplug, modelIdentifier: doc.modelIdentifier)
             } else if let category = selectedCategory {
@@ -105,21 +130,26 @@ struct ContentView: View {
         ToolbarItem(placement: .navigation) {
             RadioStatusIndicator(
                 state: coordinator.connectionState,
-                hasDetectedRadio: !coordinator.detectedDevices.isEmpty
+                hasDetectedRadio: !coordinator.detectedDevices.isEmpty,
+                progress: coordinator.programmingProgress
             )
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
             Button("Read", systemImage: "antenna.radiowaves.left.and.right") {
-                // Read radio action
+                Task {
+                    await coordinator.readFromRadio()
+                }
             }
-            .disabled(!coordinator.connectionState.isDisconnected)
+            .disabled(!coordinator.connectionState.isDisconnected || coordinator.detectedDevices.isEmpty)
             .accessibilityIdentifier("toolbar.read")
 
             Button("Write", systemImage: "arrow.up.to.line") {
-                // Write radio action
+                Task {
+                    await coordinator.writeToRadio()
+                }
             }
-            .disabled(document?.codeplug == nil)
+            .disabled(document?.codeplug == nil || coordinator.detectedDevices.isEmpty)
             .accessibilityIdentifier("toolbar.write")
 
             Button("Clone", systemImage: "doc.on.doc") {
@@ -171,13 +201,21 @@ struct ContentView: View {
 struct RadioStatusIndicator: View {
     let state: ConnectionState
     let hasDetectedRadio: Bool
+    var progress: Double = 0.0
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-                .font(.caption)
-                .accessibilityHidden(true)
+            if case .programming = state {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .frame(width: 80)
+                    .accessibilityLabel("Programming progress: \(Int(progress * 100)) percent")
+            } else {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                    .font(.caption)
+                    .accessibilityHidden(true)
+            }
             Text(statusLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -224,6 +262,76 @@ struct RadioStatusIndicator: View {
         case .connected(let port): return "Radio connected on \(port)"
         case .programming: return "Programming radio in progress"
         case .error(let msg): return "Radio error: \(msg)"
+        }
+    }
+}
+
+// MARK: - Parsed Codeplug Category View
+
+/// Placeholder view for non-channel categories when viewing a parsed codeplug.
+struct ParsedCodeplugCategoryView: View {
+    @Environment(AppCoordinator.self) private var coordinator
+    let category: FieldCategory
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                switch category {
+                case .general:
+                    generalSettingsView
+                case .contacts:
+                    contactsPlaceholder
+                case .scan:
+                    scanListsPlaceholder
+                default:
+                    categoryPlaceholder
+                }
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private var generalSettingsView: some View {
+        if let codeplug = coordinator.parsedCodeplug {
+            GroupBox("Radio Information") {
+                LabeledContent("Model", value: codeplug.modelNumber.isEmpty ? "Unknown" : codeplug.modelNumber)
+                LabeledContent("Serial Number", value: codeplug.serialNumber.isEmpty ? "Unknown" : codeplug.serialNumber)
+                LabeledContent("Firmware", value: codeplug.firmwareVersion.isEmpty ? "Unknown" : codeplug.firmwareVersion)
+                LabeledContent("Codeplug Version", value: codeplug.codeplugVersion.isEmpty ? "Unknown" : codeplug.codeplugVersion)
+            }
+
+            GroupBox("Statistics") {
+                LabeledContent("Total Zones", value: "\(codeplug.zones.count)")
+                let totalChannels = codeplug.zones.reduce(0) { $0 + $1.channels.count }
+                LabeledContent("Total Channels", value: "\(totalChannels)")
+            }
+        } else {
+            ContentUnavailableView("No Data", systemImage: "doc.questionmark", description: Text("No codeplug data available"))
+        }
+    }
+
+    private var contactsPlaceholder: some View {
+        ContentUnavailableView {
+            Label("Contacts", systemImage: "person.2")
+        } description: {
+            Text("Contact list parsing not yet implemented")
+        }
+    }
+
+    private var scanListsPlaceholder: some View {
+        ContentUnavailableView {
+            Label("Scan Lists", systemImage: "magnifyingglass")
+        } description: {
+            Text("Scan list parsing not yet implemented")
+        }
+    }
+
+    private var categoryPlaceholder: some View {
+        ContentUnavailableView {
+            Label(category.rawValue, systemImage: "questionmark.circle")
+        } description: {
+            Text("This category is not yet available for parsed codeplugs")
         }
     }
 }

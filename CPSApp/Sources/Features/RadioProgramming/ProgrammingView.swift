@@ -3,114 +3,98 @@ import RadioCore
 import RadioModelCore
 
 /// Sheet view for radio read/write operations with progress tracking.
+/// Uses bindings from AppCoordinator to display real progress.
 struct ProgrammingView: View {
-    let operation: ProgrammingOperation
-    @State private var progress: Double = 0
-    @State private var status: String = "Preparing..."
-    @State private var isComplete = false
-    @State private var error: String?
+    @Environment(AppCoordinator.self) private var coordinator
     @Environment(\.dismiss) private var dismiss
+
+    /// Estimated total time for operation in seconds.
+    private let estimatedTotalSeconds: Double = 15.0
 
     var body: some View {
         VStack(spacing: 20) {
             // Icon
-            Image(systemName: operation.icon)
+            Image(systemName: coordinator.programmingOperation.icon)
                 .font(.system(size: 40))
-                .foregroundStyle(isComplete ? Color.green : Color.accentColor)
-                .symbolEffect(.bounce, value: isComplete)
+                .foregroundStyle(coordinator.programmingComplete ? Color.green : Color.accentColor)
+                .symbolEffect(.bounce, value: coordinator.programmingComplete)
 
             // Title
-            Text(operation.title)
+            Text(coordinator.programmingOperation.title)
                 .font(.title2.bold())
 
             // Progress
             VStack(spacing: 8) {
-                ProgressView(value: progress)
+                ProgressView(value: coordinator.programmingProgress)
                     .progressViewStyle(.linear)
 
-                Text(status)
+                Text(coordinator.programmingStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                // Time estimate
+                if !coordinator.programmingComplete && coordinator.programmingError == nil {
+                    Text(timeRemainingText)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             .frame(width: 300)
 
             // Error
-            if let error {
+            if let error = coordinator.programmingError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
                     .font(.caption)
+                    .frame(maxWidth: 300)
             }
 
             // Actions
             HStack(spacing: 12) {
-                if isComplete {
+                if coordinator.programmingComplete {
                     Button("Done") {
-                        dismiss()
+                        coordinator.finishProgrammingAndTransition()
                     }
                     .buttonStyle(.borderedProminent)
-                } else if error != nil {
+                } else if coordinator.programmingError != nil {
                     Button("Retry") {
-                        self.error = nil
-                        progress = 0
-                        startOperation()
+                        Task {
+                            switch coordinator.programmingOperation {
+                            case .read:
+                                await coordinator.readFromRadio()
+                            case .write:
+                                await coordinator.writeToRadio()
+                            case .clone:
+                                break // Not implemented yet
+                            }
+                        }
                     }
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        coordinator.cancelProgramming()
+                    }
                 } else {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        coordinator.cancelProgramming()
+                    }
                 }
             }
         }
         .padding(40)
         .frame(width: 400)
-        .onAppear { startOperation() }
+        .interactiveDismissDisabled(!coordinator.programmingComplete && coordinator.programmingError == nil)
     }
 
-    private func startOperation() {
-        Task {
-            do {
-                switch operation {
-                case .read:
-                    status = "Reading codeplug from radio..."
-                    // Simulate read progress
-                    for i in 0...100 {
-                        try await Task.sleep(for: .milliseconds(30))
-                        progress = Double(i) / 100.0
-                    }
-                    status = "Read complete"
-
-                case .write:
-                    status = "Validating codeplug..."
-                    try await Task.sleep(for: .milliseconds(500))
-                    progress = 0.1
-                    status = "Writing to radio..."
-                    for i in 10...90 {
-                        try await Task.sleep(for: .milliseconds(30))
-                        progress = Double(i) / 100.0
-                    }
-                    status = "Verifying..."
-                    progress = 0.95
-                    try await Task.sleep(for: .milliseconds(500))
-                    progress = 1.0
-                    status = "Write complete and verified"
-
-                case .clone:
-                    status = "Reading source radio..."
-                    for i in 0...50 {
-                        try await Task.sleep(for: .milliseconds(30))
-                        progress = Double(i) / 100.0
-                    }
-                    status = "Writing to target radio..."
-                    for i in 50...100 {
-                        try await Task.sleep(for: .milliseconds(30))
-                        progress = Double(i) / 100.0
-                    }
-                    status = "Clone complete"
-                }
-                isComplete = true
-            } catch {
-                self.error = error.localizedDescription
-            }
+    private var timeRemainingText: String {
+        let progress = coordinator.programmingProgress
+        if progress < 0.05 {
+            return "Estimating time..."
         }
+        let elapsed = progress * estimatedTotalSeconds
+        let remaining = max(0, estimatedTotalSeconds - elapsed)
+        if remaining < 1 {
+            return "Almost done..."
+        }
+        return "About \(Int(remaining)) seconds remaining"
     }
 }
 

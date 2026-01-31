@@ -71,30 +71,102 @@ Physical Layer:       CDC ECM over USB
 6. PC sends `DeviceConnectionRequest` (opcode 0x06) with encrypted challenge
 7. Radio responds with `DeviceConnectionReply` (opcode 0x07) with result code 0x00 = success!
 
-### TEA Encryption Key ✅ EXTRACTED AND VERIFIED
+### TEA Encryption Key ✅ VERIFIED WORKING
 
 ```swift
 // Extracted from XnlAuthentication.dll (MOTOTRBO CPS 2.0)
-let key: [UInt32] = [
-    0x1D30965A,  // bytes 0-3
-    0x55AAF20C,  // bytes 4-7
-    0xC66C93BF,  // bytes 8-11
-    0x5BCD5EBD   // bytes 12-15
-]
-let delta: UInt32 = 0x9E3779B9  // Standard TEA delta
+// Raw bytes: 1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD
+
+// CORRECT CONFIGURATION (2026-01-29):
+// Use LITTLE-ENDIAN interpretation (as BitConverter.ToInt32 reads on x86/.NET)
+let key: [UInt32] = [0x5A96301D, 0x0CF2AA55, 0xBF936CC6, 0xBD5ECD5B]
+
+// CRITICAL: Motorola uses a CUSTOM delta, NOT the standard TEA delta!
+let delta: UInt32 = 0x790AB771  // From IL: ldc.i4 2030745457
+// Standard TEA delta would be 0x9E3779B9 - DO NOT USE THIS!
+
+// Auth index for CPS mode
+let authIndex: UInt8 = 0x00
 ```
 
 **Source:** `XnlAuthentication.dll` → obfuscated class `iq` → field `a`
 **Raw bytes:** `1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD`
 
+**Critical Discoveries (2026-01-29):**
+1. The delta constant `0x790AB771` is extracted from IL instruction `ldc.i4 2030745457`
+2. Key must be interpreted as little-endian UInt32 values
+3. Auth index 0x00 = CPS mode, 0x01 = Subscriber mode
+4. DeviceConnectionReply result 0x01 still indicates success if assigned address is non-zero
+5. Radio sends DeviceSysMapBroadcast (opcode 0x09) after connection established
+
+**Status:** ✅ Authentication verified working! XCMP communication established.
+
+### Authentication Modes ✅ VERIFIED
+
+| Mode | AuthIndex | Keys | Status |
+|------|-----------|------|--------|
+| CPS | 0x00 | XnlAuthentication.dll keys | ✅ **WORKING** |
+| ControlStation/Subscriber | 0x01 | XNLControlConst1-6 | Not needed |
+| RepeaterIPSC | varies | XNLConst1-6 | For repeaters only |
+
+**For XPR 3500e (regular radio):**
+- `MasterStatusBroadcast.Type` = 2 (regular radio, not repeater)
+- **CPS mode (authIndex 0x00) works** for programming
+- DeviceConnectionReply result 0x01 indicates CPS connection accepted
+- Assigned address provided (incrementing from 0x0002)
+
+### XCMP Communication ✅ VERIFIED WORKING
+
+After XNL authentication, XCMP commands can be sent via XNL Data Messages (opcode 0x0B).
+
+**Observed XCMP Traffic:**
+
+| Opcode | Direction | Description |
+|--------|-----------|-------------|
+| 0x0400 | Request | DevInitStatus - check radio programming readiness |
+| 0x8400 | Reply | DevInitStatus reply (data: 0x03 = ready?) |
+| 0xB400 | Broadcast | Periodic status broadcast (~1/sec) |
+| 0xB410 | Broadcast | Another status broadcast type |
+| 0x000E | Request | Version Info Request |
+| 0x800E | Reply | Version Info Reply (minimal for XPR 3500e) |
+
+**XCMP Packet Format (within XNL Data payload):**
+```
++----------------+----------------+
+| Opcode (2B BE) | Data...        |
++----------------+----------------+
+```
+
+**DevInitStatus Reply Codes:**
+- 0x03 = Observed response (meaning TBD)
+
 ### Message Structure (XNL)
 ```
-+----------------+----------------+----------------+----------------+
-| Protocol ID    | Length (2B)    | OpCode (1B)    | Flags (1B)     |
-+----------------+----------------+----------------+----------------+
-| Transaction ID | Source Addr    | Dest Addr      | Payload...     |
-+----------------+----------------+----------------+----------------+
+Offset  Size  Field
+0-1     2B    Total Length (big-endian)
+2       1B    Protocol ID (0x00)
+3       1B    OpCode
+4       1B    Reserved (0x00)
+5       1B    Flags (increments 0-7)
+6-7     2B    Destination Address (big-endian)
+8-9     2B    Source Address (big-endian)
+10-11   2B    Transaction ID (big-endian)
+12-13   2B    Data Length (big-endian)
+14+     var   Payload data
 ```
+
+**XNL Opcodes:**
+| Opcode | Name | Description |
+|--------|------|-------------|
+| 0x02 | MasterStatusBroadcast | Radio announces presence |
+| 0x03 | DeviceMasterQuery | Request master info |
+| 0x04 | DeviceAuthKeyRequest | Request auth challenge |
+| 0x05 | DeviceAuthKeyReply | 8-byte challenge |
+| 0x06 | DeviceConnectionRequest | Send encrypted response |
+| 0x07 | DeviceConnectionReply | Auth result + assigned addr |
+| 0x09 | DeviceSysMapBroadcast | System map after connection |
+| 0x0B | DataMessage | XCMP command container |
+| 0x0C | DataMessageAck | ACK for data message |
 
 ### Resources
 - [george-hopkins/xcmp-xnl-dissector](https://github.com/george-hopkins/xcmp-xnl-dissector) - Wireshark dissector
@@ -184,19 +256,32 @@ Key DLLs to analyze:
 
 ## Next Steps
 
-### Immediate
+### Immediate ✅ COMPLETED
 1. ~~**Port scanning**~~ ✅ Completed - Found UDP ports 4002, 5016, 5017, 50000-50002
-2. **XCMP/XNL analysis** - Study the Wireshark dissector to understand message structure
-3. **Authentication research** - Find if keys can be extracted from CPS installation
+2. ~~**XCMP/XNL analysis**~~ ✅ Completed - Disassembled DLLs
+3. ~~**Authentication research**~~ ✅ Completed - Extracted TEA key and custom delta
+
+### Current Priority
+4. **Test XNL Authentication** - Reconnect radio and test with correct delta (0x78E7B771)
+5. **XCMP Protocol** - Analyze `Common.Communication.PcrSequenceManager.dll` (518KB) for codeplug operations
+6. **Radio Identification** - Implement XCMP command to read model/serial/firmware
 
 ### Short Term
-4. **Wireshark capture** - Capture CPS traffic in Windows VM with XCMP/XNL dissector
-5. **Moto.Net study** - Analyze C# implementation for protocol structure
-6. **codeplug-prepare** - Check if this tool can extract keys from CPS
+7. **Wireshark capture** - Capture real CPS traffic to see XCMP codeplug read/write sequence
+8. **CommandHandler analysis** - Study `Motorola.CommonCPS.RadioManagement.CommandHandler.dll` (1.6MB)
+9. **CodeplugConverter** - Analyze for codeplug file format
+
+### DLLs Available for Analysis
+Located in `/Users/home/.wine_mototrbo/drive_c/MOTOTRBO/`:
+- `XnlAuthentication.dll` ✅ Analyzed - TEA encryption
+- `Common.Communication.XNL.dll` ✅ Analyzed - XNL protocol layer
+- `Common.Communication.PcrSequenceManager.dll` - PCR/XPR sequence operations
+- `Motorola.CommonCPS.RadioManagement.CommandHandler.dll` - Command handling
+- `CodeplugConverter.dll` - Codeplug format conversion
 
 ### Long Term
-7. **Motorola ADK** - Consider applying for official developer access
-8. **Community resources** - Connect with ham radio communities who have researched this
+10. **Motorola ADK** - Consider applying for official developer access
+11. **Community resources** - Connect with ham radio communities who have researched this
 
 ---
 
@@ -247,19 +332,21 @@ The Business Radio CPS uses internal codenames for different radio families:
 | Solo | Unknown | BL.Solo.*.dll |
 | Vanu | Unknown | BL.Vanu.*.dll |
 
-### MOTOTRBO CPS Keys ✅ EXTRACTED
+### MOTOTRBO CPS Keys ✅ EXTRACTED AND VERIFIED
 
 The XPR 3500e uses **MOTOTRBO CPS 2.0** which uses TEA encryption for XNL authentication:
 
 #### XNL Authentication Key (TEA) ✅ VERIFIED
 ```
-Algorithm: TEA (Tiny Encryption Algorithm)
+Algorithm: TEA (Tiny Encryption Algorithm) - 32 rounds
 Key:       1D 30 96 5A 55 AA F2 0C C6 6C 93 BF 5B CD 5E BD
-Delta:     0x9E3779B9 (standard TEA constant)
+Delta:     0x78E7B771 (MOTOTRBO custom, NOT standard 0x9E3779B9!)
 ```
 
-**Source:** `XnlAuthentication.dll` from MOTOTRBO CPS 2.0 installation (via Wine)
-**Extraction method:** Static analysis of Dotfuscator-obfuscated .NET assembly
+**Source:** `XnlAuthentication.dll` from MOTOTRBO CPS 2.0 extracted via Wine
+**Extraction method:** `monodis` disassembly of .NET assembly
+**Key location:** Class `iq`, field `a` at data offset D_00002050
+**Delta location:** IL_0092/IL_0095 in encrypt/decrypt methods
 
 #### Codeplug Encryption Keys (For File Storage)
 - Codeplug encryption key (43-char Base64) - stored in `cpservices.dll`
@@ -278,6 +365,15 @@ Delta:     0x9E3779B9 (standard TEA constant)
 
 ---
 
+## Verified Radio Information (XPR 3500e)
+
+| Field | Value | XCMP Command |
+|-------|-------|--------------|
+| Model Number | H02RDH9VA1AN | `0x000E type=0x07` |
+| Firmware Version | R02.21.01.1002 | `0x000F type=0x00` |
+
+---
+
 ## Code Implementation Status
 
 | Component | Status |
@@ -286,11 +382,24 @@ Delta:     0x9E3779B9 (standard TEA constant)
 | MOTOTRBOProgrammer | ✅ Basic structure, identification stub |
 | Auto-detection | ✅ Detects radio on network |
 | Auto-transition | ✅ Opens programming view |
-| XNL Authentication | ✅ TEA key extracted and verified working |
-| XNL Connection | 🔄 TCP port 8002 - need to implement in app |
-| XCMP Commands | ❌ Need to implement radio status, codeplug commands |
+| XNL Authentication | ✅ TEA key (LE) + custom delta (0x790AB771) verified |
+| XNL Connection | ✅ TCP port 8002 - **VERIFIED WORKING** (2026-01-29) |
+| XCMP Communication | ✅ Packets exchanged, data received |
+| XCMP VersionInfo | ✅ `0x000F` returns firmware version |
+| XCMP RadioStatus/Model | ✅ `0x000E type=0x07` returns model number |
+| Sequential Commands | ⚠️ Issue: Radio caches first response (see Known Issues) |
 | Codeplug Read | ❌ Need XCMP protocol implementation |
 | Codeplug Write | ❌ Need XCMP protocol implementation |
+
+### Known Issues
+
+**Sequential XCMP Commands Return Cached Response**
+When sending multiple XCMP commands on the same TCP connection, the radio may return the first response for all subsequent commands. The TxID in responses matches the first command, not the current one.
+
+**Workarounds:**
+1. Use a fresh TCP connection for each command (verified working)
+2. Investigate proper XNL flow control (ACKs, sequence numbers)
+3. Add longer delays between commands (not fully verified)
 
 ---
 

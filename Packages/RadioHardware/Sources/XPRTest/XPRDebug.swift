@@ -23,7 +23,7 @@ struct XPRDebug {
         print("Host: \(host):8002\n")
 
         let connection = XNLConnection(host: host)
-        let result = await connection.connect()
+        let result = await connection.connect(debug: true)  // Enable init broadcast debug
 
         switch result {
         case .success(let addr):
@@ -50,42 +50,90 @@ struct XPRDebug {
         print("[DEBUG] Testing XCMP packet formats...")
         print(String(repeating: "-", count: 50))
 
-        // Test 1: RadioStatusRequest for model number
-        print("\n1. RadioStatusRequest (Model Number) - Opcode 0x000E")
-        let modelReq = Data([0x00, 0x0E, 0x07])  // opcode + status type
-        print("   Sending: \(modelReq.hex)")
-        if let response = try? await connection.sendXCMP(modelReq, timeout: 3.0, debug: true) {
-            print("   Response: \(response.hex)")
-            analyzeResponse(response)
-        } else {
-            print("   No response")
-        }
+        // ============================================
+        // CPS-VERIFIED OPCODES (from CPS 2.0 capture)
+        // ============================================
 
-        // Test 2: RadioStatusRequest for serial number
-        print("\n2. RadioStatusRequest (Serial Number) - Opcode 0x000E, Type 0x08")
-        let serialReq = Data([0x00, 0x0E, 0x08])  // opcode + status type
-        print("   Sending: \(serialReq.hex)")
-        if let response = try? await connection.sendXCMP(serialReq, timeout: 3.0, debug: true) {
+        // Test 1: SecurityKeyRequest (0x0012) - CPS sends this FIRST
+        print("\n1. SecurityKeyRequest (0x0012) - VERIFIED CPS PROTOCOL")
+        let securityKeyReq = Data([0x00, 0x12])  // opcode only, no params
+        print("   Sending: \(securityKeyReq.hex)")
+        if let response = try? await connection.sendXCMP(securityKeyReq, timeout: 5.0, debug: true) {
             print("   Response: \(response.hex)")
             analyzeResponse(response)
-            // Parse status type from response
-            if response.count >= 4 {
-                let statusType = response[2]
-                print("   Response status type: 0x\(String(format: "%02X", statusType))")
-                if statusType == 0x08 {
-                    let serial = String(data: response.dropFirst(3), encoding: .utf8) ?? "N/A"
-                    print("   Serial: \(serial)")
-                }
+            if response.count >= 17 {
+                let key = Data(response[1...16])
+                print("   Security Key: \(key.hex)")
             }
         } else {
             print("   No response")
         }
 
-        // Test 2b: VersionInfoRequest
-        print("\n2b. VersionInfoRequest (Firmware) - Opcode 0x000F")
+        // Test 2: ModelNumberRequest (0x0010) - VERIFIED CPS PROTOCOL
+        print("\n2. ModelNumberRequest (0x0010) - VERIFIED CPS PROTOCOL")
+        let modelReq = Data([0x00, 0x10, 0x00])  // opcode + param 0x00
+        print("   Sending: \(modelReq.hex)")
+        if let response = try? await connection.sendXCMP(modelReq, timeout: 5.0, debug: true) {
+            print("   Response: \(response.hex)")
+            analyzeResponse(response)
+            if response.count > 3 {
+                let model = String(data: Data(response[1...]), encoding: .utf8) ?? "N/A"
+                print("   Model: \(model)")
+            }
+        } else {
+            print("   No response")
+        }
+
+        // Test 3: SerialNumberRequest (0x0011) - VERIFIED CPS PROTOCOL
+        print("\n3. SerialNumberRequest (0x0011) - VERIFIED CPS PROTOCOL")
+        let serialReq = Data([0x00, 0x11, 0x00])  // opcode + param 0x00
+        print("   Sending: \(serialReq.hex)")
+        if let response = try? await connection.sendXCMP(serialReq, timeout: 5.0, debug: true) {
+            print("   Response: \(response.hex)")
+            analyzeResponse(response)
+            if response.count > 3 {
+                let serial = String(data: Data(response[1...]), encoding: .utf8) ?? "N/A"
+                print("   Serial: \(serial)")
+            }
+        } else {
+            print("   No response")
+        }
+
+        // Test 4: VersionInfoRequest (0x000F) - VERIFIED CPS PROTOCOL
+        print("\n4. VersionInfoRequest (0x000F type=0x00) - VERIFIED CPS PROTOCOL")
         let versionReq = Data([0x00, 0x0F, 0x00])  // opcode + version type
         print("   Sending: \(versionReq.hex)")
-        if let response = try? await connection.sendXCMP(versionReq, timeout: 3.0, debug: true) {
+        if let response = try? await connection.sendXCMP(versionReq, timeout: 5.0, debug: true) {
+            print("   Response: \(response.hex)")
+            analyzeResponse(response)
+            if response.count > 3 {
+                let version = String(data: Data(response[1...]), encoding: .utf8) ?? "N/A"
+                print("   Firmware: \(version)")
+            }
+        } else {
+            print("   No response")
+        }
+
+        // Test 5: CodeplugIdRequest (0x001F) - VERIFIED CPS PROTOCOL
+        print("\n5. CodeplugIdRequest (0x001F) - VERIFIED CPS PROTOCOL")
+        let cpIdReq = Data([0x00, 0x1F, 0x00, 0x00])  // opcode + params
+        print("   Sending: \(cpIdReq.hex)")
+        if let response = try? await connection.sendXCMP(cpIdReq, timeout: 5.0, debug: true) {
+            print("   Response: \(response.hex)")
+            analyzeResponse(response)
+        } else {
+            print("   No response")
+        }
+
+        // ============================================
+        // LEGACY OPCODES (may not work with XPR)
+        // ============================================
+
+        // Test 6: Legacy RadioStatusRequest for model number
+        print("\n6. (Legacy) RadioStatusRequest (0x000E type=0x07)")
+        let legacyModelReq = Data([0x00, 0x0E, 0x07])  // opcode + status type
+        print("   Sending: \(legacyModelReq.hex)")
+        if let response = try? await connection.sendXCMP(legacyModelReq, timeout: 3.0, debug: true) {
             print("   Response: \(response.hex)")
             analyzeResponse(response)
         } else {
@@ -114,19 +162,43 @@ struct XPRDebug {
             print("   No response")
         }
 
-        // Test 5: PSDT Access
-        print("\n5. PSDT Access - Get Start Address (Opcode 0x010B)")
-        var psdtReq = Data([0x01, 0x0B, 0x01])  // opcode + action (getStartAddress)
-        psdtReq.append(contentsOf: "CP".utf8)   // partition
-        psdtReq.append(contentsOf: [0x00, 0x00]) // padding
-        psdtReq.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // target partition
-        print("   Sending: \(psdtReq.hex)")
-        if let response = try? await connection.sendXCMP(psdtReq, timeout: 3.0) {
-            print("   Response: \(response.hex)")
-            analyzeResponse(response)
-        } else {
-            print("   No response")
+        // Test 5: Initialize radio before PSDT access
+        print("\n5. Radio Initialization Sequence (unlock before PSDT)")
+        let initResult = await connection.initialize(partition: .application, debug: true)
+        switch initResult {
+        case .success:
+            print("   ✓ Initialization successful!")
+
+            // Now try PSDT Access
+            print("\n6. PSDT Access - Get Start Address (Opcode 0x010B)")
+            var psdtReq = Data([0x01, 0x0B, 0x01])  // opcode + action (getStartAddress)
+            psdtReq.append(contentsOf: "CP".utf8)   // partition
+            psdtReq.append(contentsOf: [0x00, 0x00]) // padding
+            psdtReq.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // target partition
+            print("   Sending: \(psdtReq.hex)")
+            if let response = try? await connection.sendXCMP(psdtReq, timeout: 3.0) {
+                print("   Response: \(response.hex)")
+                analyzeResponse(response)
+            } else {
+                print("   No response")
+            }
+
+        case .enterProgramModeFailed(let code):
+            print("   ✗ Enter programming mode failed: 0x\(String(format: "%02X", code))")
+        case .readRadioKeyFailed(let code):
+            print("   ✗ Read radio key failed: 0x\(String(format: "%02X", code))")
+        case .unlockSecurityFailed(let code):
+            print("   ✗ Unlock security failed: 0x\(String(format: "%02X", code))")
+        case .unlockPartitionFailed(let code):
+            print("   ✗ Unlock partition failed: 0x\(String(format: "%02X", code))")
+        case .notAuthenticated:
+            print("   ✗ Not authenticated")
+        case .timeout:
+            print("   ✗ Timeout")
         }
+
+        // Skip the old PSDT test since we do it inside the init block now
+        print("\n-- Skipping standalone PSDT test (done above) --")
 
         // Test 6: Component Session Start
         print("\n6. Component Session Start (Opcode 0x010F)")

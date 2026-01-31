@@ -27,6 +27,10 @@ public protocol RadioModel: Sendable {
     /// All field definitions flattened from the node tree.
     static var allFields: [FieldDefinition] { get }
 
+    /// Model number string as reported by the radio (for auto-identification).
+    /// Example: "MDH02RDH9XA1AN" for XPR 3500e
+    static var modelNumbers: [String] { get }
+
     /// Creates a new default codeplug for this model.
     static func createDefault() -> Codeplug
 
@@ -35,6 +39,11 @@ public protocol RadioModel: Sendable {
 
     /// Applies inter-field dependencies after a value change.
     static func applyDependencies(field: String, in codeplug: Codeplug)
+}
+
+extension RadioModel {
+    /// Default empty model numbers (radios that don't support auto-identification).
+    public static var modelNumbers: [String] { [] }
 }
 
 extension RadioModel {
