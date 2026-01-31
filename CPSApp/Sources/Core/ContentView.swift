@@ -294,17 +294,79 @@ struct ParsedCodeplugCategoryView: View {
     @ViewBuilder
     private var generalSettingsView: some View {
         if let codeplug = coordinator.parsedCodeplug {
-            GroupBox("Radio Information") {
+            // Device Information (read-only)
+            GroupBox("Device Information") {
                 LabeledContent("Model", value: codeplug.modelNumber.isEmpty ? "Unknown" : codeplug.modelNumber)
                 LabeledContent("Serial Number", value: codeplug.serialNumber.isEmpty ? "Unknown" : codeplug.serialNumber)
                 LabeledContent("Firmware", value: codeplug.firmwareVersion.isEmpty ? "Unknown" : codeplug.firmwareVersion)
                 LabeledContent("Codeplug Version", value: codeplug.codeplugVersion.isEmpty ? "Unknown" : codeplug.codeplugVersion)
             }
 
-            GroupBox("Statistics") {
+            // Identity Settings
+            GroupBox("Radio Identity") {
+                LabeledContent("Radio ID", value: "\(codeplug.radioID)")
+                LabeledContent("Radio Alias", value: codeplug.radioAlias.isEmpty ? "(None)" : codeplug.radioAlias)
+                if !codeplug.introScreenLine1.isEmpty || !codeplug.introScreenLine2.isEmpty {
+                    LabeledContent("Intro Line 1", value: codeplug.introScreenLine1.isEmpty ? "(None)" : codeplug.introScreenLine1)
+                    LabeledContent("Intro Line 2", value: codeplug.introScreenLine2.isEmpty ? "(None)" : codeplug.introScreenLine2)
+                }
+            }
+
+            // Audio Settings
+            GroupBox("Audio Settings") {
+                LabeledContent("VOX", value: codeplug.voxEnabled ? "Enabled" : "Disabled")
+                if codeplug.voxEnabled {
+                    LabeledContent("VOX Sensitivity", value: "\(codeplug.voxSensitivity)")
+                    LabeledContent("VOX Delay", value: "\(codeplug.voxDelay) ms")
+                }
+                LabeledContent("Keypad Tones", value: codeplug.keypadTones ? "On" : "Off")
+                LabeledContent("Call Alert Tone", value: codeplug.callAlertTone ? "On" : "Off")
+                LabeledContent("Power Up Tone", value: codeplug.powerUpTone ? "On" : "Off")
+            }
+
+            // Timing Settings
+            GroupBox("Timing Settings") {
+                LabeledContent("TOT (Timeout Timer)", value: codeplug.totTime == 0 ? "Infinite" : "\(codeplug.totTime) sec")
+                LabeledContent("Group Call Hang Time", value: "\(codeplug.groupCallHangTime) ms")
+                LabeledContent("Private Call Hang Time", value: "\(codeplug.privateCallHangTime) ms")
+            }
+
+            // Display Settings
+            GroupBox("Display Settings") {
+                LabeledContent("Backlight Time", value: codeplug.backlightTime == 0 ? "Always On" : "\(codeplug.backlightTime) sec")
+                LabeledContent("Default Power Level", value: codeplug.defaultPowerLevel ? "High" : "Low")
+            }
+
+            // Signaling Settings
+            GroupBox("Signaling") {
+                LabeledContent("Radio Check", value: codeplug.radioCheckEnabled ? "Enabled" : "Disabled")
+                LabeledContent("Remote Monitor", value: codeplug.remoteMonitorEnabled ? "Enabled" : "Disabled")
+                LabeledContent("Call Confirmation", value: codeplug.callConfirmation ? "Enabled" : "Disabled")
+            }
+
+            // GPS Settings
+            GroupBox("GPS/GNSS") {
+                LabeledContent("GPS", value: codeplug.gpsEnabled ? "Enabled" : "Disabled")
+                LabeledContent("Enhanced GNSS", value: codeplug.enhancedGNSSEnabled ? "Enabled" : "Disabled")
+            }
+
+            // Safety Settings
+            GroupBox("Safety Features") {
+                LabeledContent("Lone Worker", value: codeplug.loneWorkerEnabled ? "Enabled" : "Disabled")
+                if codeplug.loneWorkerEnabled {
+                    LabeledContent("LW Response Time", value: "\(codeplug.loneWorkerResponseTime) sec")
+                }
+                LabeledContent("Man Down", value: codeplug.manDownEnabled ? "Enabled" : "Disabled")
+            }
+
+            // Statistics
+            GroupBox("Codeplug Statistics") {
                 LabeledContent("Total Zones", value: "\(codeplug.zones.count)")
                 let totalChannels = codeplug.zones.reduce(0) { $0 + $1.channels.count }
                 LabeledContent("Total Channels", value: "\(totalChannels)")
+                LabeledContent("Total Contacts", value: "\(codeplug.contacts.count)")
+                LabeledContent("Scan Lists", value: "\(codeplug.scanLists.count)")
+                LabeledContent("RX Group Lists", value: "\(codeplug.rxGroupLists.count)")
             }
         } else {
             ContentUnavailableView("No Data", systemImage: "doc.questionmark", description: Text("No codeplug data available"))

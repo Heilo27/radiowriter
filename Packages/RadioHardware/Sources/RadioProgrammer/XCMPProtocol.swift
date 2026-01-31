@@ -156,8 +156,104 @@ public enum CloneIndexType: UInt16 {
     case contact = 0x8003
     /// Scan list index
     case scanList = 0x8004
+    /// RX group list index
+    case rxGroupList = 0x8005
     /// General radio setting (index is setting ID)
     case radioSetting = 0x0000
+}
+
+/// Data types for Contact CloneRead.
+public enum ContactDataType: UInt8 {
+    case name = 0x01
+    case callType = 0x02       // 0=Private, 1=Group, 2=All Call
+    case dmrID = 0x03          // 3-byte DMR ID
+    case callReceiveTone = 0x04
+    case callAlert = 0x05
+}
+
+/// Data types for Scan List CloneRead.
+public enum ScanListDataType: UInt8 {
+    case name = 0x01
+    case memberCount = 0x02
+    case memberList = 0x03     // List of channel references
+    case priorityChannel1 = 0x04
+    case priorityChannel2 = 0x05
+    case talkbackEnabled = 0x06
+    case holdTime = 0x07
+}
+
+/// Data types for RX Group List CloneRead.
+public enum RxGroupDataType: UInt8 {
+    case name = 0x01
+    case memberCount = 0x02
+    case memberList = 0x03     // List of contact indices
+}
+
+/// Data types for Radio General Settings CloneRead.
+public enum RadioSettingDataType: UInt8 {
+    // Identity
+    case radioID = 0x01
+    case radioAlias = 0x02
+    case powerOnPassword = 0x03
+    case introScreenLine1 = 0x04
+    case introScreenLine2 = 0x05
+
+    // Counts (for enumeration)
+    case zoneCount = 0x10
+    case contactCount = 0x11
+    case scanListCount = 0x12
+    case rxGroupCount = 0x13
+    case textMessageCount = 0x14
+    case emergencySystemCount = 0x15
+
+    // Audio settings
+    case voxEnabled = 0x20
+    case voxSensitivity = 0x21
+    case voxDelay = 0x22
+    case keypadTones = 0x23
+    case callAlertTone = 0x24
+    case powerUpTone = 0x25
+    case audioEnhancement = 0x26
+
+    // Timing settings
+    case totTime = 0x30
+    case totResetTime = 0x31
+    case groupCallHangTime = 0x32
+    case privateCallHangTime = 0x33
+
+    // Display settings
+    case backlightTime = 0x40
+    case backlightAuto = 0x41
+    case defaultPowerLevel = 0x42
+
+    // Signaling settings
+    case radioCheckEnabled = 0x50
+    case remoteMonitorEnabled = 0x51
+    case callConfirmation = 0x52
+    case emergencyAlertType = 0x53
+    case emergencyDestinationID = 0x54
+
+    // GPS settings
+    case gpsEnabled = 0x60
+    case gpsRevertChannel = 0x61
+    case enhancedGNSS = 0x62
+
+    // Lone Worker settings
+    case loneWorkerEnabled = 0x70
+    case loneWorkerResponseTime = 0x71
+    case loneWorkerReminderTime = 0x72
+
+    // Man Down settings
+    case manDownEnabled = 0x80
+    case manDownDelay = 0x81
+
+    // Button assignments
+    case topButtonShort = 0x90
+    case topButtonLong = 0x91
+    case sideButton1Short = 0x92
+    case sideButton1Long = 0x93
+    case sideButton2Short = 0x94
+    case sideButton2Long = 0x95
 }
 
 /// Data types for CloneReadRequest that specify what data to retrieve.
@@ -549,6 +645,78 @@ public struct XCMPPacket {
         data.append(UInt8(channel >> 8))
         data.append(UInt8(channel & 0xFF))
         // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for zone-level data (like zone name).
+    public static func cloneReadRequestZone(zone: UInt16, dataType: CloneDataType) -> XCMPPacket {
+        var data = Data()
+        // Zone index type (0x8001)
+        data.append(0x80)
+        data.append(0x01)
+        // Zone number
+        data.append(UInt8(zone >> 8))
+        data.append(UInt8(zone & 0xFF))
+        // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for contact data.
+    public static func cloneReadContact(index: UInt16, dataType: ContactDataType) -> XCMPPacket {
+        var data = Data()
+        // Contact index type (0x8003)
+        data.append(0x80)
+        data.append(0x03)
+        // Contact index
+        data.append(UInt8(index >> 8))
+        data.append(UInt8(index & 0xFF))
+        // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for scan list data.
+    public static func cloneReadScanList(index: UInt16, dataType: ScanListDataType) -> XCMPPacket {
+        var data = Data()
+        // Scan list index type (0x8004)
+        data.append(0x80)
+        data.append(0x04)
+        // Scan list index
+        data.append(UInt8(index >> 8))
+        data.append(UInt8(index & 0xFF))
+        // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for RX group list data.
+    public static func cloneReadRxGroup(index: UInt16, dataType: RxGroupDataType) -> XCMPPacket {
+        var data = Data()
+        // RX group index type (0x8005)
+        data.append(0x80)
+        data.append(0x05)
+        // RX group index
+        data.append(UInt8(index >> 8))
+        data.append(UInt8(index & 0xFF))
+        // Data type
+        data.append(0x00)
+        data.append(dataType.rawValue)
+        return XCMPPacket(opCode: .cloneReadRequest, data: data)
+    }
+
+    /// Creates a CloneReadRequest for radio general settings.
+    public static func cloneReadRadioSetting(dataType: RadioSettingDataType) -> XCMPPacket {
+        var data = Data()
+        // Radio setting index type (0x0000)
+        data.append(0x00)
+        data.append(0x00)
+        // Setting ID is the data type
         data.append(0x00)
         data.append(dataType.rawValue)
         return XCMPPacket(opCode: .cloneReadRequest, data: data)
@@ -1349,6 +1517,421 @@ public actor XCMPClient {
         }
 
         return channels
+    }
+
+    // MARK: - Zone Name Reading
+
+    /// Reads a zone name.
+    public func readZoneName(zone: UInt16, debug: Bool = false) async throws -> String? {
+        let request = XCMPPacket.cloneReadRequestZone(zone: zone, dataType: .zoneName)
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        guard let parsed = CloneReadReply(from: reply.data) else { return nil }
+        return parsed.stringValue
+    }
+
+    // MARK: - Contact Reading
+
+    /// Reads contact data using CloneRead.
+    public func readContactData(index: UInt16, dataType: ContactDataType, debug: Bool = false) async throws -> CloneReadReply? {
+        let request = XCMPPacket.cloneReadContact(index: index, dataType: dataType)
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        return CloneReadReply(from: reply.data)
+    }
+
+    /// Reads a complete contact's data.
+    public func readCompleteContact(index: UInt16, debug: Bool = false) async throws -> ContactReadResult? {
+        // Read name first to check if contact exists
+        guard let nameReply = try await readContactData(index: index, dataType: .name, debug: debug),
+              let name = nameReply.stringValue, !name.isEmpty else {
+            return nil
+        }
+
+        var result = ContactReadResult(index: Int(index), name: name)
+
+        // Call Type
+        if let typeReply = try await readContactData(index: index, dataType: .callType, debug: debug) {
+            result.callType = Int(typeReply.byteValue ?? 1)
+        }
+
+        // DMR ID (3 bytes)
+        if let idReply = try await readContactData(index: index, dataType: .dmrID, debug: debug) {
+            if idReply.data.count >= 3 {
+                result.dmrID = UInt32(idReply.data[0]) << 16 | UInt32(idReply.data[1]) << 8 | UInt32(idReply.data[2])
+            } else if let val = idReply.uint32Value {
+                result.dmrID = val
+            }
+        }
+
+        // Call Receive Tone
+        if let toneReply = try await readContactData(index: index, dataType: .callReceiveTone, debug: debug) {
+            result.callReceiveTone = (toneReply.byteValue ?? 0) != 0
+        }
+
+        // Call Alert
+        if let alertReply = try await readContactData(index: index, dataType: .callAlert, debug: debug) {
+            result.callAlert = (alertReply.byteValue ?? 0) != 0
+        }
+
+        if debug {
+            print("[CONTACT] \(index): \(result.name) ID:\(result.dmrID) Type:\(result.callTypeDisplay)")
+        }
+
+        return result
+    }
+
+    // MARK: - Scan List Reading
+
+    /// Reads scan list data using CloneRead.
+    public func readScanListData(index: UInt16, dataType: ScanListDataType, debug: Bool = false) async throws -> CloneReadReply? {
+        let request = XCMPPacket.cloneReadScanList(index: index, dataType: dataType)
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        return CloneReadReply(from: reply.data)
+    }
+
+    /// Reads a complete scan list's data.
+    public func readCompleteScanList(index: UInt16, debug: Bool = false) async throws -> ScanListReadResult? {
+        // Read name first to check if scan list exists
+        guard let nameReply = try await readScanListData(index: index, dataType: .name, debug: debug),
+              let name = nameReply.stringValue, !name.isEmpty else {
+            return nil
+        }
+
+        var result = ScanListReadResult(index: Int(index), name: name)
+
+        // Talkback Enabled
+        if let talkbackReply = try await readScanListData(index: index, dataType: .talkbackEnabled, debug: debug) {
+            result.talkbackEnabled = (talkbackReply.byteValue ?? 1) != 0
+        }
+
+        // Hold Time
+        if let holdReply = try await readScanListData(index: index, dataType: .holdTime, debug: debug) {
+            result.holdTime = holdReply.uint16Value ?? 500
+        }
+
+        // Member count
+        if let countReply = try await readScanListData(index: index, dataType: .memberCount, debug: debug) {
+            result.memberCount = Int(countReply.byteValue ?? 0)
+        }
+
+        // Member list (zone/channel pairs)
+        if let listReply = try await readScanListData(index: index, dataType: .memberList, debug: debug) {
+            // Parse member list - format is typically pairs of zone/channel indices
+            let data = listReply.data
+            var members: [(zoneIndex: Int, channelIndex: Int)] = []
+            var offset = 0
+            while offset + 1 < data.count {
+                let zoneIdx = Int(data[offset])
+                let chanIdx = Int(data[offset + 1])
+                if zoneIdx == 0xFF && chanIdx == 0xFF { break } // End marker
+                members.append((zoneIdx, chanIdx))
+                offset += 2
+            }
+            result.members = members
+        }
+
+        if debug {
+            print("[SCANLIST] \(index): \(result.name) Members:\(result.memberCount)")
+        }
+
+        return result
+    }
+
+    // MARK: - RX Group List Reading
+
+    /// Reads RX group list data using CloneRead.
+    public func readRxGroupData(index: UInt16, dataType: RxGroupDataType, debug: Bool = false) async throws -> CloneReadReply? {
+        let request = XCMPPacket.cloneReadRxGroup(index: index, dataType: dataType)
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        return CloneReadReply(from: reply.data)
+    }
+
+    /// Reads a complete RX group list's data.
+    public func readCompleteRxGroup(index: UInt16, debug: Bool = false) async throws -> RxGroupReadResult? {
+        // Read name first to check if RX group exists
+        guard let nameReply = try await readRxGroupData(index: index, dataType: .name, debug: debug),
+              let name = nameReply.stringValue, !name.isEmpty else {
+            return nil
+        }
+
+        var result = RxGroupReadResult(index: Int(index), name: name)
+
+        // Member count
+        if let countReply = try await readRxGroupData(index: index, dataType: .memberCount, debug: debug) {
+            result.memberCount = Int(countReply.byteValue ?? 0)
+        }
+
+        // Member list (contact indices)
+        if let listReply = try await readRxGroupData(index: index, dataType: .memberList, debug: debug) {
+            // Parse member list - format is typically single-byte contact indices
+            let data = listReply.data
+            var members: [Int] = []
+            for byte in data {
+                if byte == 0xFF { break } // End marker
+                members.append(Int(byte))
+            }
+            result.contactIndices = members
+        }
+
+        if debug {
+            print("[RXGROUP] \(index): \(result.name) Members:\(result.memberCount)")
+        }
+
+        return result
+    }
+
+    // MARK: - Radio Setting Reading
+
+    /// Reads a radio general setting.
+    public func readRadioSetting(dataType: RadioSettingDataType, debug: Bool = false) async throws -> CloneReadReply? {
+        let request = XCMPPacket.cloneReadRadioSetting(dataType: dataType)
+        guard let reply = try await sendAndReceive(request, debug: debug) else { return nil }
+        return CloneReadReply(from: reply.data)
+    }
+
+    /// Reads the radio ID (DMR ID).
+    public func readRadioID(debug: Bool = false) async throws -> UInt32? {
+        guard let reply = try await readRadioSetting(dataType: .radioID, debug: debug) else { return nil }
+        if reply.data.count >= 3 {
+            return UInt32(reply.data[0]) << 16 | UInt32(reply.data[1]) << 8 | UInt32(reply.data[2])
+        }
+        return reply.uint32Value
+    }
+
+    /// Reads the radio alias/name.
+    public func readRadioAlias(debug: Bool = false) async throws -> String? {
+        guard let reply = try await readRadioSetting(dataType: .radioAlias, debug: debug) else { return nil }
+        return reply.stringValue
+    }
+
+    /// Reads the total contact count from radio settings.
+    public func readContactCount(debug: Bool = false) async throws -> Int? {
+        guard let reply = try await readRadioSetting(dataType: .contactCount, debug: debug) else { return nil }
+        return Int(reply.byteValue ?? 0)
+    }
+
+    /// Reads the total scan list count from radio settings.
+    public func readScanListCount(debug: Bool = false) async throws -> Int? {
+        guard let reply = try await readRadioSetting(dataType: .scanListCount, debug: debug) else { return nil }
+        return Int(reply.byteValue ?? 0)
+    }
+
+    /// Reads the total RX group count from radio settings.
+    public func readRxGroupCount(debug: Bool = false) async throws -> Int? {
+        guard let reply = try await readRadioSetting(dataType: .rxGroupCount, debug: debug) else { return nil }
+        return Int(reply.byteValue ?? 0)
+    }
+
+    // MARK: - Comprehensive General Settings Reading
+
+    /// Reads all general radio settings into a GeneralSettingsResult.
+    public func readGeneralSettings(debug: Bool = false) async throws -> GeneralSettingsResult {
+        var result = GeneralSettingsResult()
+
+        // Identity settings
+        if let reply = try await readRadioSetting(dataType: .radioID, debug: debug) {
+            if reply.data.count >= 3 {
+                result.radioID = UInt32(reply.data[0]) << 16 | UInt32(reply.data[1]) << 8 | UInt32(reply.data[2])
+            }
+        }
+        if let reply = try await readRadioSetting(dataType: .radioAlias, debug: debug) {
+            result.radioAlias = reply.stringValue ?? ""
+        }
+        if let reply = try await readRadioSetting(dataType: .introScreenLine1, debug: debug) {
+            result.introLine1 = reply.stringValue ?? ""
+        }
+        if let reply = try await readRadioSetting(dataType: .introScreenLine2, debug: debug) {
+            result.introLine2 = reply.stringValue ?? ""
+        }
+
+        // Audio settings
+        if let reply = try await readRadioSetting(dataType: .voxEnabled, debug: debug) {
+            result.voxEnabled = (reply.byteValue ?? 0) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .voxSensitivity, debug: debug) {
+            result.voxSensitivity = reply.byteValue ?? 3
+        }
+        if let reply = try await readRadioSetting(dataType: .voxDelay, debug: debug) {
+            result.voxDelay = reply.uint16Value ?? 500
+        }
+        if let reply = try await readRadioSetting(dataType: .keypadTones, debug: debug) {
+            result.keypadTones = (reply.byteValue ?? 1) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .callAlertTone, debug: debug) {
+            result.callAlertTone = (reply.byteValue ?? 1) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .powerUpTone, debug: debug) {
+            result.powerUpTone = (reply.byteValue ?? 1) != 0
+        }
+
+        // Timing settings
+        if let reply = try await readRadioSetting(dataType: .totTime, debug: debug) {
+            result.totTime = reply.uint16Value ?? 60
+        }
+        if let reply = try await readRadioSetting(dataType: .groupCallHangTime, debug: debug) {
+            result.groupCallHangTime = reply.uint16Value ?? 5000
+        }
+        if let reply = try await readRadioSetting(dataType: .privateCallHangTime, debug: debug) {
+            result.privateCallHangTime = reply.uint16Value ?? 5000
+        }
+
+        // Display settings
+        if let reply = try await readRadioSetting(dataType: .backlightTime, debug: debug) {
+            result.backlightTime = reply.byteValue ?? 5
+        }
+        if let reply = try await readRadioSetting(dataType: .defaultPowerLevel, debug: debug) {
+            result.defaultPowerHigh = (reply.byteValue ?? 1) != 0
+        }
+
+        // Signaling settings
+        if let reply = try await readRadioSetting(dataType: .radioCheckEnabled, debug: debug) {
+            result.radioCheckEnabled = (reply.byteValue ?? 1) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .remoteMonitorEnabled, debug: debug) {
+            result.remoteMonitorEnabled = (reply.byteValue ?? 0) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .callConfirmation, debug: debug) {
+            result.callConfirmation = (reply.byteValue ?? 1) != 0
+        }
+
+        // GPS settings
+        if let reply = try await readRadioSetting(dataType: .gpsEnabled, debug: debug) {
+            result.gpsEnabled = (reply.byteValue ?? 0) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .enhancedGNSS, debug: debug) {
+            result.enhancedGNSS = (reply.byteValue ?? 0) != 0
+        }
+
+        // Lone Worker settings
+        if let reply = try await readRadioSetting(dataType: .loneWorkerEnabled, debug: debug) {
+            result.loneWorkerEnabled = (reply.byteValue ?? 0) != 0
+        }
+        if let reply = try await readRadioSetting(dataType: .loneWorkerResponseTime, debug: debug) {
+            result.loneWorkerResponseTime = reply.uint16Value ?? 30
+        }
+
+        // Man Down settings
+        if let reply = try await readRadioSetting(dataType: .manDownEnabled, debug: debug) {
+            result.manDownEnabled = (reply.byteValue ?? 0) != 0
+        }
+
+        if debug {
+            print("[SETTINGS] Radio ID: \(result.radioID)")
+            print("[SETTINGS] Alias: \(result.radioAlias)")
+            print("[SETTINGS] VOX: \(result.voxEnabled ? "On" : "Off")")
+            print("[SETTINGS] TOT: \(result.totTime)s")
+            print("[SETTINGS] GPS: \(result.gpsEnabled ? "On" : "Off")")
+        }
+
+        return result
+    }
+}
+
+// MARK: - General Settings Read Result
+
+/// Result from reading general radio settings.
+public struct GeneralSettingsResult: Sendable {
+    // Identity
+    public var radioID: UInt32 = 1
+    public var radioAlias: String = ""
+    public var introLine1: String = ""
+    public var introLine2: String = ""
+
+    // Audio
+    public var voxEnabled: Bool = false
+    public var voxSensitivity: UInt8 = 3
+    public var voxDelay: UInt16 = 500
+    public var keypadTones: Bool = true
+    public var callAlertTone: Bool = true
+    public var powerUpTone: Bool = true
+
+    // Timing
+    public var totTime: UInt16 = 60
+    public var totResetTime: UInt8 = 0
+    public var groupCallHangTime: UInt16 = 5000
+    public var privateCallHangTime: UInt16 = 5000
+
+    // Display
+    public var backlightTime: UInt8 = 5
+    public var defaultPowerHigh: Bool = true
+
+    // Signaling
+    public var radioCheckEnabled: Bool = true
+    public var remoteMonitorEnabled: Bool = false
+    public var callConfirmation: Bool = true
+    public var emergencyAlertType: UInt8 = 0
+    public var emergencyDestinationID: UInt32 = 0
+
+    // GPS
+    public var gpsEnabled: Bool = false
+    public var enhancedGNSS: Bool = false
+
+    // Lone Worker
+    public var loneWorkerEnabled: Bool = false
+    public var loneWorkerResponseTime: UInt16 = 30
+    public var loneWorkerReminderTime: UInt16 = 300
+
+    // Man Down
+    public var manDownEnabled: Bool = false
+    public var manDownDelay: UInt16 = 10
+
+    public init() {}
+}
+
+// MARK: - Contact Read Result
+
+/// Result from reading a contact.
+public struct ContactReadResult {
+    public var index: Int
+    public var name: String
+    public var callType: Int = 1  // 0=Private, 1=Group, 2=All Call
+    public var dmrID: UInt32 = 0
+    public var callReceiveTone: Bool = true
+    public var callAlert: Bool = false
+
+    public var callTypeDisplay: String {
+        switch callType {
+        case 0: return "Private"
+        case 1: return "Group"
+        case 2: return "All Call"
+        default: return "Unknown"
+        }
+    }
+
+    public init(index: Int, name: String) {
+        self.index = index
+        self.name = name
+    }
+}
+
+// MARK: - Scan List Read Result
+
+/// Result from reading a scan list.
+public struct ScanListReadResult {
+    public var index: Int
+    public var name: String
+    public var memberCount: Int = 0
+    public var members: [(zoneIndex: Int, channelIndex: Int)] = []
+    public var talkbackEnabled: Bool = true
+    public var holdTime: UInt16 = 500
+
+    public init(index: Int, name: String) {
+        self.index = index
+        self.name = name
+    }
+}
+
+// MARK: - RX Group Read Result
+
+/// Result from reading an RX group list.
+public struct RxGroupReadResult {
+    public var index: Int
+    public var name: String
+    public var memberCount: Int = 0
+    public var contactIndices: [Int] = []
+
+    public init(index: Int, name: String) {
+        self.index = index
+        self.name = name
     }
 }
 

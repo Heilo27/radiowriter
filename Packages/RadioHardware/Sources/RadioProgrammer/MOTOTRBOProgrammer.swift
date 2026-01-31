@@ -237,17 +237,21 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         return allData
     }
 
-    /// Reads zones and channels from the radio using CloneRead protocol.
+    /// Reads the complete codeplug from the radio using CloneRead protocol.
     ///
     /// This method reads:
     /// 1. Device info (model, serial, firmware)
-    /// 2. Zone structure
-    /// 3. All channels in each zone with their settings
+    /// 2. Radio general settings (radio ID, alias)
+    /// 3. Zone structure and names
+    /// 4. All channels in each zone with their settings
+    /// 5. Contacts
+    /// 6. Scan lists
+    /// 7. RX group lists
     ///
     /// - Parameters:
     ///   - progress: Progress callback (0.0 to 1.0)
     ///   - debug: Enable debug output
-    /// - Returns: ParsedCodeplug with zones and channels
+    /// - Returns: ParsedCodeplug with all data
     public func readZonesAndChannels(
         progress: @Sendable (Double) -> Void,
         debug: Bool = false
@@ -268,7 +272,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         // Step 1: Get security key
         if debug { print("[READ] Getting security key...") }
         _ = try await client.getSecurityKey(debug: debug)
-        progress(0.05)
+        progress(0.02)
 
         // Step 2: Get device info
         if debug { print("[READ] Getting device info...") }
@@ -283,29 +287,81 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             print("[READ] Firmware: \(result.firmwareVersion)")
         }
 
-        progress(0.1)
+        progress(0.05)
 
-        // Step 3: Query zone structure
+        // Step 3: Get radio general settings
+        if debug { print("[READ] Reading radio settings...") }
+        let settings = try await client.readGeneralSettings(debug: debug)
+
+        // Copy settings to result
+        result.radioID = settings.radioID
+        result.radioAlias = settings.radioAlias
+        result.introScreenLine1 = settings.introLine1
+        result.introScreenLine2 = settings.introLine2
+
+        // Audio settings
+        result.voxEnabled = settings.voxEnabled
+        result.voxSensitivity = settings.voxSensitivity
+        result.voxDelay = settings.voxDelay
+        result.keypadTones = settings.keypadTones
+        result.callAlertTone = settings.callAlertTone
+        result.powerUpTone = settings.powerUpTone
+
+        // Timing settings
+        result.totTime = settings.totTime
+        result.groupCallHangTime = settings.groupCallHangTime
+        result.privateCallHangTime = settings.privateCallHangTime
+
+        // Display settings
+        result.backlightTime = settings.backlightTime
+        result.defaultPowerLevel = settings.defaultPowerHigh
+
+        // Signaling settings
+        result.radioCheckEnabled = settings.radioCheckEnabled
+        result.remoteMonitorEnabled = settings.remoteMonitorEnabled
+        result.callConfirmation = settings.callConfirmation
+
+        // GPS settings
+        result.gpsEnabled = settings.gpsEnabled
+        result.enhancedGNSSEnabled = settings.enhancedGNSS
+
+        // Lone Worker settings
+        result.loneWorkerEnabled = settings.loneWorkerEnabled
+        result.loneWorkerResponseTime = settings.loneWorkerResponseTime
+
+        // Man Down settings
+        result.manDownEnabled = settings.manDownEnabled
+
+        if debug {
+            print("[READ] Radio ID: \(result.radioID)")
+            print("[READ] Radio Alias: \(result.radioAlias)")
+        }
+
+        progress(0.08)
+
+        // Step 4: Query zone structure
         if debug { print("[READ] Querying zones...") }
         let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug)
-        let zoneCount = zoneResult?.zoneCount ?? 1
+        let zoneCount = max(zoneResult?.zoneCount ?? 1, 1)
 
         if debug { print("[READ] Found \(zoneCount) zones") }
-        progress(0.15)
+        progress(0.10)
 
-        // Step 4: Read channels for each zone
-        // For XPR 3500e, typical structure is 1 zone with up to 16 channels
-        // We'll try to read channels until we get empty responses
+        // Step 5: Read zones and channels
+        // Progress allocation: 10% to 50% for zones/channels
+        let maxChannelsPerZone = 16
 
-        for zoneIndex in 0..<max(zoneCount, 1) {
+        for zoneIndex in 0..<zoneCount {
             var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
 
-            // Try to read zone name (may not be available via CloneRead)
-            // Zone names might be in the codeplug records
+            // Try to read zone name
+            if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
+                zone.name = zoneName
+                if debug { print("[READ] Zone \(zoneIndex): \(zoneName)") }
+            }
 
             // Read channels in this zone
             var channelIndex = 0
-            let maxChannelsPerZone = 16
 
             while channelIndex < maxChannelsPerZone {
                 // Try to read channel name first to see if channel exists
@@ -331,9 +387,9 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 zone.channels.append(channelData)
                 channelIndex += 1
 
-                // Update progress
-                let channelProgress = 0.15 + (0.8 * Double(zoneIndex * maxChannelsPerZone + channelIndex) / Double(max(zoneCount, 1) * maxChannelsPerZone))
-                progress(min(channelProgress, 0.95))
+                // Update progress (10% to 50%)
+                let channelProgress = 0.10 + (0.40 * Double(zoneIndex * maxChannelsPerZone + channelIndex) / Double(zoneCount * maxChannelsPerZone))
+                progress(min(channelProgress, 0.50))
             }
 
             if !zone.channels.isEmpty {
@@ -341,10 +397,107 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             }
         }
 
+        progress(0.50)
+
+        // Step 6: Read contacts
+        // Progress allocation: 50% to 70%
+        if debug { print("[READ] Reading contacts...") }
+        let maxContacts = 256  // Typical max for XPR series
+        var contactIndex = 0
+
+        while contactIndex < maxContacts {
+            guard let contactResult = try await client.readCompleteContact(index: UInt16(contactIndex), debug: debug) else {
+                // No more contacts or couldn't read
+                break
+            }
+
+            let contact = ParsedContact(
+                name: contactResult.name,
+                dmrID: contactResult.dmrID,
+                type: ContactCallType(rawValue: ["Private Call", "Group Call", "All Call"][min(contactResult.callType, 2)]) ?? .group
+            )
+            var mutableContact = contact
+            mutableContact.callReceiveTone = contactResult.callReceiveTone
+            mutableContact.callAlert = contactResult.callAlert
+            result.contacts.append(mutableContact)
+
+            contactIndex += 1
+
+            // Update progress (50% to 70%)
+            let contactProgress = 0.50 + (0.20 * Double(contactIndex) / Double(maxContacts))
+            progress(min(contactProgress, 0.70))
+        }
+
+        if debug { print("[READ] Read \(result.contacts.count) contacts") }
+        progress(0.70)
+
+        // Step 7: Read scan lists
+        // Progress allocation: 70% to 85%
+        if debug { print("[READ] Reading scan lists...") }
+        let maxScanLists = 64  // Typical max
+        var scanListIndex = 0
+
+        while scanListIndex < maxScanLists {
+            guard let scanResult = try await client.readCompleteScanList(index: UInt16(scanListIndex), debug: debug) else {
+                break
+            }
+
+            var scanList = ParsedScanList(name: scanResult.name)
+            scanList.talkbackEnabled = scanResult.talkbackEnabled
+            scanList.holdTime = scanResult.holdTime
+
+            // Convert members to ScanListMember
+            for member in scanResult.members {
+                let slm = ScanListMember(zoneIndex: member.zoneIndex, channelIndex: member.channelIndex)
+                scanList.channelMembers.append(slm)
+            }
+
+            result.scanLists.append(scanList)
+            scanListIndex += 1
+
+            // Update progress (70% to 85%)
+            let scanProgress = 0.70 + (0.15 * Double(scanListIndex) / Double(maxScanLists))
+            progress(min(scanProgress, 0.85))
+        }
+
+        if debug { print("[READ] Read \(result.scanLists.count) scan lists") }
+        progress(0.85)
+
+        // Step 8: Read RX group lists
+        // Progress allocation: 85% to 95%
+        if debug { print("[READ] Reading RX group lists...") }
+        let maxRxGroups = 64  // Typical max
+        var rxGroupIndex = 0
+
+        while rxGroupIndex < maxRxGroups {
+            guard let rxResult = try await client.readCompleteRxGroup(index: UInt16(rxGroupIndex), debug: debug) else {
+                break
+            }
+
+            var rxGroup = ParsedRxGroupList(name: rxResult.name)
+            rxGroup.contactIndices = rxResult.contactIndices
+
+            result.rxGroupLists.append(rxGroup)
+            rxGroupIndex += 1
+
+            // Update progress (85% to 95%)
+            let rxProgress = 0.85 + (0.10 * Double(rxGroupIndex) / Double(maxRxGroups))
+            progress(min(rxProgress, 0.95))
+        }
+
+        if debug { print("[READ] Read \(result.rxGroupLists.count) RX group lists") }
+        progress(0.95)
+
+        // Final progress
         progress(1.0)
 
         if debug {
-            print("[READ] Complete! Read \(result.zones.count) zones with \(result.totalChannels) total channels")
+            print("[READ] Complete!")
+            print("[READ]   Zones: \(result.zones.count)")
+            print("[READ]   Channels: \(result.totalChannels)")
+            print("[READ]   Contacts: \(result.contacts.count)")
+            print("[READ]   Scan Lists: \(result.scanLists.count)")
+            print("[READ]   RX Groups: \(result.rxGroupLists.count)")
         }
 
         return result
@@ -763,26 +916,85 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 /// Parsed codeplug data from MOTOTRBO radio.
 /// This is the structured representation of zone/channel data.
 public struct ParsedCodeplug: Sendable {
+    // MARK: - Device Information (read-only from radio)
     public var modelNumber: String = ""
     public var serialNumber: String = ""
     public var firmwareVersion: String = ""
     public var codeplugVersion: String = ""
 
-    // General settings
+    // MARK: - General Settings
     public var radioID: UInt32 = 1
     public var radioAlias: String = "Radio"
+    public var introScreenLine1: String = ""
+    public var introScreenLine2: String = ""
+    public var powerOnPassword: String = ""
+    public var defaultPowerLevel: Bool = true  // true=High, false=Low
 
-    // Zones and channels
+    // MARK: - Display Settings
+    public var backlightTime: UInt8 = 5  // seconds, 0=Always On
+    public var backlightAuto: Bool = true
+
+    // MARK: - Audio Settings
+    public var voxEnabled: Bool = false
+    public var voxSensitivity: UInt8 = 3  // 1-10
+    public var voxDelay: UInt16 = 500  // ms
+    public var keypadTones: Bool = true
+    public var callAlertTone: Bool = true
+    public var powerUpTone: Bool = true
+    public var audioEnhancement: Bool = false
+
+    // MARK: - Timing Settings
+    public var totTime: UInt16 = 60  // seconds (0=infinite)
+    public var totResetTime: UInt8 = 0  // seconds
+    public var groupCallHangTime: UInt16 = 5000  // ms
+    public var privateCallHangTime: UInt16 = 5000  // ms
+
+    // MARK: - Signaling Settings
+    public var radioCheckEnabled: Bool = true
+    public var remoteMonitorEnabled: Bool = false
+    public var callConfirmation: Bool = true
+    public var emergencyAlertType: UInt8 = 0  // 0=Alarm, 1=Silent, 2=AlarmWithCall
+    public var emergencyDestinationID: UInt32 = 0
+
+    // MARK: - GPS/GNSS Settings
+    public var gpsEnabled: Bool = false
+    public var gpsRevertChannelEnabled: Bool = false
+    public var enhancedGNSSEnabled: Bool = false
+
+    // MARK: - Lone Worker Settings
+    public var loneWorkerEnabled: Bool = false
+    public var loneWorkerResponseTime: UInt16 = 30  // seconds
+    public var loneWorkerReminderTime: UInt16 = 300  // seconds
+
+    // MARK: - Man Down Settings (if supported)
+    public var manDownEnabled: Bool = false
+    public var manDownDelay: UInt16 = 10  // seconds
+
+    // MARK: - Zones and Channels
     public var zones: [ParsedZone] = []
 
-    // Contacts
+    // MARK: - Contacts
     public var contacts: [ParsedContact] = []
 
-    // Scan lists
+    // MARK: - Scan Lists
     public var scanLists: [ParsedScanList] = []
 
-    // RX Group lists
+    // MARK: - RX Group Lists
     public var rxGroupLists: [ParsedRxGroupList] = []
+
+    // MARK: - Text Messages (pre-programmed)
+    public var textMessages: [PresetTextMessage] = []
+
+    // MARK: - Emergency Systems
+    public var emergencySystems: [EmergencySystem] = []
+
+    // MARK: - Button Assignments
+    public var topButtonShortPress: ButtonFunction = .none
+    public var topButtonLongPress: ButtonFunction = .none
+    public var sideButton1ShortPress: ButtonFunction = .none
+    public var sideButton1LongPress: ButtonFunction = .none
+    public var sideButton2ShortPress: ButtonFunction = .none
+    public var sideButton2LongPress: ButtonFunction = .none
 
     /// Total number of channels across all zones.
     public var totalChannels: Int {
@@ -790,6 +1002,54 @@ public struct ParsedCodeplug: Sendable {
     }
 
     public init() {}
+}
+
+/// Pre-programmed text message
+public struct PresetTextMessage: Sendable, Identifiable {
+    public var id = UUID()
+    public var text: String = ""
+
+    public init(text: String = "") {
+        self.text = text
+    }
+}
+
+/// Emergency system definition
+public struct EmergencySystem: Sendable, Identifiable {
+    public var id = UUID()
+    public var name: String = "Emergency"
+    public var alarmType: UInt8 = 0  // 0=Alarm, 1=AlarmWithCall, 2=AlarmWithVoice, 3=Silent
+    public var mode: UInt8 = 0  // 0=Regular, 1=Acknowledged
+    public var hotMicEnabled: Bool = false
+    public var hotMicDuration: UInt8 = 10  // seconds
+    public var destinationID: UInt32 = 0
+    public var callType: UInt8 = 1  // 0=Private, 1=Group, 2=AllCall
+
+    public init() {}
+}
+
+/// Available button functions
+public enum ButtonFunction: String, Sendable, CaseIterable {
+    case none = "None"
+    case monitor = "Monitor"
+    case scan = "Scan"
+    case emergency = "Emergency"
+    case zoneSelect = "Zone Select"
+    case powerLevel = "Power Level"
+    case talkaround = "Talkaround"
+    case vox = "VOX"
+    case oneTouchCall = "One Touch Call"
+    case textMessage = "Text Message"
+    case privacy = "Privacy"
+    case audioToggle = "Audio Toggle"
+    case bluetooth = "Bluetooth"
+    case gps = "GPS"
+    case manDown = "Man Down"
+    case loneWorker = "Lone Worker"
+    case radioCheck = "Radio Check"
+    case remoteMonitor = "Remote Monitor"
+    case callLog = "Call Log"
+    case contacts = "Contacts"
 }
 
 /// A zone in the parsed codeplug.
