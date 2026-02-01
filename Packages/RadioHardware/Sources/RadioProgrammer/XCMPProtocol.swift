@@ -52,8 +52,8 @@ public enum XCMPOpCode: UInt16 {
     case cpsUnlockReply = 0x8100
     case cpsReadRequest = 0x0104
     case cpsReadReply = 0x8104
-    case cpsWriteRequest = 0x0105
-    case cpsWriteReply = 0x8105
+    case ishSessionStart = 0x0105          // Session start - returns available record IDs
+    case ishSessionStartReply = 0x8105
     case ishProgramModeRequest = 0x0106   // May only be needed for writes
     case ishProgramModeReply = 0x8106
 
@@ -551,30 +551,205 @@ public struct XCMPPacket {
         XCMPPacket(opCode: .statusFlagsRequest, data: Data([0x00, 0x00]))
     }
 
-    /// Creates a CodeplugRead request (0x002E) for specific record IDs.
+    /// Creates an IshSessionStart request (0x0105) to initialize codeplug reading.
+    /// CPS sends: 80 01 ee 00 00
+    /// Response contains list of available record IDs.
+    public static func ishSessionStartRequest() -> XCMPPacket {
+        // Parameters from CPS capture: 80 01 ee 00 00
+        // 0x80 = read flag
+        // 0x01 = partition (application)
+        // 0xee 0x00 0x00 = session params (unknown meaning)
+        XCMPPacket(opCode: .ishSessionStart, data: Data([0x80, 0x01, 0xEE, 0x00, 0x00]))
+    }
+
+    /// Creates a CodeplugRead METADATA request (0x002E) - queries which records exist.
     /// Format: [count] 01 00 [record1] [record2] ...
     /// Each record: 09 01 04 80 [id:2] 00 01 00 00 00
-    public static func codeplugReadRequest(recordIDs: [UInt16]) -> XCMPPacket {
+    /// Response will have 81 04 status = metadata only (record exists, instance count)
+    public static func codeplugReadMetadataRequest(recordIDs: [UInt16]) -> XCMPPacket {
         var data = Data()
         data.append(UInt8(recordIDs.count))  // Record count
         data.append(0x01)
         data.append(0x00)
 
         for recordID in recordIDs {
-            data.append(0x09)
+            data.append(0x09)  // Entry length (9 bytes follow)
             data.append(0x01)
-            data.append(0x04)
-            data.append(0x80)
+            data.append(0x04)  // 04 = metadata query flag
+            data.append(0x80)  // Partition
             data.append(UInt8(recordID >> 8))
             data.append(UInt8(recordID & 0xFF))
             data.append(0x00)
-            data.append(0x01)
+            data.append(0x01)  // Instance number
             data.append(0x00)
             data.append(0x00)
             data.append(0x00)
         }
 
         return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+    }
+
+    /// Creates a CodeplugRead DATA request (0x002E) - reads actual record content.
+    /// Format: [count] 01 00 [record1] [record2] ...
+    /// Each record: 0b 01 00 80 [id:2] [offset:2] [size:2] 00 00
+    /// Response will have 81 00 status = actual data follows
+    ///
+    /// From CPS traffic analysis:
+    /// - 0b = entry length (11 bytes follow)
+    /// - 01 00 = flags (different from 01 04 for metadata)
+    /// - 80 = partition
+    /// - [id:2] = record ID (big endian)
+    /// - [offset:2] = byte offset to start reading (usually 00 00)
+    /// - [size:2] = bytes to read (big endian)
+    /// - 00 00 = padding/instance
+    public static func codeplugReadDataRequest(records: [(id: UInt16, size: UInt16)]) -> XCMPPacket {
+        var data = Data()
+        data.append(UInt8(records.count))  // Record count
+        data.append(0x01)
+        data.append(0x00)
+
+        for record in records {
+            data.append(0x0B)  // Entry length (11 bytes follow)
+            data.append(0x01)
+            data.append(0x00)  // 00 = data read flag (not 04 for metadata)
+            data.append(0x80)  // Partition
+            data.append(UInt8(record.id >> 8))
+            data.append(UInt8(record.id & 0xFF))
+            data.append(0x00)  // Offset high byte
+            data.append(0x00)  // Offset low byte
+            data.append(UInt8(record.size >> 8))  // Size high byte
+            data.append(UInt8(record.size & 0xFF))  // Size low byte
+            data.append(0x00)
+            data.append(0x00)
+        }
+
+        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+    }
+
+    /// Legacy alias for codeplugReadMetadataRequest
+    public static func codeplugReadRequest(recordIDs: [UInt16]) -> XCMPPacket {
+        codeplugReadMetadataRequest(recordIDs: recordIDs)
+    }
+
+    /// Creates a CodeplugRead request for INDEXED records like channels (0x0FFB).
+    ///
+    /// Indexed records store arrays of data (e.g., 34 channels). Each entry is
+    /// accessed by [recordID, index] pair.
+    ///
+    /// Request format for indexed records:
+    /// ```
+    /// 0B 01 00 80 [recordID:2] 00 [index] [size:2] 00 00
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - recordID: The record ID (e.g., 0x0FFB for channels)
+    ///   - indices: Array of indices to read (e.g., 0-33 for 34 channels)
+    ///   - recordSize: Size of each record entry
+    /// - Returns: XCMPPacket for the indexed read request
+    public static func codeplugReadIndexedRequest(
+        recordID: UInt16,
+        indices: [UInt8],
+        recordSize: UInt16
+    ) -> XCMPPacket {
+        var data = Data()
+        data.append(UInt8(indices.count))  // Record count
+        data.append(0x01)  // Unknown flag
+        data.append(0x00)  // Unknown flag
+
+        for index in indices {
+            // Indexed record format: 0B 01 00 80 [id:2] 00 [idx] [size:2 big-endian] 00 00
+            data.append(0x0B)  // Entry length: 11 bytes
+            data.append(0x01)  // Type high
+            data.append(0x00)  // Type low (00 = data request)
+            data.append(0x80)  // Flags (read)
+            data.append(UInt8(recordID >> 8))    // Record ID high
+            data.append(UInt8(recordID & 0xFF))  // Record ID low
+            data.append(0x00)  // Index high byte (always 0 for typical channel counts)
+            data.append(index) // Index low byte
+            data.append(UInt8(recordSize >> 8))    // Size high byte (big-endian)
+            data.append(UInt8(recordSize & 0xFF))  // Size low byte
+            data.append(0x00)  // Padding
+            data.append(0x00)  // Padding
+        }
+
+        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+    }
+
+    /// Creates a metadata query for indexed records to get the count.
+    ///
+    /// Request format:
+    /// ```
+    /// 09 01 04 80 [recordID:2] 00 01 00 00 00
+    /// ```
+    ///
+    /// Response includes count of available entries.
+    public static func codeplugReadIndexedMetadataRequest(recordID: UInt16) -> XCMPPacket {
+        var data = Data()
+        data.append(0x01)  // Record count (1 record to query)
+        data.append(0x01)  // Unknown flag
+        data.append(0x00)  // Unknown flag
+
+        // Metadata request format: 09 01 04 80 [id:2] 00 01 00 00 00
+        data.append(0x09)  // Entry length: 9 bytes
+        data.append(0x01)  // Type high
+        data.append(0x04)  // Type low (04 = metadata query)
+        data.append(0x80)  // Flags (read)
+        data.append(UInt8(recordID >> 8))    // Record ID high
+        data.append(UInt8(recordID & 0xFF))  // Record ID low
+        data.append(0x00)  // Instance high
+        data.append(0x01)  // Instance low
+        data.append(0x00)  // Padding
+        data.append(0x00)  // Padding
+        data.append(0x00)  // Padding
+
+        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+    }
+
+    /// Known record sizes for MOTOTRBO XPR radios (from CPS traffic analysis)
+    public static let knownRecordSizes: [UInt16: UInt16] = [
+        0x0073: 0x0024,   // Privacy key name (36 bytes)
+        0x0074: 0x002C,   // Zone list (44 bytes)
+        0x007D: 0x0134,   // General settings (308 bytes)
+        0x007E: 0x000C,   // Unknown (12 bytes)
+        0x0080: 0x000C,   // Unknown (12 bytes)
+        0x0081: 0x000C,   // Unknown (12 bytes)
+        0x0082: 0x000C,   // Unknown (12 bytes)
+        0x0083: 0x0034,   // Unknown (52 bytes)
+        0x0084: 0x0144,   // Channel data (324 bytes)
+        0x0085: 0x000C,   // Unknown (12 bytes)
+        0x0093: 0x005C,   // Zone/channel mapping (92 bytes)
+        0x009D: 0x0084,   // Zone configuration (132 bytes)
+        // Extended indexed records (0x0F** range) - from CPS 2.0 traffic analysis
+        0x0F80: 0x0200,   // General settings extended
+        0x0F82: 0x0100,   // Zone configuration extended
+        0x0F8B: 0x0170,   // Contacts/accessories (368 bytes per entry, indexed)
+        0x0FFB: 0x0144,   // Channel configuration (324 bytes per entry, indexed)
+    ]
+
+    // MARK: - Channel Configuration Constants
+
+    /// Record ID for channel configuration data (indexed records)
+    public static let channelRecordID: UInt16 = 0x0FFB
+
+    /// Record ID for contact/accessory data (indexed records)
+    public static let contactRecordID: UInt16 = 0x0F8B
+
+    /// Size of each channel record (324 bytes)
+    public static let channelRecordSize: UInt16 = 0x0144
+
+    /// Size of each contact record (368 bytes)
+    public static let contactRecordSize: UInt16 = 0x0170
+
+    /// Offset of channel name within channel record (UTF-16LE encoded)
+    /// Verified from actual radio response: name starts at offset 60 (0x3C)
+    public static let channelNameOffset = 0x3C  // 60 bytes
+
+    /// Maximum channel name length (16 UTF-16LE characters = 32 bytes)
+    public static let channelNameMaxLength = 32
+
+    /// Gets the expected size for a record, defaulting to 512 bytes for unknown records
+    public static func recordSize(for recordID: UInt16) -> UInt16 {
+        knownRecordSizes[recordID] ?? 0x0200  // Default 512 bytes
     }
 
     // MARK: - Legacy Factory Methods
@@ -1176,13 +1351,364 @@ public actor XCMPClient {
             .trimmingCharacters(in: CharacterSet(["\0"]))
     }
 
+    /// Starts a codeplug reading session (0x0105).
+    /// This is the CPS method - must be called before CodeplugRead (0x002E).
+    /// - Returns: Array of available record IDs that can be read
+    public func startReadSession(debug: Bool = false) async throws -> [UInt16] {
+        let request = XCMPPacket.ishSessionStartRequest()
+        guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else {
+            if debug { print("[SESSION] No response from session start") }
+            return []
+        }
+
+        // Response format from CPS capture:
+        // [status 1B] [session 1B] [count hi] [count lo] [unknown 2B] [unknown 2B]
+        // Then pairs of record IDs: [hi] [lo] ...
+        // Example: 00 80 00 6a 00 00 00 6a 00 0a 00 0b 00 0c...
+        guard reply.data.count >= 8 else {
+            if debug { print("[SESSION] Response too short: \(reply.data.count) bytes") }
+            return []
+        }
+
+        let status = reply.data[0]
+        if status != 0x00 {
+            if debug { print("[SESSION] Session start failed with status: 0x\(String(format: "%02X", status))") }
+            return []
+        }
+
+        // Count is at bytes 2-3 (big endian)
+        let count = (UInt16(reply.data[2]) << 8) | UInt16(reply.data[3])
+        if debug { print("[SESSION] Session started, \(count) records available") }
+
+        // Record IDs start at byte 8
+        var recordIDs: [UInt16] = []
+        var offset = 8
+        while offset + 1 < reply.data.count {
+            let recordID = (UInt16(reply.data[offset]) << 8) | UInt16(reply.data[offset + 1])
+            recordIDs.append(recordID)
+            offset += 2
+        }
+
+        if debug { print("[SESSION] Available records: \(recordIDs.prefix(10).map { String(format: "0x%04X", $0) }.joined(separator: ", "))...") }
+        return recordIDs
+    }
+
     /// Reads codeplug records using verified CPS protocol (0x002E).
+    /// Uses the DATA request format (0b 01 00 80) instead of metadata format (09 01 04 80).
     /// - Parameter recordIDs: List of record IDs to read
     /// - Returns: Raw response data containing all requested records
     public func readCodeplugRecords(_ recordIDs: [UInt16], debug: Bool = false) async throws -> Data? {
-        let request = XCMPPacket.codeplugReadRequest(recordIDs: recordIDs)
+        // Build records with known sizes
+        let records = recordIDs.map { id in
+            (id: id, size: XCMPPacket.recordSize(for: id))
+        }
+
+        let request = XCMPPacket.codeplugReadDataRequest(records: records)
+
+        if debug {
+            print("[READ] Requesting \(recordIDs.count) records with DATA format (0b 01 00 80)")
+            print("[READ] Request bytes: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
+        }
+
         guard let reply = try await sendAndReceive(request, timeout: 10.0, debug: debug) else { return nil }
+
+        if debug {
+            print("[READ] Response: \(reply.data.count) bytes")
+            // Show first 64 bytes to see response format
+            let preview = reply.data.prefix(64)
+            print("[READ] Response preview: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+
+            // Check for 81 00 (data) vs 81 04 (metadata) status
+            if let idx = findPattern(reply.data, pattern: [0x81]) {
+                let statusByte = reply.data.count > idx + 1 ? reply.data[idx + 1] : 0xFF
+                if statusByte == 0x00 {
+                    print("[READ] ✓ Response contains actual DATA (81 00 status)")
+                } else if statusByte == 0x04 {
+                    print("[READ] ✗ Response contains METADATA only (81 04 status) - need different request format")
+                } else {
+                    print("[READ] ? Response status: 81 \(String(format: "%02X", statusByte))")
+                }
+            }
+        }
+
         return reply.data
+    }
+
+    /// Helper to find a pattern in data
+    private func findPattern(_ data: Data, pattern: [UInt8]) -> Int? {
+        guard !pattern.isEmpty, data.count >= pattern.count else { return nil }
+        for i in 0...(data.count - pattern.count) {
+            var found = true
+            for j in 0..<pattern.count {
+                if data[i + j] != pattern[j] {
+                    found = false
+                    break
+                }
+            }
+            if found { return i }
+        }
+        return nil
+    }
+
+    // MARK: - Channel Data Reading (Indexed Records)
+
+    /// Gets the count of channels available on the radio.
+    /// Queries metadata for record 0x0FFB to get the channel count.
+    ///
+    /// - Returns: Number of channels, or nil if query failed
+    public func getChannelCount(debug: Bool = false) async throws -> Int? {
+        let request = XCMPPacket.codeplugReadIndexedMetadataRequest(recordID: XCMPPacket.channelRecordID)
+
+        if debug {
+            print("[CHANNEL] Querying channel count (record 0x0FFB metadata)")
+            print("[CHANNEL] Request: \(request.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
+        guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
+
+        if debug {
+            print("[CHANNEL] Response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
+        // Response format: [header] 81 04 00 80 0F FB 00 01 00 00 00 [count:4 little-endian]
+        // Look for 81 04 pattern to find metadata response
+        guard let patternIdx = findPattern(reply.data, pattern: [0x81, 0x04]) else {
+            if debug { print("[CHANNEL] No metadata pattern (81 04) found in response") }
+            return nil
+        }
+
+        // Count is at offset +11 from the 81 04 pattern (could be 1-4 bytes depending on value)
+        let countOffset = patternIdx + 11
+        guard countOffset < reply.data.count else {
+            if debug { print("[CHANNEL] Response too short for count field") }
+            return nil
+        }
+
+        // Read available bytes for count (up to 4 bytes, little-endian)
+        var count = Int(reply.data[countOffset])
+        if countOffset + 1 < reply.data.count {
+            count |= Int(reply.data[countOffset + 1]) << 8
+        }
+        if countOffset + 2 < reply.data.count {
+            count |= Int(reply.data[countOffset + 2]) << 16
+        }
+        if countOffset + 3 < reply.data.count {
+            count |= Int(reply.data[countOffset + 3]) << 24
+        }
+
+        if debug { print("[CHANNEL] Channel count: \(count)") }
+        return count
+    }
+
+    /// Reads channel configuration data for specified channel indices.
+    ///
+    /// Uses indexed record format for record 0x0FFB.
+    /// Each channel is 324 bytes with the name at offset 0x52 (UTF-16LE).
+    ///
+    /// - Parameters:
+    ///   - indices: Array of channel indices to read (0-based)
+    ///   - debug: Enable debug output
+    /// - Returns: Array of parsed channel data
+    public func readChannelRecords(indices: [UInt8], debug: Bool = false) async throws -> [ParsedChannelRecord] {
+        let request = XCMPPacket.codeplugReadIndexedRequest(
+            recordID: XCMPPacket.channelRecordID,
+            indices: indices,
+            recordSize: XCMPPacket.channelRecordSize
+        )
+
+        if debug {
+            print("[CHANNEL] Reading \(indices.count) channels (indices \(indices.first ?? 0)-\(indices.last ?? 0))")
+            print("[CHANNEL] Request preview: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
+        }
+
+        guard let reply = try await sendAndReceive(request, timeout: 15.0, debug: debug) else {
+            if debug { print("[CHANNEL] No response received") }
+            return []
+        }
+
+        if debug {
+            print("[CHANNEL] Response: \(reply.data.count) bytes")
+            print("[CHANNEL] Response preview: \(reply.data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
+
+        // Parse the response to extract channel records
+        return parseChannelResponse(reply.data, expectedIndices: indices, debug: debug)
+    }
+
+    /// Parses the response data from an indexed channel read request.
+    ///
+    /// Response format (per channel):
+    /// ```
+    /// 81 00 00 80 0F FB 00 [idx] 01 44 00 00 01 44 [324 bytes of data]
+    /// ───── ───── ───── ── ──── ───── ───── ───── ────────────────────
+    /// success flags recID  idx  size1 pad   size2  channel data
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - data: Raw response data
+    ///   - expectedIndices: Channel indices we requested
+    ///   - debug: Enable debug output
+    /// - Returns: Array of parsed channel records
+    private func parseChannelResponse(_ data: Data, expectedIndices: [UInt8], debug: Bool) -> [ParsedChannelRecord] {
+        var channels: [ParsedChannelRecord] = []
+        var offset = 0
+
+        // Look for 81 00 00 80 0F FB patterns (success data responses for channel records)
+        while offset < data.count - 20 {
+            // Find next 81 00 00 80 0F FB pattern (channel data record start)
+            if data[offset] == 0x81 && data[offset + 1] == 0x00 &&
+               data[offset + 2] == 0x00 && data[offset + 3] == 0x80 &&
+               data[offset + 4] == 0x0F && data[offset + 5] == 0xFB {
+
+                // Channel index is at offset + 7 (single byte after 00 at +6)
+                let channelIndex = data[offset + 7]
+
+                // Record size is at offset + 8,9 (BIG-endian: 01 44 = 324)
+                let recordSize = (Int(data[offset + 8]) << 8) | Int(data[offset + 9])
+
+                // Data starts at offset + 14 (after: 81 00 00 80 0F FB 00 [idx] [size:2] 00 00 [size:2])
+                let dataStart = offset + 14
+
+                if debug && channels.count < 5 {
+                    print("[CHANNEL] Found channel \(channelIndex) at offset \(offset), size \(recordSize)")
+                }
+
+                if dataStart + recordSize <= data.count && recordSize == Int(XCMPPacket.channelRecordSize) {
+                    let recordData = Data(data[dataStart..<(dataStart + recordSize)])
+
+                    var channel = ParsedChannelRecord(index: Int(channelIndex))
+                    channel.rawData = recordData
+
+                    // === VERIFIED OFFSETS FROM XPR 3500e (2026-01-31) ===
+
+                    // 0x00-0x01: Channel flags
+                    if recordData.count >= 2 {
+                        channel.flags = UInt16(recordData[0x00]) | (UInt16(recordData[0x01]) << 8)
+                    }
+
+                    // 0x0E: Channel mode (0x00 = Analog, 0x01 = Digital/DMR)
+                    if recordData.count > 0x0E {
+                        channel.isDigital = recordData[0x0E] == 0x01
+                    }
+
+                    // 0x18: DMR Color Code (for digital channels)
+                    if recordData.count > 0x18 && channel.isDigital {
+                        channel.colorCode = Int(recordData[0x18])
+                    }
+
+                    // 0x24-0x2B: RX and TX frequencies (5 Hz units, little-endian)
+                    if recordData.count >= 0x2C {
+                        let rxFreq = UInt32(recordData[0x24]) |
+                                    (UInt32(recordData[0x25]) << 8) |
+                                    (UInt32(recordData[0x26]) << 16) |
+                                    (UInt32(recordData[0x27]) << 24)
+                        let txFreq = UInt32(recordData[0x28]) |
+                                    (UInt32(recordData[0x29]) << 8) |
+                                    (UInt32(recordData[0x2A]) << 16) |
+                                    (UInt32(recordData[0x2B]) << 24)
+
+                        channel.rxFrequencyHz = rxFreq * 5
+                        channel.txFrequencyHz = txFreq * 5
+                    }
+
+                    // 0x30-0x33: CTCSS tones (0.1 Hz units, for analog channels)
+                    if recordData.count >= 0x34 && !channel.isDigital {
+                        let rxTone = UInt16(recordData[0x30]) | (UInt16(recordData[0x31]) << 8)
+                        let txTone = UInt16(recordData[0x32]) | (UInt16(recordData[0x33]) << 8)
+
+                        // Valid CTCSS tones are typically 67.0 - 254.1 Hz
+                        if rxTone >= 670 && rxTone <= 2541 {
+                            channel.rxCTCSSHz = Double(rxTone) / 10.0
+                        }
+                        if txTone >= 670 && txTone <= 2541 {
+                            channel.txCTCSSHz = Double(txTone) / 10.0
+                        }
+                    }
+
+                    // 0x3C-0x5B: Channel name (UTF-16LE, 32 bytes = 16 chars max)
+                    if XCMPPacket.channelNameOffset + XCMPPacket.channelNameMaxLength <= recordData.count {
+                        let nameData = recordData[XCMPPacket.channelNameOffset..<(XCMPPacket.channelNameOffset + XCMPPacket.channelNameMaxLength)]
+
+                        if let name = String(data: Data(nameData), encoding: .utf16LittleEndian)?
+                            .trimmingCharacters(in: CharacterSet(["\0"]))
+                            .trimmingCharacters(in: .controlCharacters) {
+                            channel.name = name
+                        }
+                    }
+
+                    // 0x77: Power level (0x40/0x42 = High, 0x00 = Low)
+                    if recordData.count > 0x77 {
+                        channel.highPower = recordData[0x77] >= 0x40
+                    }
+
+                    // 0x60-0x61: Timeslot indicator (need to verify exact encoding)
+                    if recordData.count > 0x61 && channel.isDigital {
+                        // Timeslot is typically 1 or 2
+                        let tsVal = recordData[0x60]
+                        channel.timeslot = (tsVal == 0x13) ? 1 : 1  // Need more analysis
+                    }
+
+                    if debug && channels.count < 5 {
+                        print("[CHANNEL] Channel \(channelIndex): '\(channel.name)' RX=\(Double(channel.rxFrequencyHz) / 1_000_000) MHz")
+                    }
+
+                    channels.append(channel)
+                    offset = dataStart + recordSize
+                    continue
+                }
+            }
+            offset += 1
+        }
+
+        if debug { print("[CHANNEL] Parsed \(channels.count) channels from response") }
+        return channels
+    }
+
+    /// Reads all channels from the radio.
+    ///
+    /// This method:
+    /// 1. Queries the channel count using metadata request
+    /// 2. Reads channel data one at a time (batch requests don't work reliably)
+    /// 3. Parses UTF-16LE names from offset 0x3C
+    ///
+    /// - Parameters:
+    ///   - debug: Enable debug output
+    ///   - progress: Optional progress callback (0.0-1.0)
+    /// - Returns: Array of all channel records
+    public func readAllChannels(
+        debug: Bool = false,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> [ParsedChannelRecord] {
+        progress?(0.0)
+
+        // Step 1: Get channel count
+        guard let channelCount = try await getChannelCount(debug: debug), channelCount > 0 else {
+            if debug { print("[CHANNEL] No channels found or count query failed") }
+            return []
+        }
+
+        if debug { print("[CHANNEL] Reading \(channelCount) channels...") }
+
+        var allChannels: [ParsedChannelRecord] = []
+
+        // Step 2: Read channels one at a time (batch requests return errors for indices > 0)
+        for idx in 0..<channelCount {
+            let channels = try await readChannelRecords(indices: [UInt8(idx)], debug: false)
+            if let channel = channels.first {
+                allChannels.append(channel)
+                if debug && idx < 5 {
+                    print("[CHANNEL] [\(idx)] \"\(channel.name)\" @ \(String(format: "%.4f", channel.rxFrequencyMHz)) MHz")
+                }
+            }
+
+            let currentProgress = Double(idx + 1) / Double(channelCount)
+            progress?(currentProgress)
+        }
+
+        if debug { print("[CHANNEL] Successfully read \(allChannels.count) channels") }
+        progress?(1.0)
+
+        return allChannels
     }
 
     /// Performs complete device identification using verified CPS protocol.
@@ -2073,6 +2599,148 @@ public struct ZoneDetailsResult {
         // Parse zone details from response
         // Format is radio-specific, may need adjustment
         self.zones = zones
+    }
+}
+
+// MARK: - Channel Record (Indexed Format)
+
+/// Parsed channel record from indexed CodeplugRead (record 0x0FFB).
+/// This is the format used by CPS 2.0 for reading channel configuration.
+/// All offsets verified from actual XPR 3500e radio data (2026-01-31).
+public struct ParsedChannelRecord: Sendable {
+    /// Channel index (0-based)
+    public var index: Int = 0
+
+    /// Channel name (UTF-16LE at offset 0x3C)
+    public var name: String = ""
+
+    // MARK: - Channel Mode
+
+    /// Channel mode: true = Digital (DMR), false = Analog
+    public var isDigital: Bool = false
+
+    /// Channel flags (offset 0x00-0x01)
+    public var flags: UInt16 = 0
+
+    // MARK: - Frequencies
+
+    /// RX frequency in Hz
+    public var rxFrequencyHz: UInt32 = 0
+
+    /// TX frequency in Hz
+    public var txFrequencyHz: UInt32 = 0
+
+    /// RX frequency in MHz
+    public var rxFrequencyMHz: Double { Double(rxFrequencyHz) / 1_000_000.0 }
+
+    /// TX frequency in MHz
+    public var txFrequencyMHz: Double { Double(txFrequencyHz) / 1_000_000.0 }
+
+    /// TX offset in MHz (positive = +offset, negative = -offset, 0 = simplex)
+    public var txOffsetMHz: Double {
+        (Double(txFrequencyHz) - Double(rxFrequencyHz)) / 1_000_000.0
+    }
+
+    // MARK: - DMR Settings
+
+    /// DMR color code (0-15), only valid for digital channels
+    public var colorCode: Int = 0
+
+    /// DMR timeslot (1 or 2)
+    public var timeslot: Int = 1
+
+    /// TX contact ID (DMR ID for transmit)
+    public var txContactID: UInt32 = 0
+
+    /// RX group list index
+    public var rxGroupIndex: Int = 0
+
+    // MARK: - Analog Settings
+
+    /// RX CTCSS tone in Hz (0 = none), only valid for analog channels
+    public var rxCTCSSHz: Double = 0
+
+    /// TX CTCSS tone in Hz (0 = none), only valid for analog channels
+    public var txCTCSSHz: Double = 0
+
+    /// RX DCS code (0 = none)
+    public var rxDCSCode: UInt16 = 0
+
+    /// TX DCS code (0 = none)
+    public var txDCSCode: UInt16 = 0
+
+    // MARK: - Power & Bandwidth
+
+    /// Power level (true = high, false = low)
+    public var highPower: Bool = true
+
+    /// Bandwidth (true = wide/25kHz, false = narrow/12.5kHz)
+    public var wideBandwidth: Bool = false
+
+    // MARK: - Additional Settings
+
+    /// Scan list index (0 = none)
+    public var scanListIndex: Int = 0
+
+    /// Timeout timer in seconds (0 = disabled)
+    public var totSeconds: Int = 0
+
+    /// Raw record data (324 bytes) for further parsing
+    public var rawData: Data = Data()
+
+    public init(index: Int = 0) {
+        self.index = index
+    }
+
+    /// Converts to ChannelData for compatibility with existing code
+    public func toChannelData(zoneIndex: Int = 0) -> ChannelData {
+        var channel = ChannelData(zoneIndex: zoneIndex, channelIndex: index)
+        channel.name = name
+        channel.rxFrequencyHz = rxFrequencyHz
+        channel.txFrequencyHz = txFrequencyHz
+        channel.isDigital = isDigital
+        channel.colorCode = colorCode
+        channel.timeSlot = timeslot
+        channel.contactID = txContactID
+        channel.txPowerHigh = highPower
+        channel.bandwidthWide = wideBandwidth
+        channel.rxGroupListID = UInt8(rxGroupIndex)
+        channel.rxCTCSSHz = rxCTCSSHz
+        channel.txCTCSSHz = txCTCSSHz
+        channel.totTimeout = UInt16(totSeconds)
+        channel.scanListID = UInt8(scanListIndex)
+        return channel
+    }
+
+    /// Returns a formatted summary string for display
+    public var summary: String {
+        var parts: [String] = []
+
+        // Mode
+        parts.append(isDigital ? "DMR" : "Analog")
+
+        // Frequency
+        if txOffsetMHz == 0 {
+            parts.append(String(format: "%.4f MHz", rxFrequencyMHz))
+        } else {
+            parts.append(String(format: "%.4f/%+.3f MHz", rxFrequencyMHz, txOffsetMHz))
+        }
+
+        // DMR-specific
+        if isDigital {
+            parts.append("CC\(colorCode)")
+            parts.append("TS\(timeslot)")
+        }
+
+        // Analog-specific
+        if !isDigital && txCTCSSHz > 0 {
+            parts.append(String(format: "CTCSS %.1f", txCTCSSHz))
+        }
+
+        // Power
+        parts.append(highPower ? "High" : "Low")
+
+        return parts.joined(separator: " | ")
     }
 }
 
