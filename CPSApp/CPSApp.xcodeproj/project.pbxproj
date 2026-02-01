@@ -3,52 +3,54 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0CC023E144ACFCB59E0B761D /* RadioInputControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3294DB3D86A49A5466E527E /* RadioInputControls.swift */; };
 		122E55597F3D22C057E98B38 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */; };
+		14EFD017D20CC255F3917705 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */; };
 		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
 		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
 		36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D947EF4413403ED59D491FE8 /* ProgrammingView.swift */; };
-		4A7C92F1E8D34B5A6C0F1234 /* ZoneChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */; };
-		5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */; };
-		6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */; };
-		8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */; };
-		AC5B7AK8H7C24D5EFG980134 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */; };
 		628F588880242E5548D712D5 /* RadioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9E243FB90AB6835FD64AF52B /* RadioCore */; };
 		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
+		A3718BA5D7921F61E804CEC6 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA3E964C71F2193DC364541 /* ContactsView.swift */; };
 		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
 		A8D410CF24E3EDD792424B22 /* RadioHardware in Frameworks */ = {isa = PBXBuildFile; productRef = 6613216EC89E86B998EAE93D /* RadioHardware */; };
 		A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */; };
 		AA80236FB227C0591D019555 /* RadioModels in Frameworks */ = {isa = PBXBuildFile; productRef = 59826F12D220CD4A0AC7D939 /* RadioModels */; };
 		AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21553D5F1A22A99A938D86B2 /* FormEditorView.swift */; };
+		AFC7705C5E56634C5746A5F4 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FCC870D38EAA31A0BE0595 /* GeneralSettingsView.swift */; };
 		C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA97A75BB7ACA2A288957482 /* CPSApp.swift */; };
 		D95573F3744D70C5280B7453 /* AudioEngine in Frameworks */ = {isa = PBXBuildFile; productRef = F44256D435CF54DEFCA111E7 /* AudioEngine */; };
+		E5A0C28F04BCBB17147C8BAE /* ZoneChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ED5EED7E5F297F57B81049 /* ZoneChannelView.swift */; };
 		EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */; };
+		F7301CD3237D96687FF46C18 /* ScanListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		00F220EECD3E92E259A3BA12 /* CPSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CPSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		038A36D46CEF3C6B08C52F3A /* RadioModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioModels; path = ../Packages/RadioModels; sourceTree = SOURCE_ROOT; };
+		1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
 		1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSCommands.swift; sourceTree = "<group>"; };
 		21553D5F1A22A99A938D86B2 /* FormEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormEditorView.swift; sourceTree = "<group>"; };
+		24ED5EED7E5F297F57B81049 /* ZoneChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneChannelView.swift; sourceTree = "<group>"; };
 		25B37BF1194EF81CDE179154 /* RadioCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioCore; path = ../Packages/RadioCore; sourceTree = SOURCE_ROOT; };
 		5F80EEF1BFDDF4B913C68855 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		6E94C79F5841B6532AE3C9D1 /* AudioEngine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AudioEngine; path = ../Packages/AudioEngine; sourceTree = SOURCE_ROOT; };
 		6F9791C2F318D4534E3B809B /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		7045699C1220506A0839A451 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		73FCC870D38EAA31A0BE0595 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		754F2CCF0F90A0DB28A7879F /* RadioHardware */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioHardware; path = ../Packages/RadioHardware; sourceTree = SOURCE_ROOT; };
 		86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelEditorView.swift; sourceTree = "<group>"; };
+		98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RxGroupListsView.swift; sourceTree = "<group>"; };
 		BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugDocument.swift; sourceTree = "<group>"; };
 		CA97A75BB7ACA2A288957482 /* CPSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSApp.swift; sourceTree = "<group>"; };
+		CCA3E964C71F2193DC364541 /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
+		D3294DB3D86A49A5466E527E /* RadioInputControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioInputControls.swift; sourceTree = "<group>"; };
 		D947EF4413403ED59D491FE8 /* ProgrammingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammingView.swift; sourceTree = "<group>"; };
-		5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneChannelView.swift; sourceTree = "<group>"; };
-		6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
-		7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
-		9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RxGroupListsView.swift; sourceTree = "<group>"; };
-		BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +79,18 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		050A60AC82B014398F8940D4 /* Codeplug */ = {
+			isa = PBXGroup;
+			children = (
+				CCA3E964C71F2193DC364541 /* ContactsView.swift */,
+				73FCC870D38EAA31A0BE0595 /* GeneralSettingsView.swift */,
+				98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */,
+				1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */,
+				24ED5EED7E5F297F57B81049 /* ZoneChannelView.swift */,
+			);
+			path = Codeplug;
+			sourceTree = "<group>";
+		};
 		11DBB2A078705EA2744390EF /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -89,10 +103,19 @@
 			isa = PBXGroup;
 			children = (
 				CA97A75BB7ACA2A288957482 /* CPSApp.swift */,
+				1C3263A54BF2DDD488A72F62 /* Components */,
 				68A9AB4E1820AAD6F539A660 /* Core */,
 				BE2D8A0E15F01ABABBF6C880 /* Features */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		1C3263A54BF2DDD488A72F62 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				D3294DB3D86A49A5466E527E /* RadioInputControls.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		68A9AB4E1820AAD6F539A660 /* Core */ = {
@@ -135,24 +158,12 @@
 		BE2D8A0E15F01ABABBF6C880 /* Features */ = {
 			isa = PBXGroup;
 			children = (
-				6C9E04F3A0B56D7C8E213456 /* Codeplug */,
+				050A60AC82B014398F8940D4 /* Codeplug */,
 				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
 				6C4FE5C4999E778943688865 /* RadioProgramming */,
 				A16F87105157E6F5F41806C2 /* Welcome */,
 			);
 			path = Features;
-			sourceTree = "<group>";
-		};
-		6C9E04F3A0B56D7C8E213456 /* Codeplug */ = {
-			isa = PBXGroup;
-			children = (
-				6D0F26E3C2D78E9FAB435678 /* ContactsView.swift */,
-				BD6C8BL9I8D35E6FH091245 /* GeneralSettingsView.swift */,
-				9B4269J7G6B13C4DEF879023 /* RxGroupListsView.swift */,
-				7F2047H5E4F91A2BCD657891 /* ScanListsView.swift */,
-				5B8D03F2F9E45C6B7D102345 /* ZoneChannelView.swift */,
-			);
-			path = Codeplug;
 			sourceTree = "<group>";
 		};
 		F5A60B9EE876A6C275BA497A /* RadioConfiguration */ = {
@@ -214,6 +225,7 @@
 				059A944454F0429236FC6B50 /* XCLocalSwiftPackageReference "../Packages/RadioHardware" */,
 				A37537F39A503C750D4B0413 /* XCLocalSwiftPackageReference "../Packages/RadioModels" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -232,16 +244,17 @@
 				A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */,
 				EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */,
 				2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */,
+				A3718BA5D7921F61E804CEC6 /* ContactsView.swift in Sources */,
 				A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */,
 				AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */,
+				AFC7705C5E56634C5746A5F4 /* GeneralSettingsView.swift in Sources */,
 				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
+				0CC023E144ACFCB59E0B761D /* RadioInputControls.swift in Sources */,
 				122E55597F3D22C057E98B38 /* RootView.swift in Sources */,
+				14EFD017D20CC255F3917705 /* RxGroupListsView.swift in Sources */,
+				F7301CD3237D96687FF46C18 /* ScanListsView.swift in Sources */,
 				3626B81A652178A674E65227 /* WelcomeView.swift in Sources */,
-				4A7C92F1E8D34B5A6C0F1234 /* ZoneChannelView.swift in Sources */,
-				5C9E15F2B1C67D8E9A324567 /* ContactsView.swift in Sources */,
-				6E1F37G4D3E89F1ABC546789 /* ScanListsView.swift in Sources */,
-				8A3158I6F5A02B3CDE768912 /* RxGroupListsView.swift in Sources */,
-				AC5B7AK8H7C24D5EFG980134 /* GeneralSettingsView.swift in Sources */,
+				E5A0C28F04BCBB17147C8BAE /* ZoneChannelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -252,10 +265,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = 752QKBCTJR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -264,7 +275,6 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};
@@ -393,10 +403,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				"DEVELOPMENT_TEAM[sdk=macosx*]" = 752QKBCTJR;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -405,7 +413,6 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
 			};

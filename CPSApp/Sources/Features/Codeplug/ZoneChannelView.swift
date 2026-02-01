@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioCore
 
 /// View displaying zones and channels from a parsed codeplug.
 struct ZoneChannelView: View {
@@ -32,6 +33,10 @@ struct ZoneChannelView: View {
             // Right: Channel detail
             channelDetailView
                 .frame(minWidth: 300)
+        }
+        // Prevent layout recursion by disabling animations on external state changes
+        .transaction { transaction in
+            transaction.disablesAnimations = true
         }
         .sheet(isPresented: $showingAddZone) {
             AddZoneSheet(zoneName: $newZoneName) {
@@ -108,12 +113,16 @@ struct ZoneChannelView: View {
               selectedZoneIndex >= 0 && selectedZoneIndex < zones.count else { return }
 
         let channelCount = zones[selectedZoneIndex].channels.count
-        guard channelCount < 16 else { return }  // Max 16 channels per zone
+        guard channelCount < RadioConstants.maxChannelsPerZone else { return }
+
+        // Determine default frequency based on existing channels in the zone
+        let existingFrequency = zones[selectedZoneIndex].channels.first?.rxFrequencyHz
+        let defaultFreq = RadioConstants.defaultFrequency(forBand: existingFrequency)
 
         var newChannel = ChannelData(zoneIndex: selectedZoneIndex, channelIndex: channelCount)
         newChannel.name = "New Channel \(channelCount + 1)"
-        newChannel.rxFrequencyHz = 450_000_000
-        newChannel.txFrequencyHz = 450_000_000
+        newChannel.rxFrequencyHz = defaultFreq
+        newChannel.txFrequencyHz = defaultFreq
 
         zones[selectedZoneIndex].channels.append(newChannel)
         coordinator.parsedCodeplug?.zones = zones
@@ -185,9 +194,11 @@ struct ZoneChannelView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .menuStyle(.borderlessButton)
-                .frame(width: 20)
+                .accessibilityLabel("Zone actions menu")
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -201,6 +212,7 @@ struct ZoneChannelView: View {
                         HStack {
                             Image(systemName: "folder")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                             Text(zone.name)
                             Spacer()
                             Text("\(zone.channels.count)")
@@ -263,7 +275,7 @@ struct ZoneChannelView: View {
                     .font(.headline)
                 Spacer()
                 if let zone = selectedZone {
-                    Text("\(zone.channels.count)/16")
+                    Text("\(zone.channels.count)/\(RadioConstants.maxChannelsPerZone)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -274,7 +286,7 @@ struct ZoneChannelView: View {
                         } label: {
                             Label("Add Channel", systemImage: "plus")
                         }
-                        .disabled(zone.channels.count >= 16)
+                        .disabled(zone.channels.count >= RadioConstants.maxChannelsPerZone)
 
                         if selectedChannel != nil {
                             Button {
@@ -294,9 +306,11 @@ struct ZoneChannelView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
-                    .frame(width: 20)
+                    .accessibilityLabel("Channel actions menu")
                 }
             }
             .padding(.horizontal)
@@ -432,6 +446,7 @@ struct ParsedChannelRow: View {
             Image(systemName: channel.isDigital ? "waveform" : "waveform.path")
                 .foregroundStyle(channel.isDigital ? .blue : .orange)
                 .frame(width: 20)
+                .accessibilityLabel(channel.isDigital ? "Digital channel" : "Analog channel")
 
             // Channel name
             VStack(alignment: .leading, spacing: 2) {
@@ -468,6 +483,7 @@ struct ParsedChannelRow: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(channel.txPowerHigh ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
                 )
+                .accessibilityLabel(channel.txPowerHigh ? "High power" : "Low power")
         }
         .padding(.vertical, 4)
     }
@@ -885,6 +901,7 @@ struct RenameZoneSheet: View {
 struct ChannelEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editedChannel: ChannelData
+    @State private var frequencyStep: RadioConstants.FrequencyStep = .step12_5kHz
     let onSave: (ChannelData) -> Void
 
     init(channel: ChannelData, onSave: @escaping (ChannelData) -> Void) {
@@ -898,52 +915,40 @@ struct ChannelEditorSheet: View {
                 // MARK: - Basic Settings
                 Section("Basic Information") {
                     TextField("Channel Name", text: $editedChannel.name)
-
-                    Picker("Channel Type", selection: $editedChannel.isDigital) {
-                        Text("Analog").tag(false)
-                        Text("Digital (DMR)").tag(true)
-                    }
-
-                    Picker("Bandwidth", selection: $editedChannel.bandwidthWide) {
-                        Text("12.5 kHz").tag(false)
-                        Text("25 kHz").tag(true)
-                    }
+                    ChannelModePicker(isDigital: $editedChannel.isDigital)
+                    BandwidthPicker(wideband: $editedChannel.bandwidthWide)
                 }
 
                 // MARK: - Frequencies
-                Section("Frequencies") {
-                    HStack {
-                        Text("RX Frequency")
-                        Spacer()
-                        TextField("MHz", value: Binding(
-                            get: { editedChannel.rxFrequencyMHz },
-                            set: { editedChannel.rxFrequencyHz = UInt32($0 * 1_000_000) }
-                        ), format: .number.precision(.fractionLength(5)))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                        Text("MHz")
+                Section {
+                    LabeledContent("RX Frequency") {
+                        FrequencyInput(frequencyHz: $editedChannel.rxFrequencyHz, step: frequencyStep)
                     }
 
-                    HStack {
-                        Text("TX Frequency")
-                        Spacer()
-                        TextField("MHz", value: Binding(
-                            get: { editedChannel.txFrequencyMHz },
-                            set: { editedChannel.txFrequencyHz = UInt32($0 * 1_000_000) }
-                        ), format: .number.precision(.fractionLength(5)))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 120)
-                        Text("MHz")
+                    LabeledContent("TX Frequency") {
+                        FrequencyInput(frequencyHz: $editedChannel.txFrequencyHz, step: frequencyStep)
                     }
+
+                    // Show offset for repeaters
+                    if editedChannel.txFrequencyHz != editedChannel.rxFrequencyHz {
+                        LabeledContent("TX Offset") {
+                            Text(String(format: "%+.4f MHz", editedChannel.txOffsetMHz))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Picker("Frequency Step", selection: $frequencyStep) {
+                        ForEach(RadioConstants.FrequencyStep.allCases, id: \.self) { step in
+                            Text(step.displayName).tag(step)
+                        }
+                    }
+                } header: {
+                    Text("Frequencies")
                 }
 
                 // MARK: - Power & Timing
                 Section("Power & Timing") {
-                    Picker("TX Power", selection: $editedChannel.txPowerHigh) {
-                        Text("Low (1W)").tag(false)
-                        Text("High (4W)").tag(true)
-                    }
-
+                    PowerPicker(highPower: $editedChannel.txPowerHigh)
                     Toggle("RX Only", isOn: $editedChannel.rxOnly)
 
                     Stepper("TOT Timeout: \(editedChannel.totTimeout)s",
@@ -955,43 +960,26 @@ struct ChannelEditorSheet: View {
                 // MARK: - Digital Settings
                 if editedChannel.isDigital {
                     Section("Digital (DMR) Settings") {
-                        Stepper("Color Code: \(editedChannel.colorCode)",
-                                value: $editedChannel.colorCode, in: 0...15)
+                        ColorCodePicker(colorCode: $editedChannel.colorCode)
+                        TimeslotPicker(timeslot: $editedChannel.timeSlot)
 
-                        Picker("Time Slot", selection: $editedChannel.timeSlot) {
-                            Text("Slot 1").tag(1)
-                            Text("Slot 2").tag(2)
-                        }
-
-                        HStack {
-                            Text("Contact ID")
-                            Spacer()
-                            TextField("ID", value: $editedChannel.contactID, format: .number)
+                        LabeledContent("Contact ID") {
+                            TextField("Contact ID", value: $editedChannel.contactID, format: .number)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 100)
+                                .accessibilityLabel("Contact ID")
                         }
 
-                        Picker("Contact Type", selection: $editedChannel.contactType) {
-                            Text("Private Call").tag(0)
-                            Text("Group Call").tag(1)
-                            Text("All Call").tag(2)
-                        }
+                        ContactTypePicker(contactType: $editedChannel.contactType)
                     }
 
                     Section("Advanced Digital") {
-                        Stepper("Inbound CC: \(editedChannel.inboundColorCode)",
-                                value: $editedChannel.inboundColorCode, in: 0...15)
-
-                        Stepper("Outbound CC: \(editedChannel.outboundColorCode)",
-                                value: $editedChannel.outboundColorCode, in: 0...15)
+                        ColorCodePicker(colorCode: $editedChannel.inboundColorCode, label: "Inbound CC")
+                        ColorCodePicker(colorCode: $editedChannel.outboundColorCode, label: "Outbound CC")
 
                         Toggle("Dual Capacity Direct Mode", isOn: $editedChannel.dualCapacityDirectMode)
 
-                        Picker("Timing Leader", selection: $editedChannel.timingLeaderPreference) {
-                            Text("Either").tag(0)
-                            Text("Preferred").tag(1)
-                            Text("Followed").tag(2)
-                        }
+                        TimingLeaderPicker(preference: $editedChannel.timingLeaderPreference)
 
                         Toggle("Extended Range Direct Mode", isOn: $editedChannel.extendedRangeDirectMode)
                         Toggle("Compressed UDP Header", isOn: $editedChannel.compressedUDPHeader)
@@ -1005,48 +993,17 @@ struct ChannelEditorSheet: View {
 
                 // MARK: - Analog Settings
                 if !editedChannel.isDigital {
-                    Section("Analog Settings") {
-                        Picker("RX Squelch Type", selection: $editedChannel.rxSquelchType) {
-                            Text("Carrier").tag(0)
-                            Text("CTCSS/DCS").tag(1)
-                            Text("Tight").tag(2)
-                        }
+                    Section("Analog Signaling") {
+                        SquelchTypePicker(squelchType: $editedChannel.rxSquelchType)
 
-                        HStack {
-                            Text("TX CTCSS")
-                            Spacer()
-                            TextField("Hz", value: $editedChannel.txCTCSSHz, format: .number.precision(.fractionLength(1)))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-                            Text("Hz")
-                        }
+                        CTCSSPicker(toneHz: $editedChannel.txCTCSSHz, label: "TX CTCSS")
+                        CTCSSPicker(toneHz: $editedChannel.rxCTCSSHz, label: "RX CTCSS")
 
-                        HStack {
-                            Text("RX CTCSS")
-                            Spacer()
-                            TextField("Hz", value: $editedChannel.rxCTCSSHz, format: .number.precision(.fractionLength(1)))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-                            Text("Hz")
-                        }
+                        DCSPicker(code: $editedChannel.txDCSCode, inverted: $editedChannel.dcsInvert, label: "TX DCS")
+                        DCSPicker(code: $editedChannel.rxDCSCode, inverted: $editedChannel.dcsInvert, label: "RX DCS")
+                    }
 
-                        HStack {
-                            Text("TX DCS (Octal)")
-                            Spacer()
-                            TextField("Code", value: $editedChannel.txDCSCode, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-                        }
-
-                        HStack {
-                            Text("RX DCS (Octal)")
-                            Spacer()
-                            TextField("Code", value: $editedChannel.rxDCSCode, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-                        }
-
-                        Toggle("DCS Invert", isOn: $editedChannel.dcsInvert)
+                    Section("Analog Options") {
                         Toggle("Scramble", isOn: $editedChannel.scrambleEnabled)
                         Toggle("Voice Emphasis", isOn: $editedChannel.voiceEmphasis)
                     }
@@ -1054,12 +1011,7 @@ struct ChannelEditorSheet: View {
 
                 // MARK: - Privacy
                 Section("Privacy/Encryption") {
-                    Picker("Privacy Type", selection: $editedChannel.privacyType) {
-                        Text("None").tag(0)
-                        Text("Basic").tag(1)
-                        Text("Enhanced").tag(2)
-                        Text("AES-256").tag(3)
-                    }
+                    PrivacyTypePicker(privacyType: $editedChannel.privacyType)
 
                     if editedChannel.privacyType > 0 {
                         Stepper("Privacy Key: \(editedChannel.privacyKey)",
@@ -1116,7 +1068,7 @@ struct ChannelEditorSheet: View {
                 }
             }
         }
-        .frame(minWidth: 500, minHeight: 600)
+        .frame(minWidth: 550, minHeight: 650)
     }
 }
 
