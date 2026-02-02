@@ -28,6 +28,26 @@ final class AppCoordinator {
     var currentDocument: CodeplugDocument?
     var documentURL: URL?
 
+    // MARK: - Undo/Redo Support
+
+    /// The undo manager for codeplug edits.
+    let undoManager = UndoManager()
+
+    /// Whether undo is currently available.
+    var canUndo: Bool { undoManager.canUndo }
+
+    /// Whether redo is currently available.
+    var canRedo: Bool { undoManager.canRedo }
+
+    /// The name of the action that can be undone.
+    var undoActionName: String { undoManager.undoActionName }
+
+    /// The name of the action that can be redone.
+    var redoActionName: String { undoManager.redoActionName }
+
+    /// Flag to suppress undo registration during undo/redo operations.
+    private var isUndoingOrRedoing = false
+
     // File dialog triggers
     var showingOpenDialog = false
     var showingSaveDialog = false
@@ -84,6 +104,49 @@ final class AppCoordinator {
 
     /// Whether the parsed codeplug has unsaved modifications.
     var parsedCodeplugDirty = false
+
+    // MARK: - Undo/Redo Methods
+
+    /// Updates the parsed codeplug with undo support.
+    /// - Parameters:
+    ///   - newValue: The new codeplug state
+    ///   - actionName: Human-readable name for the undo action (e.g., "Edit Channel Name")
+    func updateCodeplug(_ newValue: ParsedCodeplug?, actionName: String) {
+        guard !isUndoingOrRedoing else {
+            parsedCodeplug = newValue
+            return
+        }
+
+        let oldValue = parsedCodeplug
+        undoManager.registerUndo(withTarget: self) { target in
+            target.isUndoingOrRedoing = true
+            target.parsedCodeplug = oldValue
+            target.isUndoingOrRedoing = false
+        }
+        undoManager.setActionName(actionName)
+        parsedCodeplug = newValue
+    }
+
+    /// Performs undo if available.
+    func undo() {
+        guard undoManager.canUndo else { return }
+        isUndoingOrRedoing = true
+        undoManager.undo()
+        isUndoingOrRedoing = false
+    }
+
+    /// Performs redo if available.
+    func redo() {
+        guard undoManager.canRedo else { return }
+        isUndoingOrRedoing = true
+        undoManager.redo()
+        isUndoingOrRedoing = false
+    }
+
+    /// Clears the undo stack (call after saving or reading from radio).
+    func clearUndoStack() {
+        undoManager.removeAllActions()
+    }
 
     // MARK: - Programming Sheet State
 
@@ -583,7 +646,7 @@ final class AppCoordinator {
             zones[zoneIndex].channels[i].channelIndex = i
         }
 
-        parsedCodeplug?.zones = zones
+        updateZones(zones, actionName: "Duplicate Channel '\(originalChannel.name)'")
         return newIndex
     }
 
@@ -634,7 +697,7 @@ final class AppCoordinator {
             }
         }
 
-        parsedCodeplug?.zones = zones
+        updateZones(zones, actionName: "Duplicate Zone '\(originalZone.name)'")
         return newIndex
     }
 
@@ -643,6 +706,75 @@ final class AppCoordinator {
         // For now, this just ensures the codeplug is ready for modification
         // In the future, this could create a named "clone" for fleet management
         // The main use case is already handled - users can modify and write to different radios
+    }
+
+    // MARK: - Undoable Codeplug Operations
+
+    /// Updates zones with undo support.
+    /// - Parameters:
+    ///   - newZones: The new zones array
+    ///   - actionName: Human-readable name for the undo action
+    func updateZones(_ newZones: [ParsedZone], actionName: String) {
+        guard var codeplug = parsedCodeplug else { return }
+
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+
+        codeplug.zones = newZones
+        parsedCodeplug = codeplug
+    }
+
+    /// Updates a single channel with undo support.
+    /// - Parameters:
+    ///   - channel: The updated channel data
+    ///   - zoneIndex: The zone index containing the channel
+    ///   - channelIndex: The channel index within the zone
+    ///   - actionName: Human-readable name for the undo action
+    func updateChannel(_ channel: ChannelData, zoneIndex: Int, channelIndex: Int, actionName: String) {
+        guard var codeplug = parsedCodeplug,
+              zoneIndex >= 0 && zoneIndex < codeplug.zones.count,
+              channelIndex >= 0 && channelIndex < codeplug.zones[zoneIndex].channels.count else { return }
+
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+
+        codeplug.zones[zoneIndex].channels[channelIndex] = channel
+        parsedCodeplug = codeplug
+    }
+
+    /// Updates contacts with undo support.
+    /// - Parameters:
+    ///   - newContacts: The new contacts array
+    ///   - actionName: Human-readable name for the undo action
+    func updateContacts(_ newContacts: [ParsedContact], actionName: String) {
+        guard var codeplug = parsedCodeplug else { return }
+
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+
+        codeplug.contacts = newContacts
+        parsedCodeplug = codeplug
     }
 
     // MARK: - CSV Import/Export

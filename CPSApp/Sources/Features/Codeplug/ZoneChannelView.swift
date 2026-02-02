@@ -83,7 +83,7 @@ struct ZoneChannelView: View {
         var newZone = ParsedZone(name: newZoneName, position: zones.count)
         newZone.channels = []
         zones.append(newZone)
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Add Zone")
         selectedZoneIndex = zones.count - 1
         newZoneName = ""
     }
@@ -92,16 +92,18 @@ struct ZoneChannelView: View {
         guard !newZoneName.isEmpty,
               var zones = coordinator.parsedCodeplug?.zones,
               selectedZoneIndex >= 0 && selectedZoneIndex < zones.count else { return }
+        let oldName = zones[selectedZoneIndex].name
         zones[selectedZoneIndex].name = newZoneName
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Rename Zone '\(oldName)'")
         newZoneName = ""
     }
 
     private func deleteSelectedZone() {
         guard var zones = coordinator.parsedCodeplug?.zones,
               selectedZoneIndex >= 0 && selectedZoneIndex < zones.count else { return }
+        let zoneName = zones[selectedZoneIndex].name
         zones.remove(at: selectedZoneIndex)
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Delete Zone '\(zoneName)'")
         if selectedZoneIndex >= zones.count {
             selectedZoneIndex = max(0, zones.count - 1)
         }
@@ -127,7 +129,7 @@ struct ZoneChannelView: View {
         newChannel.txFrequencyHz = defaultFreq
 
         zones[selectedZoneIndex].channels.append(newChannel)
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Add Channel")
         selectedChannelIndex = channelCount
     }
 
@@ -137,8 +139,9 @@ struct ZoneChannelView: View {
               let channelIndex = selectedChannelIndex,
               channelIndex >= 0 && channelIndex < zones[selectedZoneIndex].channels.count else { return }
 
+        let channelName = zones[selectedZoneIndex].channels[channelIndex].name
         zones[selectedZoneIndex].channels.remove(at: channelIndex)
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Delete Channel '\(channelName)'")
 
         if channelIndex >= zones[selectedZoneIndex].channels.count {
             selectedChannelIndex = zones[selectedZoneIndex].channels.isEmpty ? nil : zones[selectedZoneIndex].channels.count - 1
@@ -146,13 +149,8 @@ struct ZoneChannelView: View {
     }
 
     private func updateChannel(_ channel: ChannelData) {
-        guard var zones = coordinator.parsedCodeplug?.zones,
-              selectedZoneIndex >= 0 && selectedZoneIndex < zones.count,
-              let channelIndex = selectedChannelIndex,
-              channelIndex >= 0 && channelIndex < zones[selectedZoneIndex].channels.count else { return }
-
-        zones[selectedZoneIndex].channels[channelIndex] = channel
-        coordinator.parsedCodeplug?.zones = zones
+        guard let channelIndex = selectedChannelIndex else { return }
+        coordinator.updateChannel(channel, zoneIndex: selectedZoneIndex, channelIndex: channelIndex, actionName: "Edit Channel")
     }
 
     // MARK: - Zone List
@@ -431,7 +429,7 @@ struct ZoneChannelView: View {
               selectedZoneIndex >= 0 && selectedZoneIndex < zones.count else { return }
 
         zones[selectedZoneIndex].channels.move(fromOffsets: source, toOffset: destination)
-        coordinator.parsedCodeplug?.zones = zones
+        coordinator.updateZones(zones, actionName: "Move Channels")
     }
 
     // MARK: - Channel Detail

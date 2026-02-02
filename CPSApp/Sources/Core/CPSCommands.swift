@@ -37,6 +37,23 @@ struct CPSCommands: Commands {
     }
 
     var body: some Commands {
+        // Replace the default Undo/Redo with codeplug-aware versions
+        CommandGroup(replacing: .undoRedo) {
+            Button("Undo \(coordinator?.undoActionName ?? "")") {
+                coordinator?.undo()
+            }
+            .keyboardShortcut("z", modifiers: [.command])
+            .disabled(coordinator?.canUndo != true)
+            .accessibilityLabel("Undo last codeplug change")
+
+            Button("Redo \(coordinator?.redoActionName ?? "")") {
+                coordinator?.redo()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .disabled(coordinator?.canRedo != true)
+            .accessibilityLabel("Redo last undone change")
+        }
+
         CommandGroup(after: .newItem) {
             Button("New from Template...") {
                 // Open template picker
