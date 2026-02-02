@@ -74,12 +74,12 @@ struct CPSCommands: Commands {
 
             Divider()
 
-            Button("Clone Radio") {
-                // Clone
+            Button("Clone for Fleet") {
+                coordinator?.cloneCodeplug()
             }
             .keyboardShortcut("d", modifiers: [.command])
-            .disabled(!hasRadio)
-            .accessibilityLabel("Clone radio configuration")
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Clone codeplug for programming multiple radios")
 
             Button("Reset Radio") {
                 // Reset

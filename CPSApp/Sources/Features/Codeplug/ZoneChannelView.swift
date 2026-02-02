@@ -236,6 +236,14 @@ struct ZoneChannelView: View {
                                     Label("Rename", systemImage: "pencil")
                                 }
 
+                                Button {
+                                    if let newIndex = coordinator.cloneZone(item.index) {
+                                        selectedZoneIndex = newIndex
+                                    }
+                                } label: {
+                                    Label("Duplicate Zone", systemImage: "doc.on.doc")
+                                }
+
                                 Divider()
 
                                 Button(role: .destructive) {
@@ -362,6 +370,14 @@ struct ZoneChannelView: View {
                                             showingChannelEditor = true
                                         } label: {
                                             Label("Edit", systemImage: "pencil")
+                                        }
+
+                                        Button {
+                                            if let newIndex = coordinator.cloneChannel(zoneIndex: selectedZoneIndex, channelIndex: item.index) {
+                                                selectedChannelIndex = newIndex
+                                            }
+                                        } label: {
+                                            Label("Duplicate Channel", systemImage: "doc.on.doc")
                                         }
 
                                         Divider()

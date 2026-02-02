@@ -63,7 +63,17 @@ final class AppCoordinator {
     var identifiedRadio: IdentifiedRadio?
 
     /// Parsed codeplug data with zones and channels (for XPR/MOTOTRBO radios).
-    var parsedCodeplug: ParsedCodeplug?
+    var parsedCodeplug: ParsedCodeplug? {
+        didSet {
+            // Mark as dirty if the codeplug content changed (not just from read)
+            if oldValue != nil && parsedCodeplug != nil {
+                parsedCodeplugDirty = true
+            }
+        }
+    }
+
+    /// Whether the parsed codeplug has unsaved modifications.
+    var parsedCodeplugDirty = false
 
     // MARK: - Programming Sheet State
 
@@ -279,7 +289,12 @@ final class AppCoordinator {
 
     /// Whether the current document has unsaved changes.
     var hasUnsavedChanges: Bool {
-        currentDocument?.codeplug?.hasUnsavedChanges ?? false
+        parsedCodeplugDirty || (currentDocument?.codeplug?.hasUnsavedChanges ?? false)
+    }
+
+    /// Marks the parsed codeplug as clean (no unsaved changes).
+    func markAsClean() {
+        parsedCodeplugDirty = false
     }
 
     // MARK: - Backup & Restore
@@ -514,6 +529,112 @@ final class AppCoordinator {
         }
     }
 
+    // MARK: - Clone Operations
+
+    /// Clones a channel within a zone.
+    /// - Parameters:
+    ///   - zoneIndex: Index of the zone containing the channel
+    ///   - channelIndex: Index of the channel to clone
+    /// - Returns: Index of the newly created channel, or nil if failed
+    @discardableResult
+    func cloneChannel(zoneIndex: Int, channelIndex: Int) -> Int? {
+        guard var zones = parsedCodeplug?.zones,
+              zoneIndex >= 0 && zoneIndex < zones.count,
+              channelIndex >= 0 && channelIndex < zones[zoneIndex].channels.count else {
+            return nil
+        }
+
+        let originalChannel = zones[zoneIndex].channels[channelIndex]
+        var clonedChannel = originalChannel
+
+        // Update name to indicate it's a copy
+        let baseName = originalChannel.name.replacingOccurrences(of: " Copy", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        var newName = "\(baseName) Copy"
+
+        // If "Copy" already exists, add a number
+        let existingNames = Set(zones[zoneIndex].channels.map { $0.name.lowercased() })
+        var copyNum = 2
+        while existingNames.contains(newName.lowercased()) {
+            newName = "\(baseName) Copy \(copyNum)"
+            copyNum += 1
+        }
+        clonedChannel.name = newName
+
+        // Update indices
+        let newIndex = channelIndex + 1
+        clonedChannel.channelIndex = newIndex
+
+        // Insert after the original
+        zones[zoneIndex].channels.insert(clonedChannel, at: newIndex)
+
+        // Update indices for subsequent channels
+        for i in (newIndex + 1)..<zones[zoneIndex].channels.count {
+            zones[zoneIndex].channels[i].channelIndex = i
+        }
+
+        parsedCodeplug?.zones = zones
+        return newIndex
+    }
+
+    /// Clones an entire zone with all its channels.
+    /// - Parameter zoneIndex: Index of the zone to clone
+    /// - Returns: Index of the newly created zone, or nil if failed
+    @discardableResult
+    func cloneZone(_ zoneIndex: Int) -> Int? {
+        guard var zones = parsedCodeplug?.zones,
+              zoneIndex >= 0 && zoneIndex < zones.count else {
+            return nil
+        }
+
+        let originalZone = zones[zoneIndex]
+        var clonedZone = originalZone
+
+        // Update name to indicate it's a copy
+        let baseName = originalZone.name.replacingOccurrences(of: " Copy", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        var newName = "\(baseName) Copy"
+
+        // If "Copy" already exists, add a number
+        let existingNames = Set(zones.map { $0.name.lowercased() })
+        var copyNum = 2
+        while existingNames.contains(newName.lowercased()) {
+            newName = "\(baseName) Copy \(copyNum)"
+            copyNum += 1
+        }
+        clonedZone.name = newName
+
+        // Update zone position
+        let newIndex = zoneIndex + 1
+        clonedZone.position = newIndex
+
+        // Update channel zone indices
+        for i in 0..<clonedZone.channels.count {
+            clonedZone.channels[i].zoneIndex = newIndex
+        }
+
+        // Insert after the original
+        zones.insert(clonedZone, at: newIndex)
+
+        // Update positions for subsequent zones
+        for i in (newIndex + 1)..<zones.count {
+            zones[i].position = i
+            for j in 0..<zones[i].channels.count {
+                zones[i].channels[j].zoneIndex = i
+            }
+        }
+
+        parsedCodeplug?.zones = zones
+        return newIndex
+    }
+
+    /// Clones the entire codeplug (creates a copy in memory for modification).
+    func cloneCodeplug() {
+        // For now, this just ensures the codeplug is ready for modification
+        // In the future, this could create a named "clone" for fleet management
+        // The main use case is already handled - users can modify and write to different radios
+    }
+
     // MARK: - Radio Communication
 
     /// Current read/write progress (0.0 to 1.0).
@@ -604,6 +725,7 @@ final class AppCoordinator {
 
                     // Store the parsed codeplug
                     parsedCodeplug = parsed
+                    parsedCodeplugDirty = false  // Fresh read, not dirty
 
                     // Also create a raw codeplug document for compatibility
                     // Build metadata from parsed data

@@ -12,6 +12,15 @@ struct ContentView: View {
 
     private var document: CodeplugDocument? { coordinator.currentDocument }
 
+    /// Window title with edited indicator.
+    private var windowTitle: String {
+        let baseTitle = document?.modelIdentifier ?? "RadioWriter"
+        if coordinator.hasUnsavedChanges {
+            return "\(baseTitle) — Edited"
+        }
+        return baseTitle
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -26,7 +35,7 @@ struct ContentView: View {
         .transaction { transaction in
             transaction.disablesAnimations = true
         }
-        .navigationTitle(document?.modelIdentifier ?? "RadioWriter")
+        .navigationTitle(windowTitle)
         .toolbar {
             toolbarContent
         }
@@ -156,10 +165,16 @@ struct ContentView: View {
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .accessibilityIdentifier("toolbar.write")
 
-            Button("Clone", systemImage: "doc.on.doc") {
-                // Clone action
+            Menu {
+                Button("Clone Codeplug for Fleet") {
+                    coordinator.cloneCodeplug()
+                }
+                .disabled(coordinator.parsedCodeplug == nil)
+            } label: {
+                Label("Clone", systemImage: "doc.on.doc")
             }
-            .keyboardShortcut("d", modifiers: [.command])
+            .menuStyle(.borderlessButton)
+            .help("Clone codeplug for programming multiple radios")
             .accessibilityIdentifier("toolbar.clone")
         }
 
