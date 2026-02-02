@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import RadioCore
 import RadioModelCore
 import USBTransport
@@ -32,6 +33,16 @@ final class AppCoordinator {
     var showingSaveDialog = false
     var showingCloseConfirmation = false
     var pendingCloseAction: (() -> Void)?
+
+    // Backup workflow state
+    var showingBackupBeforeWriteAlert = false
+    var pendingWriteAction: (() async -> Void)?
+    var lastBackupURL: URL?
+
+    // Validation state
+    var showingValidationSheet = false
+    var validationResult: ValidationResult?
+    var validationInProgress = false
 
     /// Detected devices - tracked separately for proper SwiftUI observation.
     var detectedDevices: [USBDeviceInfo] = []
@@ -81,7 +92,13 @@ final class AppCoordinator {
                 let nowHasDevices = !newDevices.isEmpty
 
                 if newDevices != self.detectedDevices {
-                    self.detectedDevices = newDevices
+                    // Defer state update to avoid layout recursion when HSplitView is laying out
+                    await MainActor.run {
+                        // Use withTransaction to disable animations and prevent layout conflicts
+                        withTransaction(Transaction(animation: nil)) {
+                            self.detectedDevices = newDevices
+                        }
+                    }
 
                     // Auto-transition when radio is newly detected
                     if wasEmpty && nowHasDevices && self.autoTransitionEnabled && self.phase == .welcome {
@@ -258,6 +275,238 @@ final class AppCoordinator {
     /// Whether the current document has unsaved changes.
     var hasUnsavedChanges: Bool {
         currentDocument?.codeplug?.hasUnsavedChanges ?? false
+    }
+
+    // MARK: - Backup & Restore
+
+    /// Directory for storing codeplug backups.
+    var backupDirectory: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("RadioWriter/Backups", isDirectory: true)
+    }
+
+    /// Creates a backup of the current codeplug data.
+    /// Returns the URL of the created backup file.
+    @discardableResult
+    func createBackup(source: BackupSource = .currentDocument) throws -> URL {
+        // Ensure backup directory exists
+        try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+
+        // Get the data to backup
+        let dataToBackup: Data
+        let radioSerial: String
+        let modelName: String
+
+        switch source {
+        case .currentDocument:
+            guard let codeplug = currentDocument?.codeplug else {
+                throw BackupError.noCodeplugToBackup
+            }
+            dataToBackup = codeplug.rawData
+            radioSerial = codeplug.metadata.radioSerialNumber ?? "unknown"
+            modelName = codeplug.metadata.radioModelName ?? currentDocument?.modelIdentifier ?? "unknown"
+        case .parsedCodeplug:
+            guard let parsed = parsedCodeplug else {
+                throw BackupError.noCodeplugToBackup
+            }
+            // For parsed codeplug, create a simple text-based backup with channel info
+            var backupText = "# RadioWriter Backup\n"
+            backupText += "# Model: \(parsed.modelNumber)\n"
+            backupText += "# Serial: \(parsed.serialNumber)\n"
+            backupText += "# Firmware: \(parsed.firmwareVersion)\n"
+            backupText += "# Date: \(Date())\n\n"
+
+            backupText += "## Zones and Channels\n\n"
+            for (zoneIndex, zone) in parsed.zones.enumerated() {
+                backupText += "### Zone \(zoneIndex + 1): \(zone.name)\n"
+                for (channelIndex, channel) in zone.channels.enumerated() {
+                    backupText += "- CH\(channelIndex + 1): \(channel.name) | "
+                    backupText += "\(String(format: "%.5f", channel.rxFrequencyMHz)) MHz | "
+                    backupText += (channel.isDigital ? "Digital" : "Analog")
+                    if channel.isDigital {
+                        backupText += " | CC\(channel.colorCode) TS\(channel.timeSlot)"
+                    }
+                    backupText += "\n"
+                }
+                backupText += "\n"
+            }
+
+            backupText += "## Contacts\n\n"
+            for contact in parsed.contacts {
+                backupText += "- \(contact.name) | ID: \(contact.dmrID) | \(contact.contactType.rawValue)\n"
+            }
+
+            dataToBackup = backupText.data(using: .utf8) ?? Data()
+            radioSerial = parsed.serialNumber
+            modelName = parsed.modelNumber
+        }
+
+        // Create timestamped filename
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = dateFormatter.string(from: Date())
+
+        // Sanitize serial number for filename
+        let safeSerial = radioSerial.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        let safeModel = modelName.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: " ", with: "_")
+
+        let filename: String
+        switch source {
+        case .currentDocument:
+            filename = "\(safeModel)_\(safeSerial)_\(timestamp).cpsx"
+        case .parsedCodeplug:
+            filename = "\(safeModel)_\(safeSerial)_\(timestamp).txt"
+        }
+
+        let backupURL = backupDirectory.appendingPathComponent(filename)
+        try dataToBackup.write(to: backupURL, options: .atomic)
+
+        lastBackupURL = backupURL
+        return backupURL
+    }
+
+    /// Lists all available backups, sorted by date (newest first).
+    func listBackups() throws -> [BackupInfo] {
+        guard FileManager.default.fileExists(atPath: backupDirectory.path) else {
+            return []
+        }
+
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: backupDirectory,
+            includingPropertiesForKeys: [.creationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        return contents.compactMap { url -> BackupInfo? in
+            guard url.pathExtension == "cpsx" || url.pathExtension == "txt" else { return nil }
+
+            let filename = url.deletingPathExtension().lastPathComponent
+            let components = filename.split(separator: "_")
+
+            guard components.count >= 3 else { return nil }
+
+            // Parse: ModelName_Serial_Date_Time
+            let modelName = String(components[0])
+            let serialNumber = String(components[1])
+
+            // Get file attributes
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+            let creationDate = attributes?[.creationDate] as? Date ?? Date()
+            let fileSize = attributes?[.size] as? Int ?? 0
+
+            return BackupInfo(
+                url: url,
+                modelName: modelName,
+                serialNumber: serialNumber,
+                creationDate: creationDate,
+                fileSize: fileSize,
+                isParsedFormat: url.pathExtension == "txt"
+            )
+        }
+        .sorted { $0.creationDate > $1.creationDate }
+    }
+
+    /// Restores a codeplug from a backup file.
+    /// Note: Text-format backups (.txt) from parsed codeplugs are for reference only and cannot be restored.
+    func restoreBackup(_ backup: BackupInfo) throws {
+        if backup.isParsedFormat {
+            // Text backups are for reference only - they can't be fully restored
+            // because they don't contain the complete binary codeplug data
+            throw BackupError.restoreFailed("Text backups are for reference only. They contain a readable summary but cannot be restored to a radio. Use binary (.cpsx) backups for full restore capability.")
+        }
+
+        let data = try Data(contentsOf: backup.url)
+
+        // Restore binary codeplug
+        let serializer = CodeplugSerializer()
+        let codeplug = try serializer.deserialize(data)
+        currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: codeplug.modelIdentifier)
+
+        documentURL = nil
+        phase = .editing
+    }
+
+    /// Deletes a backup file.
+    func deleteBackup(_ backup: BackupInfo) throws {
+        try FileManager.default.removeItem(at: backup.url)
+    }
+
+    /// Opens the backup folder in Finder.
+    func openBackupFolder() {
+        try? FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(backupDirectory)
+    }
+
+    /// Initiates write with validation and backup prompt.
+    func writeToRadioWithBackupPrompt() {
+        // First, validate the codeplug
+        if let parsed = parsedCodeplug {
+            validationInProgress = true
+            let validator = CodeplugValidator()
+            validationResult = validator.validate(parsed)
+            validationInProgress = false
+
+            // Show validation sheet
+            showingValidationSheet = true
+        } else if currentDocument?.codeplug != nil {
+            // For raw codeplugs, skip validation and go directly to backup prompt
+            proceedToBackupPrompt()
+        } else {
+            // No data to write
+            connectionState = .error("No codeplug data to write")
+        }
+    }
+
+    /// Called when user proceeds from validation sheet.
+    func proceedFromValidation() {
+        showingValidationSheet = false
+        proceedToBackupPrompt()
+    }
+
+    /// Shows the backup prompt before writing.
+    private func proceedToBackupPrompt() {
+        // If we have existing data, prompt for backup first
+        if parsedCodeplug != nil || currentDocument?.codeplug != nil {
+            showingBackupBeforeWriteAlert = true
+            pendingWriteAction = { [weak self] in
+                await self?.writeToRadio()
+            }
+        } else {
+            // No data to backup, proceed directly
+            Task {
+                await writeToRadio()
+            }
+        }
+    }
+
+    /// Creates backup and then proceeds with write.
+    func backupAndWrite() {
+        Task {
+            do {
+                // Create backup first
+                if parsedCodeplug != nil {
+                    try createBackup(source: .parsedCodeplug)
+                } else {
+                    try createBackup(source: .currentDocument)
+                }
+
+                // Then proceed with write
+                await pendingWriteAction?()
+                pendingWriteAction = nil
+            } catch {
+                connectionState = .error("Backup failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Skips backup and proceeds with write.
+    func skipBackupAndWrite() {
+        Task {
+            await pendingWriteAction?()
+            pendingWriteAction = nil
+        }
     }
 
     // MARK: - Radio Communication
@@ -448,6 +697,34 @@ final class AppCoordinator {
         connectionState = .disconnected
     }
 
+    // MARK: - Manual Device Entry
+
+    /// Adds a manually-specified device by IP address.
+    /// This is useful when the radio isn't auto-detected (e.g., macOS driver issues).
+    func addManualDevice(ip: String) {
+        let device = USBDeviceInfo(
+            id: "manual-\(ip)",
+            vendorID: 0x22B8,  // Motorola vendor ID
+            productID: 0x0000, // Unknown product
+            serialNumber: nil,
+            portPath: ip,
+            displayName: "Radio at \(ip)",
+            connectionType: .network(ip: ip, interface: "manual")
+        )
+
+        // Add to detected devices if not already present
+        if !detectedDevices.contains(where: { $0.id == device.id }) {
+            withTransaction(Transaction(animation: nil)) {
+                detectedDevices.append(device)
+            }
+        }
+
+        // Trigger identification
+        Task {
+            await handleRadioDetected(device)
+        }
+    }
+
     /// Writes the current codeplug to the connected radio.
     func writeToRadio() async {
         guard let codeplug = currentDocument?.codeplug else {
@@ -607,6 +884,59 @@ enum ConnectionState: Equatable {
         case .connected: return "green"
         case .programming: return "blue"
         case .error: return "red"
+        }
+    }
+}
+
+// MARK: - Backup Types
+
+/// Source of data for backup.
+enum BackupSource {
+    case currentDocument
+    case parsedCodeplug
+}
+
+/// Information about a backup file.
+struct BackupInfo: Identifiable {
+    let url: URL
+    let modelName: String
+    let serialNumber: String
+    let creationDate: Date
+    let fileSize: Int
+    let isParsedFormat: Bool
+
+    var id: String { url.path }
+
+    var displayName: String {
+        "\(modelName) - \(serialNumber)"
+    }
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: creationDate)
+    }
+
+    var formattedSize: String {
+        ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
+    }
+}
+
+/// Errors that can occur during backup operations.
+enum BackupError: LocalizedError {
+    case noCodeplugToBackup
+    case backupDirectoryCreationFailed
+    case restoreFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noCodeplugToBackup:
+            return "No codeplug data available to backup"
+        case .backupDirectoryCreationFailed:
+            return "Could not create backup directory"
+        case .restoreFailed(let reason):
+            return "Failed to restore backup: \(reason)"
         }
     }
 }

@@ -4,6 +4,8 @@ import RadioProgrammer
 /// View for managing DMR contacts.
 struct ContactsView: View {
     @Environment(AppCoordinator.self) private var coordinator
+    let searchText: String
+
     @State private var selectedContactIndex: Int?
     @State private var showingAddContact = false
     @State private var showingEditContact = false
@@ -68,30 +70,35 @@ struct ContactsView: View {
             Divider()
 
             if let contacts = coordinator.parsedCodeplug?.contacts, !contacts.isEmpty {
-                List(selection: $selectedContactIndex) {
-                    ForEach(Array(contacts.enumerated()), id: \.offset) { index, contact in
-                        ContactRow(contact: contact)
-                            .tag(index)
-                            .contextMenu {
-                                Button {
-                                    selectedContactIndex = index
-                                    showingEditContact = true
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
+                if !searchText.isEmpty && filteredContacts.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .accessibilityLabel("No contacts match '\(searchText)'")
+                } else {
+                    List(selection: $selectedContactIndex) {
+                        ForEach(filteredContacts, id: \.index) { item in
+                            ContactRow(contact: item.contact, isHighlighted: highlightMatch(item.contact.name) || highlightMatch(String(item.contact.dmrID)))
+                                .tag(item.index)
+                                .contextMenu {
+                                    Button {
+                                        selectedContactIndex = item.index
+                                        showingEditContact = true
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
 
-                                Divider()
+                                    Divider()
 
-                                Button(role: .destructive) {
-                                    selectedContactIndex = index
-                                    showingDeleteAlert = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                                    Button(role: .destructive) {
+                                        selectedContactIndex = item.index
+                                        showingDeleteAlert = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
-                            }
+                        }
                     }
+                    .listStyle(.inset)
                 }
-                .listStyle(.inset)
             } else {
                 VStack {
                     ContentUnavailableView {
@@ -201,12 +208,48 @@ struct ContactsView: View {
             selectedContactIndex = contacts.isEmpty ? nil : contacts.count - 1
         }
     }
+
+    // MARK: - Search Filtering
+
+    /// Filters contacts by name or DMR ID when search text is active
+    private var filteredContacts: [(index: Int, contact: ParsedContact)] {
+        guard let contacts = coordinator.parsedCodeplug?.contacts else { return [] }
+        let indexed = contacts.enumerated().map { (index: $0.offset, contact: $0.element) }
+
+        if searchText.isEmpty {
+            return indexed
+        }
+
+        let lowercasedSearch = searchText.lowercased()
+        return indexed.filter { item in
+            // Match contact name
+            if item.contact.name.lowercased().contains(lowercasedSearch) {
+                return true
+            }
+            // Match DMR ID
+            if String(item.contact.dmrID).contains(searchText) {
+                return true
+            }
+            // Match contact type
+            if item.contact.contactType.rawValue.lowercased().contains(lowercasedSearch) {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// Checks if text contains search term (for highlighting)
+    private func highlightMatch(_ text: String) -> Bool {
+        guard !searchText.isEmpty else { return false }
+        return text.lowercased().contains(searchText.lowercased())
+    }
 }
 
 // MARK: - Contact Row
 
 struct ContactRow: View {
     let contact: ParsedContact
+    var isHighlighted: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -217,10 +260,11 @@ struct ContactRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(contact.name)
                     .font(.body)
+                    .foregroundStyle(isHighlighted ? Color.accentColor : .primary)
                 HStack(spacing: 8) {
                     Text("ID: \(contact.dmrID)")
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHighlighted ? Color.accentColor.opacity(0.8) : .secondary)
                     Text(contact.contactType.rawValue)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -325,7 +369,7 @@ struct ContactEditorSheet: View {
 }
 
 #Preview {
-    ContactsView()
+    ContactsView(searchText: "")
         .environment(AppCoordinator())
         .frame(width: 600, height: 400)
 }

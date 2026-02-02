@@ -56,6 +56,9 @@ struct RootView: View {
         .sheet(isPresented: $coordinator.showingProgrammingSheet) {
             ProgrammingView()
         }
+        .sheet(isPresented: $coordinator.showingValidationSheet) {
+            ValidationResultsView()
+        }
         .alert("Error", isPresented: $showingError) {
             Button("OK") { showingError = false }
         } message: {
@@ -77,6 +80,19 @@ struct RootView: View {
             }
         } message: {
             Text("Do you want to save your changes before closing?")
+        }
+        .alert("Backup Before Write?", isPresented: $coordinator.showingBackupBeforeWriteAlert) {
+            Button("Backup & Write") {
+                coordinator.backupAndWrite()
+            }
+            Button("Write Without Backup", role: .destructive) {
+                coordinator.skipBackupAndWrite()
+            }
+            Button("Cancel", role: .cancel) {
+                coordinator.pendingWriteAction = nil
+            }
+        } message: {
+            Text("It's recommended to backup your current codeplug before writing changes to the radio. This protects against accidental data loss.")
         }
         .focusedValue(\.appCoordinator, coordinator)
     }

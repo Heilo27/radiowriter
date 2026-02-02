@@ -5,6 +5,8 @@ import RadioCore
 /// View displaying zones and channels from a parsed codeplug.
 struct ZoneChannelView: View {
     @Environment(AppCoordinator.self) private var coordinator
+    let searchText: String
+
     @State private var selectedZoneIndex: Int = 0
     @State private var selectedChannelIndex: Int?
     @State private var showingChannelDetail = false
@@ -207,42 +209,48 @@ struct ZoneChannelView: View {
 
             // Zone list
             if let zones = coordinator.parsedCodeplug?.zones, !zones.isEmpty {
-                List(selection: $selectedZoneIndex) {
-                    ForEach(Array(zones.enumerated()), id: \.offset) { index, zone in
-                        HStack {
-                            Image(systemName: "folder")
-                                .foregroundStyle(.secondary)
-                                .accessibilityHidden(true)
-                            Text(zone.name)
-                            Spacer()
-                            Text("\(zone.channels.count)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(index)
-                        .contextMenu {
-                            Button {
-                                selectedZoneIndex = index
-                                newZoneName = zone.name
-                                showingRenameZone = true
-                            } label: {
-                                Label("Rename", systemImage: "pencil")
+                if !searchText.isEmpty && filteredZones.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .accessibilityLabel("No zones match '\(searchText)'")
+                } else {
+                    List(selection: $selectedZoneIndex) {
+                        ForEach(filteredZones, id: \.index) { item in
+                            HStack {
+                                Image(systemName: "folder")
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityHidden(true)
+                                Text(item.zone.name)
+                                    .foregroundStyle(highlightMatch(item.zone.name) ? Color.accentColor : .primary)
+                                Spacer()
+                                Text("\(item.zone.channels.count)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
+                            .tag(item.index)
+                            .contextMenu {
+                                Button {
+                                    selectedZoneIndex = item.index
+                                    newZoneName = item.zone.name
+                                    showingRenameZone = true
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
 
-                            Divider()
+                                Divider()
 
-                            Button(role: .destructive) {
-                                selectedZoneIndex = index
-                                showingDeleteZoneAlert = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                                Button(role: .destructive) {
+                                    selectedZoneIndex = item.index
+                                    showingDeleteZoneAlert = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }
-                }
-                .listStyle(.sidebar)
-                .onChange(of: selectedZoneIndex) { _, _ in
-                    selectedChannelIndex = nil
+                    .listStyle(.sidebar)
+                    .onChange(of: selectedZoneIndex) { _, _ in
+                        selectedChannelIndex = nil
+                    }
                 }
             } else {
                 VStack {
@@ -324,43 +332,48 @@ struct ZoneChannelView: View {
 
             // Channel list
             if let zone = selectedZone, !zone.channels.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(zone.channels.enumerated()), id: \.offset) { index, channel in
-                            Button {
-                                selectedChannelIndex = index
-                            } label: {
-                                ParsedChannelRow(channel: channel, index: index)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(selectedChannelIndex == index ? Color.accentColor.opacity(0.2) : Color.clear)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Channel \(index + 1): \(channel.name)")
-                            .accessibilityHint("Double-tap to edit")
-                            .accessibilityAddTraits(selectedChannelIndex == index ? .isSelected : [])
-                            .onTapGesture(count: 2) {
-                                selectedChannelIndex = index
-                                showingChannelEditor = true
-                            }
-                            .contextMenu {
-                                    Button {
-                                        selectedChannelIndex = index
-                                        showingChannelEditor = true
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-
-                                    Divider()
-
-                                    Button(role: .destructive) {
-                                        selectedChannelIndex = index
-                                        showingDeleteChannelAlert = true
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
+                if !searchText.isEmpty && filteredChannels.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .accessibilityLabel("No channels match '\(searchText)'")
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filteredChannels, id: \.index) { item in
+                                Button {
+                                    selectedChannelIndex = item.index
+                                } label: {
+                                    ParsedChannelRow(channel: item.channel, index: item.index, isHighlighted: highlightMatch(item.channel.name) || highlightMatch(String(format: "%.4f", item.channel.rxFrequencyMHz)))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(selectedChannelIndex == item.index ? Color.accentColor.opacity(0.2) : Color.clear)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Channel \(item.index + 1): \(item.channel.name)")
+                                .accessibilityHint("Double-tap to edit")
+                                .accessibilityAddTraits(selectedChannelIndex == item.index ? .isSelected : [])
+                                .onTapGesture(count: 2) {
+                                    selectedChannelIndex = item.index
+                                    showingChannelEditor = true
+                                }
+                                .contextMenu {
+                                        Button {
+                                            selectedChannelIndex = item.index
+                                            showingChannelEditor = true
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+
+                                        Divider()
+
+                                        Button(role: .destructive) {
+                                            selectedChannelIndex = item.index
+                                            showingDeleteChannelAlert = true
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                            }
                         }
                     }
                 }
@@ -463,6 +476,73 @@ struct ZoneChannelView: View {
         }
         return zone.channels[index]
     }
+
+    // MARK: - Search Filtering
+
+    /// Filters zones by name when search text is active
+    private var filteredZones: [(index: Int, zone: ParsedZone)] {
+        guard let zones = coordinator.parsedCodeplug?.zones else { return [] }
+        let indexed = zones.enumerated().map { (index: $0.offset, zone: $0.element) }
+
+        if searchText.isEmpty {
+            return indexed
+        }
+
+        let lowercasedSearch = searchText.lowercased()
+        return indexed.filter { item in
+            // Include zone if its name matches
+            if item.zone.name.lowercased().contains(lowercasedSearch) {
+                return true
+            }
+            // Or if any of its channels match
+            return item.zone.channels.contains { channel in
+                channelMatchesSearch(channel, search: lowercasedSearch)
+            }
+        }
+    }
+
+    /// Filters channels in the selected zone by name or frequency
+    private var filteredChannels: [(index: Int, channel: ChannelData)] {
+        guard let zone = selectedZone else { return [] }
+        let indexed = zone.channels.enumerated().map { (index: $0.offset, channel: $0.element) }
+
+        if searchText.isEmpty {
+            return indexed
+        }
+
+        let lowercasedSearch = searchText.lowercased()
+        return indexed.filter { item in
+            channelMatchesSearch(item.channel, search: lowercasedSearch)
+        }
+    }
+
+    /// Checks if a channel matches the search criteria
+    private func channelMatchesSearch(_ channel: ChannelData, search: String) -> Bool {
+        // Match channel name
+        if channel.name.lowercased().contains(search) {
+            return true
+        }
+        // Match frequency (formatted)
+        let rxFreq = String(format: "%.4f", channel.rxFrequencyMHz)
+        if rxFreq.contains(search) {
+            return true
+        }
+        let txFreq = String(format: "%.4f", channel.txFrequencyMHz)
+        if txFreq.contains(search) {
+            return true
+        }
+        // Match DMR ID/Contact ID for digital channels
+        if channel.isDigital && String(channel.contactID).contains(search) {
+            return true
+        }
+        return false
+    }
+
+    /// Checks if text contains search term (for highlighting)
+    private func highlightMatch(_ text: String) -> Bool {
+        guard !searchText.isEmpty else { return false }
+        return text.lowercased().contains(searchText.lowercased())
+    }
 }
 
 // MARK: - Channel Row
@@ -470,6 +550,7 @@ struct ZoneChannelView: View {
 struct ParsedChannelRow: View {
     let channel: ChannelData
     let index: Int
+    var isHighlighted: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -489,12 +570,13 @@ struct ParsedChannelRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(channel.name)
                     .font(.body)
+                    .foregroundStyle(isHighlighted ? Color.accentColor : .primary)
 
                 HStack(spacing: 8) {
                     // Frequency
                     Text(String(format: "%.4f MHz", channel.rxFrequencyMHz))
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHighlighted ? Color.accentColor.opacity(0.8) : .secondary)
 
                     // Additional info for digital channels
                     if channel.isDigital {
@@ -1115,7 +1197,7 @@ struct ChannelEditorSheet: View {
 }
 
 #Preview {
-    ZoneChannelView()
+    ZoneChannelView(searchText: "")
         .environment(AppCoordinator())
         .frame(width: 800, height: 500)
 }

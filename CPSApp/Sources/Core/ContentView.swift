@@ -65,9 +65,9 @@ struct ContentView: View {
         if coordinator.parsedCodeplug != nil {
             switch selectedCategory {
             case .channel:
-                ZoneChannelView()
+                ZoneChannelView(searchText: searchText)
             case .contacts:
-                ContactsView()
+                ContactsView(searchText: searchText)
             case .scan:
                 ScanListsView()
             case .signaling:
@@ -150,9 +150,7 @@ struct ContentView: View {
             .accessibilityIdentifier("toolbar.read")
 
             Button("Write", systemImage: "arrow.up.to.line") {
-                Task {
-                    await coordinator.writeToRadio()
-                }
+                coordinator.writeToRadioWithBackupPrompt()
             }
             .disabled(document?.codeplug == nil || coordinator.detectedDevices.isEmpty)
             .keyboardShortcut("w", modifiers: [.command, .shift])

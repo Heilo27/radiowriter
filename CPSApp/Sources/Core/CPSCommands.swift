@@ -65,9 +65,7 @@ struct CPSCommands: Commands {
             .accessibilityHint(hasRadio ? "Downloads the codeplug from the radio" : "Connect a radio first")
 
             Button("Write to Radio") {
-                Task {
-                    await coordinator?.writeToRadio()
-                }
+                coordinator?.writeToRadioWithBackupPrompt()
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .disabled(!canWriteRadio)
@@ -96,6 +94,29 @@ struct CPSCommands: Commands {
             }
             .disabled(!hasCodeplug || !hasRadio)
             .accessibilityLabel("Compare codeplug with radio contents")
+
+            Divider()
+
+            Button("Backup Now") {
+                guard let coord = coordinator else { return }
+                do {
+                    if coord.parsedCodeplug != nil {
+                        try coord.createBackup(source: .parsedCodeplug)
+                    } else {
+                        try coord.createBackup(source: .currentDocument)
+                    }
+                } catch {
+                    // Error handled by coordinator
+                }
+            }
+            .keyboardShortcut("b", modifiers: [.command, .shift])
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Create backup of current codeplug")
+
+            Button("Show Backups Folder") {
+                coordinator?.openBackupFolder()
+            }
+            .accessibilityLabel("Open backup folder in Finder")
         }
 
         CommandMenu("Tools") {
