@@ -78,5 +78,6 @@ struct RootView: View {
         } message: {
             Text("Do you want to save your changes before closing?")
         }
+        .focusedValue(\.appCoordinator, coordinator)
     }
 }

@@ -251,6 +251,9 @@ struct ZoneChannelView: View {
                     } description: {
                         Text("Read from a radio to see zones")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("No zones available")
+                    .accessibilityHint("Connect a radio and read from it, or use the Add Zone button below")
 
                     Button {
                         newZoneName = ""
@@ -269,6 +272,7 @@ struct ZoneChannelView: View {
 
     private var channelListView: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Force VStack to expand to fill available space
             // Header with actions
             HStack {
                 Text("Channels")
@@ -320,33 +324,46 @@ struct ZoneChannelView: View {
 
             // Channel list
             if let zone = selectedZone, !zone.channels.isEmpty {
-                List(selection: $selectedChannelIndex) {
-                    ForEach(Array(zone.channels.enumerated()), id: \.offset) { index, channel in
-                        ParsedChannelRow(channel: channel, index: index)
-                            .tag(index)
-                            .contextMenu {
-                                Button {
-                                    selectedChannelIndex = index
-                                    showingChannelEditor = true
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    selectedChannelIndex = index
-                                    showingDeleteChannelAlert = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(zone.channels.enumerated()), id: \.offset) { index, channel in
+                            Button {
+                                selectedChannelIndex = index
+                            } label: {
+                                ParsedChannelRow(channel: channel, index: index)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(selectedChannelIndex == index ? Color.accentColor.opacity(0.2) : Color.clear)
+                                    .contentShape(Rectangle())
                             }
-                    }
-                    .onMove { from, to in
-                        moveChannels(from: from, to: to)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Channel \(index + 1): \(channel.name)")
+                            .accessibilityHint("Double-tap to edit")
+                            .accessibilityAddTraits(selectedChannelIndex == index ? .isSelected : [])
+                            .onTapGesture(count: 2) {
+                                selectedChannelIndex = index
+                                showingChannelEditor = true
+                            }
+                            .contextMenu {
+                                    Button {
+                                        selectedChannelIndex = index
+                                        showingChannelEditor = true
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+
+                                    Divider()
+
+                                    Button(role: .destructive) {
+                                        selectedChannelIndex = index
+                                        showingDeleteChannelAlert = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
                     }
                 }
-                .listStyle(.inset)
             } else if selectedZone != nil {
                 VStack {
                     ContentUnavailableView {
@@ -354,6 +371,9 @@ struct ZoneChannelView: View {
                     } description: {
                         Text("This zone has no channels")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("No channels in this zone")
+                    .accessibilityHint("Use the Add Channel button below to create a new channel")
 
                     Button {
                         addNewChannel()
@@ -369,8 +389,12 @@ struct ZoneChannelView: View {
                 } description: {
                     Text("Select a zone to see its channels")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Select a zone")
+                .accessibilityHint("Choose a zone from the left sidebar to view its channels")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func moveChannels(from source: IndexSet, to destination: Int) {
@@ -385,11 +409,21 @@ struct ZoneChannelView: View {
 
     private var channelDetailView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
+            // Header with Edit button
             HStack {
                 Text("Channel Details")
                     .font(.headline)
                 Spacer()
+
+                if selectedChannel != nil {
+                    Button {
+                        showingChannelEditor = true
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Edit selected channel")
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -404,6 +438,9 @@ struct ZoneChannelView: View {
                 } description: {
                     Text("Select a channel to view details")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Select a channel")
+                .accessibilityHint("Choose a channel from the middle panel to view its details")
             }
         }
     }
@@ -839,6 +876,7 @@ struct AddZoneSheet: View {
             TextField("Zone Name", text: $zoneName)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 250)
+                .accessibilityLabel("Zone Name")
 
             HStack {
                 Button("Cancel") {
@@ -874,6 +912,7 @@ struct RenameZoneSheet: View {
             TextField("Zone Name", text: $zoneName)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 250)
+                .accessibilityLabel("Zone Name")
 
             HStack {
                 Button("Cancel") {
@@ -915,19 +954,15 @@ struct ChannelEditorSheet: View {
                 // MARK: - Basic Settings
                 Section("Basic Information") {
                     TextField("Channel Name", text: $editedChannel.name)
+                        .accessibilityLabel("Channel Name")
                     ChannelModePicker(isDigital: $editedChannel.isDigital)
                     BandwidthPicker(wideband: $editedChannel.bandwidthWide)
                 }
 
                 // MARK: - Frequencies
                 Section {
-                    LabeledContent("RX Frequency") {
-                        FrequencyInput(frequencyHz: $editedChannel.rxFrequencyHz, step: frequencyStep)
-                    }
-
-                    LabeledContent("TX Frequency") {
-                        FrequencyInput(frequencyHz: $editedChannel.txFrequencyHz, step: frequencyStep)
-                    }
+                    FrequencyInput(frequencyHz: $editedChannel.rxFrequencyHz, step: frequencyStep, label: "RX Frequency")
+                    FrequencyInput(frequencyHz: $editedChannel.txFrequencyHz, step: frequencyStep, label: "TX Frequency")
 
                     // Show offset for repeaters
                     if editedChannel.txFrequencyHz != editedChannel.rxFrequencyHz {
@@ -953,6 +988,8 @@ struct ChannelEditorSheet: View {
 
                     Stepper("TOT Timeout: \(editedChannel.totTimeout)s",
                             value: $editedChannel.totTimeout, in: 0...300, step: 15)
+                        .accessibilityLabel("Timeout Timer")
+                        .accessibilityValue("\(editedChannel.totTimeout) seconds")
 
                     Toggle("Allow Talkaround", isOn: $editedChannel.allowTalkaround)
                 }
@@ -967,7 +1004,8 @@ struct ChannelEditorSheet: View {
                             TextField("Contact ID", value: $editedChannel.contactID, format: .number)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 100)
-                                .accessibilityLabel("Contact ID")
+                                .accessibilityLabel("DMR Contact ID")
+                                .accessibilityHint("Enter the contact DMR ID number")
                         }
 
                         ContactTypePicker(contactType: $editedChannel.contactType)
@@ -1016,6 +1054,8 @@ struct ChannelEditorSheet: View {
                     if editedChannel.privacyType > 0 {
                         Stepper("Privacy Key: \(editedChannel.privacyKey)",
                                 value: $editedChannel.privacyKey, in: 0...255)
+                            .accessibilityLabel("Privacy Key")
+                            .accessibilityValue("\(editedChannel.privacyKey) of 255")
 
                         Toggle("Fixed Key Decryption", isOn: $editedChannel.fixedPrivacyKeyDecryption)
                     }
@@ -1041,6 +1081,8 @@ struct ChannelEditorSheet: View {
                 Section("Scanning") {
                     Stepper("Scan List: \(editedChannel.scanListID)",
                             value: $editedChannel.scanListID, in: 0...255)
+                        .accessibilityLabel("Scan List ID")
+                        .accessibilityValue(editedChannel.scanListID == 0 ? "None" : "List \(editedChannel.scanListID)")
 
                     Toggle("Auto Scan", isOn: $editedChannel.autoScan)
                 }

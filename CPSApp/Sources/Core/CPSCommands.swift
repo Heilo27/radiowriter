@@ -1,13 +1,48 @@
 import SwiftUI
+import RadioCore
 
-/// App-level menu commands.
+// MARK: - Focused Value Keys
+
+struct FocusedAppCoordinatorKey: FocusedValueKey {
+    typealias Value = AppCoordinator
+}
+
+extension FocusedValues {
+    var appCoordinator: AppCoordinator? {
+        get { self[FocusedAppCoordinatorKey.self] }
+        set { self[FocusedAppCoordinatorKey.self] = newValue }
+    }
+}
+
+/// App-level menu commands connected to the focused window's AppCoordinator.
 struct CPSCommands: Commands {
+    @FocusedValue(\.appCoordinator) var coordinator
+
+    private var hasRadio: Bool {
+        guard let coord = coordinator else { return false }
+        return !coord.detectedDevices.isEmpty
+    }
+
+    private var hasCodeplug: Bool {
+        coordinator?.parsedCodeplug != nil || coordinator?.currentDocument?.codeplug != nil
+    }
+
+    private var canReadRadio: Bool {
+        guard let coord = coordinator else { return false }
+        return coord.connectionState.isDisconnected && !coord.detectedDevices.isEmpty
+    }
+
+    private var canWriteRadio: Bool {
+        hasCodeplug && hasRadio
+    }
+
     var body: some Commands {
         CommandGroup(after: .newItem) {
             Button("New from Template...") {
                 // Open template picker
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
+            .accessibilityLabel("Create new profile from template")
 
             Divider()
 
@@ -15,34 +50,52 @@ struct CPSCommands: Commands {
                 // Import .cps file
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
+            .accessibilityLabel("Import legacy CPS codeplug file")
         }
 
         CommandMenu("Radio") {
             Button("Read from Radio") {
-                // Read radio
+                Task {
+                    await coordinator?.readFromRadio()
+                }
             }
-            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .keyboardShortcut("r", modifiers: [.command])
+            .disabled(!canReadRadio)
+            .accessibilityLabel("Read codeplug from connected radio")
+            .accessibilityHint(hasRadio ? "Downloads the codeplug from the radio" : "Connect a radio first")
 
             Button("Write to Radio") {
-                // Write radio
+                Task {
+                    await coordinator?.writeToRadio()
+                }
             }
             .keyboardShortcut("w", modifiers: [.command, .shift])
+            .disabled(!canWriteRadio)
+            .accessibilityLabel("Write codeplug to connected radio")
+            .accessibilityHint(hasCodeplug ? "Uploads the codeplug to the radio" : "Load or read a codeplug first")
 
             Divider()
 
             Button("Clone Radio") {
                 // Clone
             }
+            .keyboardShortcut("d", modifiers: [.command])
+            .disabled(!hasRadio)
+            .accessibilityLabel("Clone radio configuration")
 
             Button("Reset Radio") {
                 // Reset
             }
+            .disabled(!hasRadio)
+            .accessibilityLabel("Reset radio to factory defaults")
 
             Divider()
 
             Button("Compare with Radio...") {
                 // Diff view
             }
+            .disabled(!hasCodeplug || !hasRadio)
+            .accessibilityLabel("Compare codeplug with radio contents")
         }
 
         CommandMenu("Tools") {
@@ -50,10 +103,12 @@ struct CPSCommands: Commands {
                 // Open frequency planner
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
+            .accessibilityLabel("Open frequency planning tool")
 
             Button("Fleet Overview") {
                 // Open fleet overview
             }
+            .accessibilityLabel("View fleet radio overview")
 
             Divider()
 
@@ -61,10 +116,51 @@ struct CPSCommands: Commands {
                 // Generate report
             }
             .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Generate codeplug report")
 
             Button("Export to XML...") {
                 // Export XML
             }
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Export codeplug to XML format")
+        }
+
+        // View menu additions
+        CommandGroup(after: .sidebar) {
+            Divider()
+
+            Button("Show Inspector") {
+                // Toggle inspector - would need additional FocusedValue for this
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+            .accessibilityLabel("Toggle inspector panel")
+
+            Button("Expand All Sections") {
+                // Expand all disclosure groups
+            }
+            .accessibilityLabel("Expand all settings sections")
+
+            Button("Collapse All Sections") {
+                // Collapse all disclosure groups
+            }
+            .accessibilityLabel("Collapse all settings sections")
+        }
+
+        // Help menu additions
+        CommandGroup(after: .help) {
+            Divider()
+
+            Button("Keyboard Shortcuts") {
+                // Show keyboard shortcuts window
+            }
+            .keyboardShortcut("/", modifiers: [.command])
+            .accessibilityLabel("Show keyboard shortcuts reference")
+
+            Button("Radio Programming Guide") {
+                // Open documentation
+            }
+            .accessibilityLabel("Open radio programming documentation")
         }
     }
 }

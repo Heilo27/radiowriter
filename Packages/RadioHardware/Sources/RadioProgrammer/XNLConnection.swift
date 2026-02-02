@@ -105,6 +105,7 @@ public actor XNLConnection {
     /// Message ID counter for XNL DataMessage packets (byte 5 in packet structure).
     /// CPS increments this with each DataMessage sent: 0x02, 0x03, 0x04...
     /// CRITICAL: This must increment for multi-command sessions to work!
+    /// Note: Uses wrapping arithmetic to handle overflow after 255 commands gracefully.
     private var xnlMessageID: UInt8 = 1  // Starts at 1, so first command uses 0x02
 
     public var isConnected: Bool {
@@ -138,6 +139,12 @@ public actor XNLConnection {
         // even with noDelay=true, but raw BSD sockets do.
         var nodelay: Int32 = 1
         setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &nodelay, socklen_t(MemoryLayout<Int32>.size))
+
+        // CRITICAL: Set SO_NOSIGPIPE to prevent SIGPIPE from crashing the app
+        // when the connection is closed unexpectedly. Without this, writing to
+        // a broken socket sends SIGPIPE which terminates the process.
+        var nosigpipe: Int32 = 1
+        setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
 
         // Connect to radio
         var addr = sockaddr_in()
@@ -528,14 +535,45 @@ public actor XNLConnection {
         if debug { print("[SEND] Attempting to send \(data.count) bytes...") }
 
         var bytes = [UInt8](data)
-        let sent = Darwin.send(socketFD, &bytes, bytes.count, 0)
+        var totalSent = 0
 
-        if sent < 0 {
-            if debug { print("[SEND] ERROR: errno \(errno)") }
-            throw NSError(domain: "XNL", code: Int(errno), userInfo: [NSLocalizedDescriptionKey: "Send failed: errno \(errno)"])
+        // Loop to handle partial sends - TCP may not send all bytes at once
+        while totalSent < bytes.count {
+            let remaining = bytes.count - totalSent
+            let sent = bytes.withUnsafeMutableBufferPointer { buffer in
+                Darwin.send(socketFD, buffer.baseAddress! + totalSent, remaining, 0)
+            }
+
+            if sent < 0 {
+                let err = errno
+                if debug { print("[SEND] ERROR: errno \(err) after \(totalSent) bytes") }
+
+                // Handle connection closed/broken pipe
+                if err == EPIPE || err == ECONNRESET || err == ENOTCONN {
+                    // Mark connection as closed
+                    close(socketFD)
+                    socketFD = -1
+                    throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Connection closed by radio"])
+                }
+
+                throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Send failed: errno \(err)"])
+            }
+
+            if sent == 0 {
+                // Connection closed gracefully
+                close(socketFD)
+                socketFD = -1
+                throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection closed"])
+            }
+
+            totalSent += sent
+
+            if debug && sent < remaining {
+                print("[SEND] Partial send: \(sent)/\(remaining) bytes, continuing...")
+            }
         }
 
-        if debug { print("[SEND] Success - \(sent) bytes sent") }
+        if debug { print("[SEND] Success - \(totalSent) bytes sent") }
     }
 
     private func receivePacket(timeout: TimeInterval) async -> Data? {
@@ -745,7 +783,8 @@ public actor XNLConnection {
         // CRITICAL: Increment message ID for each DataMessage we send
         // CPS traffic shows byte 5 incrementing: 0x02, 0x03, 0x04, 0x05...
         // This is essential for multi-command sessions!
-        xnlMessageID += 1
+        // Use wrapping arithmetic (&+=) to handle overflow after 255 gracefully
+        xnlMessageID &+= 1
         let messageID = xnlMessageID
 
         var packet = Data()

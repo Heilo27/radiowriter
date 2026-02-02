@@ -28,7 +28,7 @@ struct FrequencyInput: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             if !label.isEmpty {
                 Text(label)
                 Spacer()
@@ -38,18 +38,17 @@ struct FrequencyInput: View {
                 decrementFrequency()
             } label: {
                 Image(systemName: "minus")
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                    .font(.body)
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(!canDecrement)
             .accessibilityLabel("Decrease frequency by \(step.displayName)")
 
-            TextField("Frequency in MHz", value: Binding(
+            TextField("", value: Binding(
                 get: { frequencyMHz },
                 set: { newValue in
                     let hz = newValue * 1_000_000
-                    // Validate bounds before assignment
                     if hz >= 0 && hz <= Self.maxSafeMHz * 1_000_000 {
                         let clampedHz = UInt32(min(max(hz, Double(minHz)), Double(maxHz)))
                         frequencyHz = clampedHz
@@ -57,24 +56,24 @@ struct FrequencyInput: View {
                 }
             ), format: .number.precision(.fractionLength(5)))
             .textFieldStyle(.roundedBorder)
-            .frame(width: 110)
+            .frame(minWidth: 110)
             .multilineTextAlignment(.trailing)
-            .accessibilityLabel("Frequency")
-            .accessibilityValue("\(String(format: "%.4f", frequencyMHz)) megahertz")
+            .accessibilityLabel(label.isEmpty ? "Frequency in MHz" : "\(label) in MHz")
+            .accessibilityValue(String(format: "%.5f megahertz", frequencyMHz))
 
             Text("MHz")
                 .foregroundStyle(.secondary)
-                .frame(width: 35)
+                .font(.caption)
                 .accessibilityHidden(true)
 
             Button {
                 incrementFrequency()
             } label: {
                 Image(systemName: "plus")
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                    .font(.body)
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(!canIncrement)
             .accessibilityLabel("Increase frequency by \(step.displayName)")
         }

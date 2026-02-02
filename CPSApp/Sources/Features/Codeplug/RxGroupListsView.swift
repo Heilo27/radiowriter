@@ -63,6 +63,7 @@ struct RxGroupListsView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Add RX group list")
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -109,6 +110,9 @@ struct RxGroupListsView: View {
                     } description: {
                         Text("Create RX group lists for digital channels")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("No RX group lists")
+                    .accessibilityHint("Use the Add RX Group button below to create a new receive group list")
 
                     Button {
                         showingAddList = true
@@ -169,12 +173,18 @@ struct RxGroupListsView: View {
                 } description: {
                     Text("Add contacts from the right panel")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No contacts in RX group")
+                .accessibilityHint("Add contacts from the Available Contacts panel on the right")
             } else {
                 ContentUnavailableView {
                     Label("Select RX Group", systemImage: "person.2.wave.2")
                 } description: {
                     Text("Select an RX group list to see its contacts")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Select an RX group list")
+                .accessibilityHint("Choose an RX group list from the left panel to view its contacts")
             }
         }
     }
@@ -223,6 +233,9 @@ struct RxGroupListsView: View {
                 } description: {
                     Text("Add contacts first to use in RX groups")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No contacts available")
+                .accessibilityHint("Create contacts in the Contacts view first to add them to RX groups")
             }
         }
     }
@@ -326,6 +339,7 @@ struct RxGroupListEditorSheet: View {
             TextField("RX Group Name", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 250)
+                .accessibilityLabel("RX Group List Name")
 
             HStack {
                 Button("Cancel") { dismiss() }

@@ -29,6 +29,8 @@ struct GeneralSettingsView: View {
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
+                        .accessibilityLabel("Radio ID")
+                        .accessibilityHint("Enter the unique DMR radio identifier")
                     }
 
                     HStack {
@@ -40,6 +42,8 @@ struct GeneralSettingsView: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
+                        .accessibilityLabel("Radio Alias")
+                        .accessibilityHint("Enter a friendly name for the radio")
                     }
 
                     HStack {
@@ -51,6 +55,8 @@ struct GeneralSettingsView: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
+                        .accessibilityLabel("Intro Screen Line 1")
+                        .accessibilityHint("First line displayed on power-up")
                     }
 
                     HStack {
@@ -62,6 +68,8 @@ struct GeneralSettingsView: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)
+                        .accessibilityLabel("Intro Screen Line 2")
+                        .accessibilityHint("Second line displayed on power-up")
                     }
                 }
 
@@ -80,6 +88,8 @@ struct GeneralSettingsView: View {
                                 get: { Int(coord.parsedCodeplug?.voxSensitivity ?? 3) },
                                 set: { coord.parsedCodeplug?.voxSensitivity = UInt8($0) }
                             ), in: 1...10)
+                            .accessibilityLabel("VOX Sensitivity")
+                            .accessibilityValue("\(coord.parsedCodeplug?.voxSensitivity ?? 3) of 10")
                         }
 
                         HStack {
@@ -91,8 +101,10 @@ struct GeneralSettingsView: View {
                             ), format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
+                            .accessibilityLabel("VOX Delay in milliseconds")
                             Text("ms")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                     }
 
@@ -128,9 +140,12 @@ struct GeneralSettingsView: View {
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
+                        .accessibilityLabel("Timeout Timer in seconds")
+                        .accessibilityHint("0 means infinite timeout")
                         Text("sec (0 = infinite)")
                             .foregroundStyle(.secondary)
                             .font(.caption)
+                            .accessibilityHidden(true)
                     }
 
                     HStack {
@@ -142,8 +157,10 @@ struct GeneralSettingsView: View {
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
+                        .accessibilityLabel("Group Call Hang Time in milliseconds")
                         Text("ms")
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
 
                     HStack {
@@ -155,8 +172,10 @@ struct GeneralSettingsView: View {
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
+                        .accessibilityLabel("Private Call Hang Time in milliseconds")
                         Text("ms")
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                 }
 
@@ -171,9 +190,12 @@ struct GeneralSettingsView: View {
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
+                        .accessibilityLabel("Backlight Time in seconds")
+                        .accessibilityHint("0 means always on")
                         Text("sec (0 = always on)")
                             .foregroundStyle(.secondary)
                             .font(.caption)
+                            .accessibilityHidden(true)
                     }
 
                     Picker("Default Power Level", selection: Binding(
@@ -238,8 +260,10 @@ struct GeneralSettingsView: View {
                             ), format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
+                            .accessibilityLabel("Lone Worker Response Time in seconds")
                             Text("sec")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
 
                         HStack {
@@ -251,8 +275,10 @@ struct GeneralSettingsView: View {
                             ), format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
+                            .accessibilityLabel("Lone Worker Reminder Time in seconds")
                             Text("sec")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                     }
                 }
@@ -274,8 +300,10 @@ struct GeneralSettingsView: View {
                             ), format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 80)
+                            .accessibilityLabel("Man Down Delay in seconds")
                             Text("sec")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                     }
                 }

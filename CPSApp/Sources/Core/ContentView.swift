@@ -22,7 +22,11 @@ struct ContentView: View {
                 inspectorPanel
             }
         }
-        .navigationTitle(document?.modelIdentifier ?? "Motorola CPS")
+        // Prevent layout recursion by disabling animations on external state changes
+        .transaction { transaction in
+            transaction.disablesAnimations = true
+        }
+        .navigationTitle(document?.modelIdentifier ?? "RadioWriter")
         .toolbar {
             toolbarContent
         }
@@ -142,6 +146,7 @@ struct ContentView: View {
                 }
             }
             .disabled(!coordinator.connectionState.isDisconnected || coordinator.detectedDevices.isEmpty)
+            .keyboardShortcut("r", modifiers: [.command])
             .accessibilityIdentifier("toolbar.read")
 
             Button("Write", systemImage: "arrow.up.to.line") {
@@ -150,11 +155,13 @@ struct ContentView: View {
                 }
             }
             .disabled(document?.codeplug == nil || coordinator.detectedDevices.isEmpty)
+            .keyboardShortcut("w", modifiers: [.command, .shift])
             .accessibilityIdentifier("toolbar.write")
 
             Button("Clone", systemImage: "doc.on.doc") {
                 // Clone action
             }
+            .keyboardShortcut("d", modifiers: [.command])
             .accessibilityIdentifier("toolbar.clone")
         }
 

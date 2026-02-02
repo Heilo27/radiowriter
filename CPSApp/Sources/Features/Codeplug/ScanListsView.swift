@@ -64,6 +64,7 @@ struct ScanListsView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Add scan list")
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -110,6 +111,9 @@ struct ScanListsView: View {
                     } description: {
                         Text("Create scan lists to group channels")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("No scan lists")
+                    .accessibilityHint("Use the Add Scan List button below to create a new scan list")
 
                     Button {
                         showingAddScanList = true
@@ -176,12 +180,18 @@ struct ScanListsView: View {
                 } description: {
                     Text("Drag channels from the right to add them")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No channels in scan list")
+                .accessibilityHint("Add channels from the Available Channels panel on the right")
             } else {
                 ContentUnavailableView {
                     Label("Select Scan List", systemImage: "magnifyingglass")
                 } description: {
                     Text("Select a scan list to see its channels")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Select a scan list")
+                .accessibilityHint("Choose a scan list from the left panel to view its channels")
             }
         }
     }
@@ -234,6 +244,9 @@ struct ScanListsView: View {
                 } description: {
                     Text("Read from radio to see available channels")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No channels available")
+                .accessibilityHint("Connect a radio and read from it to see available channels")
             }
         }
     }
@@ -349,10 +362,13 @@ struct ScanListEditorSheet: View {
 
             Form {
                 TextField("Scan List Name", text: $name)
+                    .accessibilityLabel("Scan List Name")
 
                 Toggle("Talkback Enabled", isOn: $talkbackEnabled)
 
                 Stepper("Hold Time: \(holdTime)ms", value: $holdTime, in: 100...5000, step: 100)
+                    .accessibilityLabel("Hold Time")
+                    .accessibilityValue("\(holdTime) milliseconds")
             }
             .formStyle(.grouped)
             .frame(height: 200)

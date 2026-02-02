@@ -60,6 +60,7 @@ struct ContactsView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Add contact")
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -98,6 +99,9 @@ struct ContactsView: View {
                     } description: {
                         Text("Add contacts for DMR calls")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("No contacts")
+                    .accessibilityHint("Use the Add Contact button below to create a new DMR contact")
 
                     Button {
                         showingAddContact = true
@@ -126,6 +130,7 @@ struct ContactsView: View {
                         Image(systemName: "pencil")
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel("Edit contact")
                 }
             }
             .padding(.horizontal)
@@ -155,6 +160,9 @@ struct ContactsView: View {
                 } description: {
                     Text("Select a contact to view details")
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Select a contact")
+                .accessibilityHint("Choose a contact from the left panel to view its details")
             }
         }
     }
@@ -270,6 +278,7 @@ struct ContactEditorSheet: View {
             Form {
                 Section("Basic Information") {
                     TextField("Contact Name", text: $name)
+                        .accessibilityLabel("Contact Name")
 
                     Picker("Call Type", selection: $contactType) {
                         ForEach(ContactCallType.allCases, id: \.self) { type in
@@ -283,6 +292,8 @@ struct ContactEditorSheet: View {
                         TextField("ID", value: $dmrID, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
+                            .accessibilityLabel("DMR ID")
+                            .accessibilityHint("Enter the contact's DMR radio identifier")
                     }
                 }
 
