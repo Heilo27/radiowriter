@@ -44,6 +44,11 @@ final class AppCoordinator {
     var validationResult: ValidationResult?
     var validationInProgress = false
 
+    // Write verification state
+    var verifyWriteEnabled = true  // Default to enabled for safety
+    var writeVerificationResult: WriteVerificationResult?
+    var showingVerificationFailureAlert = false
+
     /// Detected devices - tracked separately for proper SwiftUI observation.
     var detectedDevices: [USBDeviceInfo] = []
 
@@ -790,17 +795,64 @@ final class AppCoordinator {
                         }
                     }
 
-                    programmingStatus = "Verifying write..."
-                    programmingProgress = 0.95
+                    // Verify write if enabled
+                    if verifyWriteEnabled, let originalCodeplug = parsedCodeplug {
+                        programmingStatus = "Verifying write (reading back)..."
+                        programmingProgress = 0.85
 
-                    await motoProgrammer.disconnect()
-                    connectionState = .disconnected
+                        do {
+                            // Read back the codeplug to verify
+                            let readBackCodeplug = try await motoProgrammer.readZonesAndChannels(
+                                progress: { [weak self] progress in
+                                    Task { @MainActor in
+                                        // Scale progress: 85% to 95%
+                                        self?.programmingProgress = 0.85 + (progress * 0.10)
+                                        self?.programmingStatus = "Verifying (\(Int(progress * 100))%)..."
+                                    }
+                                },
+                                debug: false
+                            )
 
-                    // Mark complete
-                    programmingProgress = 1.0
-                    programmingStatus = "Write complete and verified"
-                    programmingComplete = true
-                    return
+                            programmingProgress = 0.95
+                            programmingStatus = "Comparing data..."
+
+                            // Compare original with read-back
+                            let comparator = CodeplugComparator()
+                            writeVerificationResult = comparator.compare(original: originalCodeplug, readBack: readBackCodeplug)
+
+                            await motoProgrammer.disconnect()
+                            connectionState = .disconnected
+
+                            if writeVerificationResult?.passed == true {
+                                programmingProgress = 1.0
+                                programmingStatus = "Write complete and verified"
+                                programmingComplete = true
+                            } else {
+                                let count = writeVerificationResult?.discrepancies.count ?? 0
+                                programmingStatus = "Write complete but verification found \(count) discrepanc\(count == 1 ? "y" : "ies")"
+                                programmingComplete = true
+                                showingVerificationFailureAlert = true
+                            }
+                            return
+
+                        } catch {
+                            // Verification failed but write may have succeeded
+                            await motoProgrammer.disconnect()
+                            connectionState = .disconnected
+                            programmingProgress = 1.0
+                            programmingStatus = "Write complete (verification failed: \(error.localizedDescription))"
+                            programmingComplete = true
+                            return
+                        }
+                    } else {
+                        // No verification - just complete
+                        await motoProgrammer.disconnect()
+                        connectionState = .disconnected
+                        programmingProgress = 1.0
+                        programmingStatus = "Write complete (verification skipped)"
+                        programmingComplete = true
+                        return
+                    }
 
                 } catch {
                     await motoProgrammer.disconnect()
@@ -938,5 +990,174 @@ enum BackupError: LocalizedError {
         case .restoreFailed(let reason):
             return "Failed to restore backup: \(reason)"
         }
+    }
+}
+
+// MARK: - Write Verification Types
+
+/// Result of write verification.
+struct WriteVerificationResult {
+    let passed: Bool
+    let discrepancies: [VerificationDiscrepancy]
+    let timestamp: Date
+
+    var summary: String {
+        if passed {
+            return "Verification passed"
+        } else {
+            let count = discrepancies.count
+            return "\(count) discrepanc\(count == 1 ? "y" : "ies") found"
+        }
+    }
+}
+
+/// A single verification discrepancy found.
+struct VerificationDiscrepancy: Identifiable {
+    let id = UUID()
+    let category: String
+    let location: String
+    let expected: String
+    let actual: String
+
+    var description: String {
+        "\(category) at \(location): expected '\(expected)', got '\(actual)'"
+    }
+}
+
+/// Compares two parsed codeplugs and returns any discrepancies.
+struct CodeplugComparator {
+
+    /// Compares the original codeplug with a read-back version.
+    func compare(original: ParsedCodeplug, readBack: ParsedCodeplug) -> WriteVerificationResult {
+        var discrepancies: [VerificationDiscrepancy] = []
+
+        // Compare radio identity
+        if original.radioID != readBack.radioID {
+            discrepancies.append(VerificationDiscrepancy(
+                category: "Radio Identity",
+                location: "Radio ID",
+                expected: "\(original.radioID)",
+                actual: "\(readBack.radioID)"
+            ))
+        }
+
+        // Compare zones
+        let zoneCountMin = min(original.zones.count, readBack.zones.count)
+
+        if original.zones.count != readBack.zones.count {
+            discrepancies.append(VerificationDiscrepancy(
+                category: "Structure",
+                location: "Zone count",
+                expected: "\(original.zones.count)",
+                actual: "\(readBack.zones.count)"
+            ))
+        }
+
+        for i in 0..<zoneCountMin {
+            let origZone = original.zones[i]
+            let readZone = readBack.zones[i]
+
+            // Compare zone name
+            if origZone.name != readZone.name {
+                discrepancies.append(VerificationDiscrepancy(
+                    category: "Zone",
+                    location: "Zone \(i + 1) name",
+                    expected: origZone.name,
+                    actual: readZone.name
+                ))
+            }
+
+            // Compare channel count
+            if origZone.channels.count != readZone.channels.count {
+                discrepancies.append(VerificationDiscrepancy(
+                    category: "Zone",
+                    location: "Zone \(i + 1) '\(origZone.name)' channel count",
+                    expected: "\(origZone.channels.count)",
+                    actual: "\(readZone.channels.count)"
+                ))
+            }
+
+            // Compare channels
+            let channelCountMin = min(origZone.channels.count, readZone.channels.count)
+            for j in 0..<channelCountMin {
+                let origCh = origZone.channels[j]
+                let readCh = readZone.channels[j]
+                let location = "Zone \(i + 1), Channel \(j + 1)"
+
+                // Critical fields
+                if origCh.name != readCh.name {
+                    discrepancies.append(VerificationDiscrepancy(
+                        category: "Channel",
+                        location: "\(location) name",
+                        expected: origCh.name,
+                        actual: readCh.name
+                    ))
+                }
+
+                if origCh.rxFrequencyHz != readCh.rxFrequencyHz {
+                    discrepancies.append(VerificationDiscrepancy(
+                        category: "Channel",
+                        location: "\(location) RX frequency",
+                        expected: String(format: "%.5f MHz", origCh.rxFrequencyMHz),
+                        actual: String(format: "%.5f MHz", readCh.rxFrequencyMHz)
+                    ))
+                }
+
+                if origCh.txFrequencyHz != readCh.txFrequencyHz {
+                    discrepancies.append(VerificationDiscrepancy(
+                        category: "Channel",
+                        location: "\(location) TX frequency",
+                        expected: String(format: "%.5f MHz", origCh.txFrequencyMHz),
+                        actual: String(format: "%.5f MHz", readCh.txFrequencyMHz)
+                    ))
+                }
+
+                if origCh.isDigital != readCh.isDigital {
+                    discrepancies.append(VerificationDiscrepancy(
+                        category: "Channel",
+                        location: "\(location) mode",
+                        expected: origCh.isDigital ? "Digital" : "Analog",
+                        actual: readCh.isDigital ? "Digital" : "Analog"
+                    ))
+                }
+
+                // Digital-specific fields
+                if origCh.isDigital && readCh.isDigital {
+                    if origCh.colorCode != readCh.colorCode {
+                        discrepancies.append(VerificationDiscrepancy(
+                            category: "Channel",
+                            location: "\(location) color code",
+                            expected: "\(origCh.colorCode)",
+                            actual: "\(readCh.colorCode)"
+                        ))
+                    }
+
+                    if origCh.timeSlot != readCh.timeSlot {
+                        discrepancies.append(VerificationDiscrepancy(
+                            category: "Channel",
+                            location: "\(location) time slot",
+                            expected: "\(origCh.timeSlot)",
+                            actual: "\(readCh.timeSlot)"
+                        ))
+                    }
+                }
+            }
+        }
+
+        // Compare contacts count (detailed comparison optional)
+        if original.contacts.count != readBack.contacts.count {
+            discrepancies.append(VerificationDiscrepancy(
+                category: "Structure",
+                location: "Contact count",
+                expected: "\(original.contacts.count)",
+                actual: "\(readBack.contacts.count)"
+            ))
+        }
+
+        return WriteVerificationResult(
+            passed: discrepancies.isEmpty,
+            discrepancies: discrepancies,
+            timestamp: Date()
+        )
     }
 }

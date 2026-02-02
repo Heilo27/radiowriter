@@ -94,6 +94,22 @@ struct RootView: View {
         } message: {
             Text("It's recommended to backup your current codeplug before writing changes to the radio. This protects against accidental data loss.")
         }
+        .alert("Write Verification Warning", isPresented: $coordinator.showingVerificationFailureAlert) {
+            Button("View Details") {
+                // Could show a sheet with full discrepancy list in future
+            }
+            Button("OK") {
+                coordinator.writeVerificationResult = nil
+            }
+        } message: {
+            if let result = coordinator.writeVerificationResult {
+                let count = result.discrepancies.count
+                let preview = result.discrepancies.prefix(3).map { $0.description }.joined(separator: "\n")
+                Text("Write completed but verification found \(count) discrepanc\(count == 1 ? "y" : "ies"):\n\n\(preview)\(count > 3 ? "\n...and \(count - 3) more" : "")")
+            } else {
+                Text("Write verification found discrepancies between written and read-back data.")
+            }
+        }
         .focusedValue(\.appCoordinator, coordinator)
     }
 }
