@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioModelCore
+import Network
 
 /// Welcome screen shown at app launch.
 struct WelcomeView: View {
@@ -34,9 +35,9 @@ struct WelcomeView: View {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(size: 48))
                 .foregroundStyle(.tint)
-            Text("Motorola CPS")
+            Text("RadioWriter")
                 .font(.title.bold())
-            Text("Business Radio Programming Software")
+            Text("Radio Programming Software")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -103,6 +104,11 @@ struct WelcomeView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                } else {
+                    // No radio detected - show help
+                    Divider()
+
+                    noRadioDetectedSection
                 }
 
                 Spacer()
@@ -133,12 +139,16 @@ struct WelcomeView: View {
                                 isSelected: selectedModel == model.id,
                                 isRecommended: model.id == coordinator.identifiedRadio?.suggestedModelIdentifier
                             )
+                            .contentShape(Rectangle())
                             .onTapGesture {
-                                selectedModel = model.id
-                                coordinator.selectedModelIdentifier = model.id
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    selectedModel = model.id
+                                    coordinator.selectedModelIdentifier = model.id
+                                }
                             }
                         }
                     }
+                    .padding(.horizontal, 4)
                 }
 
                 Spacer()
@@ -203,6 +213,248 @@ struct WelcomeView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Radio detected: \(radio.modelNumber), serial \(radio.serialNumber ?? "unknown")")
+    }
+
+    // MARK: - No Radio Detected
+
+    @State private var showingScanLog = false
+    @State private var showingManualIP = false
+    @State private var manualIPAddress = "192.168.10.1"
+
+    private var noRadioDetectedSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .foregroundStyle(.secondary)
+                Text("No Radio Detected")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("To connect your radio:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Power on the radio (not just charging)", systemImage: "power")
+                    Label("Connect USB data cable", systemImage: "cable.connector")
+                    Label("Wait 5-10 seconds for network to initialize", systemImage: "clock")
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 8)
+
+                Text("The radio uses CDC-ECM which macOS supports natively.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+            }
+
+            HStack(spacing: 12) {
+                // Show scan diagnostics button
+                Button {
+                    showingScanLog = true
+                } label: {
+                    Label("Show Scan Log", systemImage: "doc.text.magnifyingglass")
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+
+                // Manual IP entry button
+                Button {
+                    showingManualIP = true
+                } label: {
+                    Label("Enter IP Manually", systemImage: "keyboard")
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+            .padding(.top, 4)
+        }
+        .sheet(isPresented: $showingScanLog) {
+            ScanLogSheet(log: coordinator.radioDetector.lastScanLog)
+        }
+        .sheet(isPresented: $showingManualIP) {
+            ManualIPSheet(ipAddress: $manualIPAddress) { ip in
+                // Add manual device
+                coordinator.addManualDevice(ip: ip)
+                showingManualIP = false
+            }
+        }
+    }
+}
+
+/// Sheet for manually entering radio IP address.
+struct ManualIPSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var ipAddress: String
+    let onConnect: (String) -> Void
+    @State private var isChecking = false
+    @State private var checkResult: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Manual Radio Connection")
+                .font(.headline)
+
+            Text("Enter the radio's IP address. Most MOTOTRBO radios use 192.168.10.1 (your Mac will be .2)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            TextField("IP Address", text: $ipAddress)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 200)
+
+            if let result = checkResult {
+                Text(result)
+                    .font(.caption)
+                    .foregroundStyle(result.contains("Success") ? .green : .orange)
+            }
+
+            HStack(spacing: 16) {
+                Button("Cancel") {
+                    dismiss()
+                }
+
+                Button {
+                    isChecking = true
+                    checkResult = nil
+                    Task {
+                        // Try to connect to verify
+                        let success = await checkXNLPort(ip: ipAddress)
+                        isChecking = false
+                        if success {
+                            checkResult = "Success! Radio found at \(ipAddress)"
+                            try? await Task.sleep(for: .seconds(1))
+                            onConnect(ipAddress)
+                        } else {
+                            checkResult = "Could not reach radio at \(ipAddress). Adding anyway..."
+                            try? await Task.sleep(for: .seconds(1))
+                            onConnect(ipAddress)
+                        }
+                    }
+                } label: {
+                    if isChecking {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Text("Connect")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(ipAddress.isEmpty || isChecking)
+            }
+        }
+        .padding(24)
+        .frame(width: 350)
+    }
+
+    private func checkXNLPort(ip: String) async -> Bool {
+        // Quick check if XNL port is open
+        return await withCheckedContinuation { continuation in
+            let host = NWEndpoint.Host(ip)
+            guard let port = NWEndpoint.Port(rawValue: 8002) else {
+                continuation.resume(returning: false)
+                return
+            }
+
+            let connection = NWConnection(host: host, port: port, using: .tcp)
+            let queue = DispatchQueue(label: "com.radiowriter.manualcheck")
+
+            // Use a Sendable class to hold mutable state safely
+            final class ConnectionState: @unchecked Sendable {
+                var hasResumed = false
+                var timeout: DispatchWorkItem?
+                let lock = NSLock()
+            }
+            let state = ConnectionState()
+
+            let safeResume: @Sendable (Bool) -> Void = { value in
+                state.lock.lock()
+                defer { state.lock.unlock() }
+                guard !state.hasResumed else { return }
+                state.hasResumed = true
+                state.timeout?.cancel()
+                connection.cancel()
+                continuation.resume(returning: value)
+            }
+
+            let timeout = DispatchWorkItem {
+                safeResume(false)
+            }
+            state.timeout = timeout
+            queue.asyncAfter(deadline: .now() + 2.0, execute: timeout)
+
+            connection.stateUpdateHandler = { connectionState in
+                switch connectionState {
+                case .ready:
+                    safeResume(true)
+                case .failed, .cancelled:
+                    safeResume(false)
+                default:
+                    break
+                }
+            }
+
+            connection.start(queue: queue)
+        }
+    }
+}
+
+/// Sheet showing the radio scan diagnostic log.
+struct ScanLogSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppCoordinator.self) private var coordinator
+    @State private var log: String
+    @State private var isScanning = false
+
+    init(log: String) {
+        _log = State(initialValue: log)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Radio Scan Log")
+                    .font(.headline)
+                Spacer()
+
+                Button {
+                    Task {
+                        isScanning = true
+                        await coordinator.radioDetector.scanForDevices()
+                        log = coordinator.radioDetector.lastScanLog
+                        isScanning = false
+                    }
+                } label: {
+                    if isScanning {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Label("Scan Again", systemImage: "arrow.clockwise")
+                    }
+                }
+                .disabled(isScanning)
+
+                Button("Done") {
+                    dismiss()
+                }
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                Text(log.isEmpty ? "No scan data available. Click 'Scan Again' to start." : log)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(width: 600, height: 500)
     }
 }
 

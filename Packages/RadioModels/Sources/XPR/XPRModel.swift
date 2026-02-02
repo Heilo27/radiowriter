@@ -49,6 +49,8 @@ public enum XPR3500eUHF: RadioModel {
     public static let maxChannels = 128
     public static let frequencyBand: FrequencyBand = .uhf
     public static let nodes: [CodeplugNode] = XPRNodes.nodes(maxChannels: maxChannels, maxZones: 16, hasGPS: false)
+    /// Model numbers reported by XPR 3500e UHF radios (e.g., H02RDH9VA1AN)
+    public static let modelNumbers: [String] = ["H02RDH9VA1AN", "AAH02RDH9VA1AN"]
 
     public static func createDefault() -> Codeplug {
         XPRDefaults.create(modelIdentifier: identifier, size: codeplugSize, maxChannels: maxChannels, band: frequencyBand)

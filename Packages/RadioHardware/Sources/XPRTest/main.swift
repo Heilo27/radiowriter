@@ -39,6 +39,14 @@ struct XPRTest {
             if arg == "--debug" || arg == "-d" || arg == "debug" {
                 debugMode = true
             }
+            if arg == "--channels" || arg == "-c" || arg == "channels" {
+                await ChannelTest.run(host: host)
+                return
+            }
+            if arg == "--analyze" || arg == "analyze" {
+                await FullChannelAnalysis.run(host: host)
+                return
+            }
             if arg == "--help" || arg == "-h" {
                 printUsage()
                 return
@@ -526,6 +534,66 @@ struct XPRTest {
                     let bytes = preview[offset..<end]
                     let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
                     print("      \(String(format: "%04X", offset)): \(hex)")
+                }
+            }
+
+            // Also test parsing by calling readZonesAndChannels
+            print("\n[9/9] Testing Zone/Channel Parsing...")
+
+            // First show what records we have in the raw data
+            if verbose {
+                print("    Scanning raw codeplug data for patterns...")
+                var dataRecords = 0
+                var metadataRecords = 0
+                for i in 0..<(codeplug.count - 2) {
+                    if codeplug[i] == 0x81 && codeplug[i + 1] == 0x00 {
+                        dataRecords += 1
+                    } else if codeplug[i] == 0x81 && codeplug[i + 1] == 0x04 {
+                        metadataRecords += 1
+                    }
+                }
+                print("    Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
+
+                // Look for UTF-16 strings (channel names)
+                var utf16Strings: [String] = []
+                for i in stride(from: 0, to: codeplug.count - 20, by: 2) {
+                    // Look for potential UTF-16LE text (ASCII chars as low byte, 0x00 as high byte)
+                    if codeplug[i] >= 0x41 && codeplug[i] <= 0x7A && codeplug[i + 1] == 0x00 {
+                        var str = ""
+                        var j = i
+                        while j < codeplug.count - 1 && codeplug[j + 1] == 0x00 && codeplug[j] >= 0x20 && codeplug[j] <= 0x7E {
+                            str.append(Character(UnicodeScalar(codeplug[j])))
+                            j += 2
+                        }
+                        if str.count >= 3 && str.count <= 16 {
+                            utf16Strings.append(str)
+                        }
+                    }
+                }
+                let uniqueStrings = Array(Set(utf16Strings))
+                if !uniqueStrings.isEmpty {
+                    print("    Found UTF-16LE strings: \(uniqueStrings.prefix(10).joined(separator: ", "))")
+                }
+            }
+
+            let parsedCodeplug = try await programmer.readZonesAndChannels(progress: { _ in }, debug: verbose)
+
+            if parsedCodeplug.zones.isEmpty {
+                print("  ⚠ Parsing: No zones found in codeplug")
+                // Still show any settings found
+                if !parsedCodeplug.radioAlias.isEmpty && parsedCodeplug.radioAlias != "Radio" {
+                    print("    └─ Radio Alias: \(parsedCodeplug.radioAlias)")
+                }
+                if !parsedCodeplug.modelNumber.isEmpty {
+                    print("    └─ Model: \(parsedCodeplug.modelNumber)")
+                }
+            } else {
+                print("  ✓ Parsing: Found \(parsedCodeplug.zones.count) zones")
+                for zone in parsedCodeplug.zones.prefix(5) {
+                    print("    └─ Zone: \(zone.name) (\(zone.channels.count) channels)")
+                    for channel in zone.channels.prefix(3) {
+                        print("       └─ Channel: \(channel.name)")
+                    }
                 }
             }
 

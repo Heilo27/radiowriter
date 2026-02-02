@@ -132,46 +132,34 @@ public struct XNLEncryption {
         }
     }
 
-    // MARK: - Radio Key Encryption (LFSR-based)
+    // MARK: - Radio Key Encryption (TEA-based)
 
-    /// Initial state for the LFSR used in radio key encryption.
-    /// Extracted from PcrSequenceManager.dll → RadioSecurity.EncryptRadioKey()
-    private static let lfsrInitialState: UInt32 = 0x51E50001
-
-    /// Encrypts a 32-byte radio key using LFSR-based algorithm.
+    /// Encrypts a 32-byte radio key using TEA in ECB mode.
     /// Used for the RcmpUnlockSecurity command (0x0301).
+    ///
+    /// The documentation states: "Radio key encryption uses the same TEA algorithm as XNL authentication"
+    /// The 32-byte key is encrypted in four 8-byte blocks using the same TEA key/delta as authentication.
+    ///
     /// - Parameter radioKey: 32-byte key from RcmpReadRadioKey response
     /// - Returns: 32-byte encrypted key for unlock command
     public static func encryptRadioKey(_ radioKey: Data) -> Data? {
         guard radioKey.count == 32 else { return nil }
 
-        var output = [UInt8](repeating: 0, count: 32)
-        var state: UInt32 = lfsrInitialState
+        var result = Data()
 
-        for i in 0..<32 {
-            var byte = radioKey[i]
+        // Encrypt the 32-byte key in four 8-byte blocks using TEA
+        for blockIndex in 0..<4 {
+            let blockStart = blockIndex * 8
+            let blockEnd = blockStart + 8
+            let block = radioKey[blockStart..<blockEnd]
 
-            for bit in stride(from: 7, through: 0, by: -1) {
-                // Get bit from state at position 9
-                let stateBit = Int((state >> 9) & 1)
-
-                // Get bit from input byte at mirror position
-                let inputByte = radioKey[31 - i]
-                let inputBit = Int((inputByte >> (bit & 0x1F)) & 1)
-
-                // XOR to get feedback bit
-                let feedback = stateBit ^ inputBit
-
-                // Update LFSR state
-                state = (state << 1) &+ UInt32(feedback)
-
-                // XOR byte with feedback bit shifted to position
-                byte ^= UInt8(truncatingIfNeeded: feedback << (bit & 0x1F))
+            guard let encryptedBlock = encrypt(Data(block)) else {
+                return nil
             }
 
-            output[i] = byte
+            result.append(encryptedBlock)
         }
 
-        return Data(output)
+        return result
     }
 }

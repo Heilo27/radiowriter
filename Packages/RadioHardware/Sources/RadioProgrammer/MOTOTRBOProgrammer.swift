@@ -253,7 +253,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     ///   - debug: Enable debug output
     /// - Returns: ParsedCodeplug with all data
     public func readZonesAndChannels(
-        progress: @Sendable (Double) -> Void,
+        progress: @escaping @Sendable (Double) -> Void,
         debug: Bool = false
     ) async throws -> ParsedCodeplug {
         // Ensure connected
@@ -289,7 +289,19 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         progress(0.05)
 
-        // Step 3: Get radio general settings
+        // Step 3: Start a reading session using CPS method (0x0105)
+        // This is what CPS does - NOT programming mode (0x0106/0x0300/0x0301)
+        if debug { print("[READ] Starting read session (0x0105)...") }
+        let availableRecords = try await client.startReadSession(debug: debug)
+        if availableRecords.isEmpty {
+            if debug { print("[READ] Session start returned no records, will try fallback...") }
+        } else {
+            if debug { print("[READ] Session started with \(availableRecords.count) available records") }
+        }
+
+        progress(0.08)
+
+        // Step 4: Get radio general settings
         if debug { print("[READ] Reading radio settings...") }
         let settings = try await client.readGeneralSettings(debug: debug)
 
@@ -337,104 +349,163 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             print("[READ] Radio Alias: \(result.radioAlias)")
         }
 
-        progress(0.08)
+        progress(0.12)
 
-        // Step 4: Query zone structure
-        // Try multiple methods to determine zone count
-        if debug { print("[READ] Querying zones...") }
+        // Step 5: Read channels using indexed record format (0x0FFB)
+        // This is the correct CPS 2.0 protocol - channels are indexed records
+        if debug { print("[READ] Reading channels using indexed record format (0x0FFB)...") }
 
-        var zoneCount = 0
-
-        // Method 1: Try FeatureSetRequest (0x0037)
-        if let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug) {
-            zoneCount = zoneResult.zoneCount
-            if debug { print("[READ] FeatureSet query returned \(zoneCount) zones") }
+        let channelRecords = try await client.readAllChannels(debug: debug) { channelProgress in
+            // Map channel reading progress to 12% - 45%
+            progress(0.12 + (0.33 * channelProgress))
         }
 
-        // Method 2: Try reading zone count from radio settings
-        if zoneCount == 0 {
-            if let countReply = try await client.readRadioSetting(dataType: .zoneCount, debug: debug),
-               let count = countReply.byteValue {
-                zoneCount = Int(count)
-                if debug { print("[READ] Radio settings returned \(zoneCount) zones") }
+        if !channelRecords.isEmpty {
+            if debug { print("[READ] Successfully read \(channelRecords.count) channels from indexed records") }
+
+            // Convert ParsedChannelRecord to ChannelData and create a default zone
+            var zone = ParsedZone(name: "Zone 1", position: 0)
+            for record in channelRecords {
+                let channelData = record.toChannelData(zoneIndex: 0)
+                zone.channels.append(channelData)
+
+                if debug && zone.channels.count <= 5 {
+                    print("[READ] Channel \(record.index): '\(record.name)' @ \(record.rxFrequencyMHz) MHz")
+                }
+            }
+            result.zones.append(zone)
+        } else {
+            if debug { print("[READ] Indexed channel read returned no channels, trying fallback...") }
+
+            // Fallback: Try the old metadata-based approach
+            var allRecordData = Data()
+
+            // Read zone/channel mapping records
+            let mappingRecords: [UInt16] = [0x0084, 0x0093, 0x009D, 0x005E, 0x005F, 0x0060]
+            if let batchData = try await client.readCodeplugRecords(mappingRecords, debug: debug) {
+                if debug { print("[READ] Fallback got \(batchData.count) bytes from mapping records") }
+                allRecordData.append(batchData)
+            }
+
+            if allRecordData.count > 0 {
+                // Exclude known settings strings like the radio alias
+                var excludeStrings: Set<String> = []
+                if !result.radioAlias.isEmpty && result.radioAlias != "Radio" {
+                    excludeStrings.insert(result.radioAlias)
+                }
+                if !result.introScreenLine1.isEmpty {
+                    excludeStrings.insert(result.introScreenLine1)
+                }
+                if !result.introScreenLine2.isEmpty {
+                    excludeStrings.insert(result.introScreenLine2)
+                }
+                let parsed = parseCodeplugRecordData(allRecordData, excludeStrings: excludeStrings, debug: debug)
+                if !parsed.zones.isEmpty {
+                    result.zones = parsed.zones
+                    if debug { print("[READ] Fallback parsed \(result.zones.count) zones") }
+                }
             }
         }
 
-        // Method 3: Default to scanning and detecting zones
-        let maxZones = zoneCount > 0 ? zoneCount : 16  // Scan up to 16 zones if count unknown
-        let maxChannelsPerZone = 64  // Increased to handle larger zones
+        progress(0.45)
 
-        if debug { print("[READ] Will scan up to \(maxZones) zones") }
-        progress(0.10)
+        // Step 6: If CodeplugRead didn't give us zones, try CloneRead method
+        if result.zones.isEmpty {
+            if debug { print("[READ] CodeplugRead didn't return zones, trying CloneRead...") }
 
-        // Step 5: Read zones and channels
-        // Progress allocation: 10% to 50% for zones/channels
-        var emptyZoneCount = 0
+            // Query zone structure using multiple methods
+            var zoneCount = 0
 
-        for zoneIndex in 0..<maxZones {
-            var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
-
-            // Try to read zone name
-            if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
-                zone.name = zoneName
-                if debug { print("[READ] Zone \(zoneIndex): \(zoneName)") }
-            } else if debug {
-                print("[READ] Zone \(zoneIndex): No name returned")
+            // Method 1: Try FeatureSetRequest (0x0037)
+            if let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug) {
+                zoneCount = zoneResult.zoneCount
+                if debug { print("[READ] FeatureSet query returned \(zoneCount) zones") }
             }
 
-            // Read channels in this zone
-            var channelIndex = 0
-            var emptyChannelCount = 0
+            // Method 2: Try reading zone count from radio settings
+            if zoneCount == 0 {
+                if let countReply = try await client.readRadioSetting(dataType: .zoneCount, debug: debug),
+                   let count = countReply.byteValue {
+                    zoneCount = Int(count)
+                    if debug { print("[READ] Radio settings returned \(zoneCount) zones") }
+                }
+            }
 
-            while channelIndex < maxChannelsPerZone {
-                // Try to read channel name first to see if channel exists
-                let nameReply = try await client.readChannelData(
-                    zone: UInt16(zoneIndex),
-                    channel: UInt16(channelIndex),
-                    dataType: .channelName
-                )
+            // Method 3: Default to scanning
+            let maxZones = zoneCount > 0 ? zoneCount : 16
+            let maxChannelsPerZone = 64
 
-                // Parse the response
-                let name = nameReply?.stringValue
+            if debug { print("[READ] Will scan up to \(maxZones) zones with CloneRead") }
 
-                // If no name returned or error, check if we should continue
-                if name == nil || name?.isEmpty == true {
-                    emptyChannelCount += 1
-                    // Stop after 2 consecutive empty channels
-                    if emptyChannelCount >= 2 {
-                        if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex - emptyChannelCount + 1) channels") }
-                        break
-                    }
-                    channelIndex += 1
-                    continue
+            var emptyZoneCount = 0
+
+            for zoneIndex in 0..<maxZones {
+                var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
+
+                // Try to read zone name using CloneRead
+                if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
+                    zone.name = zoneName
+                    if debug { print("[READ] Zone \(zoneIndex): \(zoneName)") }
+                } else if debug {
+                    print("[READ] Zone \(zoneIndex): No name returned from CloneRead")
                 }
 
-                emptyChannelCount = 0  // Reset on valid channel
+                // Read channels in this zone
+                var channelIndex = 0
+                var emptyChannelCount = 0
 
-                // Read full channel data
-                let channelData = try await client.readCompleteChannel(
-                    zone: UInt16(zoneIndex),
-                    channel: UInt16(channelIndex),
-                    debug: debug
-                )
+                while channelIndex < maxChannelsPerZone {
+                    // Try to read channel name first to see if channel exists
+                    let nameReply = try await client.readChannelData(
+                        zone: UInt16(zoneIndex),
+                        channel: UInt16(channelIndex),
+                        dataType: .channelName
+                    )
 
-                zone.channels.append(channelData)
-                channelIndex += 1
+                    // Check for error response
+                    if let reply = nameReply {
+                        if debug && channelIndex == 0 {
+                            print("[READ] CloneRead reply for Z\(zoneIndex)C\(channelIndex): error=\(reply.errorCode) data=\(reply.data.count) bytes")
+                        }
+                    }
 
-                // Update progress (10% to 50%)
-                let channelProgress = 0.10 + (0.40 * Double(zoneIndex * 10 + min(channelIndex, 10)) / Double(maxZones * 10))
-                progress(min(channelProgress, 0.50))
-            }
+                    let name = nameReply?.stringValue
 
-            if !zone.channels.isEmpty {
-                result.zones.append(zone)
-                emptyZoneCount = 0  // Reset on valid zone
-            } else {
-                emptyZoneCount += 1
-                // Stop scanning if we've found zones and hit 2 consecutive empty zones
-                if result.zones.count > 0 && emptyZoneCount >= 2 {
-                    if debug { print("[READ] Stopping zone scan after \(result.zones.count) zones") }
-                    break
+                    if name == nil || name?.isEmpty == true {
+                        emptyChannelCount += 1
+                        if emptyChannelCount >= 2 {
+                            if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex - emptyChannelCount + 1) channels") }
+                            break
+                        }
+                        channelIndex += 1
+                        continue
+                    }
+
+                    emptyChannelCount = 0
+
+                    // Read full channel data
+                    let channelData = try await client.readCompleteChannel(
+                        zone: UInt16(zoneIndex),
+                        channel: UInt16(channelIndex),
+                        debug: debug
+                    )
+
+                    zone.channels.append(channelData)
+                    channelIndex += 1
+
+                    let channelProgress = 0.20 + (0.30 * Double(zoneIndex * 10 + min(channelIndex, 10)) / Double(maxZones * 10))
+                    progress(min(channelProgress, 0.50))
+                }
+
+                if !zone.channels.isEmpty {
+                    result.zones.append(zone)
+                    emptyZoneCount = 0
+                } else {
+                    emptyZoneCount += 1
+                    if result.zones.count > 0 && emptyZoneCount >= 2 {
+                        if debug { print("[READ] Stopping zone scan after \(result.zones.count) zones") }
+                        break
+                    }
                 }
             }
         }
@@ -540,6 +611,17 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             print("[READ]   Contacts: \(result.contacts.count)")
             print("[READ]   Scan Lists: \(result.scanLists.count)")
             print("[READ]   RX Groups: \(result.rxGroupLists.count)")
+        }
+
+        // Exit programming mode
+        if debug { print("[READ] Exiting programming mode...") }
+        if let connection = xnlConnection {
+            let exitCmd = Data([
+                UInt8(XCMPOpcode.ishProgramMode.rawValue >> 8),
+                UInt8(XCMPOpcode.ishProgramMode.rawValue & 0xFF),
+                ProgramModeAction.exitProgramMode.rawValue  // 0x00
+            ])
+            _ = try? await connection.sendXCMP(exitCmd, timeout: 2.0, debug: debug)
         }
 
         return result
@@ -950,6 +1032,404 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             group.cancelAll()
             return result
         }
+    }
+
+    // MARK: - Codeplug Record Parsing
+
+    /// Parses zone and channel data from CodeplugRead record data.
+    /// This interprets the binary format returned by opcode 0x002E.
+    ///
+    /// Record format from CPS 2.0 traffic analysis:
+    /// - Response header: [status:1] [recordCount:1]
+    /// - Each record: [size:2] [81:1] [00:1] [00:1] [80:1] [recordID:2] [length:4] [length:4] [data...]
+    /// - Channel data (record 0x0084): name at offset 60 from data start, UTF-16LE
+    private func parseCodeplugRecordData(_ data: Data, excludeStrings: Set<String> = [], debug: Bool = false) -> (zones: [ParsedZone], channels: [ChannelData]) {
+        var zones: [ParsedZone] = []
+        var channels: [ChannelData] = []
+
+        // Build a set of strings to exclude (radio alias, zone names, etc.)
+        let excludeLowercased = Set(excludeStrings.map { $0.lowercased() })
+
+        guard data.count > 10 else {
+            if debug { print("[PARSE] Data too short to contain records") }
+            return (zones, channels)
+        }
+
+        if debug {
+            // Show overview of response data
+            print("[PARSE] Total data: \(data.count) bytes")
+            print("[PARSE] First 64 bytes: \(data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " "))")
+
+            // Count occurrences of different status patterns
+            var dataRecords = 0
+            var metadataRecords = 0
+            for i in 0..<(data.count - 2) {
+                if data[i] == 0x81 && data[i + 1] == 0x00 {
+                    dataRecords += 1
+                } else if data[i] == 0x81 && data[i + 1] == 0x04 {
+                    metadataRecords += 1
+                }
+            }
+            print("[PARSE] Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
+        }
+
+        // Response format from CodeplugRead (0x802E):
+        // [successCount:1] [requestedCount:1] [headerBytes:2] [records...]
+        // OR just start scanning for 81 00 00 80 patterns
+        //
+        // We'll scan for record patterns directly since the header format varies
+        var offset = 0
+
+        // Skip past any header bytes to find the first record
+        // Records start with 81 00 00 80 (data) or 81 04 00 80 (metadata)
+        // Look for the first 81 XX pattern
+        while offset < data.count - 4 {
+            if data[offset] == 0x81 && (data[offset + 1] == 0x00 || data[offset + 1] == 0x04) {
+                break
+            }
+            offset += 1
+        }
+
+        if debug && offset > 0 {
+            print("[PARSE] Skipped \(offset) header bytes to first record")
+        }
+
+        // Collect all unique record IDs to understand the data format
+        var recordIDSet: Set<UInt16> = []
+        var recordsFound = 0
+        var metadataFound = 0
+
+        // First pass: understand what patterns we have
+        // Try both "81 00 00 80" (strict) and "81 00" (relaxed) patterns
+        if debug {
+            print("[PARSE] Analyzing response format...")
+            var strictPattern = 0
+            var relaxedPattern = 0
+            for i in 0..<(data.count - 4) {
+                if data[i] == 0x81 && data[i + 1] == 0x00 {
+                    relaxedPattern += 1
+                    if data[i + 2] == 0x00 && data[i + 3] == 0x80 {
+                        strictPattern += 1
+                    }
+                }
+            }
+            print("[PARSE] Found \(strictPattern) strict (81 00 00 80) and \(relaxedPattern) relaxed (81 00) patterns")
+        }
+
+        // Scan for record patterns: look for "81 00 00 80" (data) or "81 04 00 80" (metadata)
+        while offset < data.count - 12 {
+            // Check for DATA record pattern: 81 00 00 80 [recordID:2] [offset:2] [size:2] [pad:2] [data...]
+            // Note: size is little-endian, total header is 12 bytes before data
+            if data[offset] == 0x81 && offset + 1 < data.count && data[offset + 1] == 0x00 &&
+               offset + 2 < data.count && data[offset + 2] == 0x00 &&
+               offset + 3 < data.count && data[offset + 3] == 0x80 {
+
+                // Found DATA record header pattern at offset
+                let recordID = (UInt16(data[offset + 4]) << 8) | UInt16(data[offset + 5])
+                recordIDSet.insert(recordID)
+
+                // Size is at offset+8,9 as little-endian 16-bit
+                let recordLength = Int(data[offset + 8]) | (Int(data[offset + 9]) << 8)
+
+                if debug && recordsFound < 10 {
+                    print("[PARSE] DATA record 0x\(String(format: "%04X", recordID)) at offset \(offset), length \(recordLength)")
+                    // Show first few bytes of record header
+                    let headerPreview = data[offset..<min(offset + 16, data.count)]
+                    print("[PARSE] Header bytes: \(headerPreview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                }
+
+                // Skip to data start: 4 (header) + 2 (id) + 2 (offset) + 2 (size) + 2 (padding) = 12
+                let dataStart = offset + 12
+
+                if dataStart + recordLength <= data.count && recordLength > 0 {
+                    // Parse based on record type
+                    switch recordID {
+                    case 0x0084:
+                        // Channel data record
+                        if let channel = parseChannelRecord(data, dataStart: dataStart, length: recordLength, channelIndex: channels.count, debug: debug) {
+                            channels.append(channel)
+                            if debug { print("[PARSE] Extracted channel: \(channel.name)") }
+                        }
+
+                    case 0x0093:
+                        // Zone/channel mapping - may contain zone structure
+                        if debug { print("[PARSE] Found zone mapping record (0x0093)") }
+
+                    case 0x009D:
+                        // Zone configuration
+                        if debug { print("[PARSE] Found zone config record (0x009D)") }
+
+                    case 0x0074:
+                        // Zone list - parse zone name
+                        if debug { print("[PARSE] Found zone list record (0x0074)") }
+                        if let zone = parseZoneRecord(data, dataStart: dataStart, length: recordLength, zoneIndex: zones.count, debug: debug) {
+                            zones.append(zone)
+                            if debug { print("[PARSE] Extracted zone: \(zone.name)") }
+                        }
+
+                    default:
+                        if debug && recordsFound < 5 {
+                            // Show some data for unknown records
+                            let preview = data[dataStart..<min(dataStart + 32, data.count)]
+                            print("[PARSE] Unknown record 0x\(String(format: "%04X", recordID)): \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))...")
+                        }
+                    }
+
+                    recordsFound += 1
+                    offset = dataStart + recordLength
+                    continue
+                }
+            }
+
+            // Check for METADATA record pattern: 81 04 00 80 [recordID:2] 00 01 00 00 00 [count:4]
+            if data[offset] == 0x81 && offset + 1 < data.count && data[offset + 1] == 0x04 &&
+               offset + 2 < data.count && data[offset + 2] == 0x00 &&
+               offset + 3 < data.count && data[offset + 3] == 0x80 {
+
+                let recordID = (UInt16(data[offset + 4]) << 8) | UInt16(data[offset + 5])
+                recordIDSet.insert(recordID)
+                metadataFound += 1
+
+                if debug && metadataFound <= 3 {
+                    print("[PARSE] METADATA record 0x\(String(format: "%04X", recordID)) - no data, just existence info")
+                }
+
+                offset += 14  // Skip the metadata entry
+                continue
+            }
+
+            offset += 1
+        }
+
+        if debug {
+            print("[PARSE] Structured parsing: \(recordsFound) data records, \(metadataFound) metadata entries")
+            if !recordIDSet.isEmpty {
+                let sortedIDs = recordIDSet.sorted().map { String(format: "0x%04X", $0) }
+                print("[PARSE] Unique record IDs found: \(sortedIDs.joined(separator: ", "))")
+            }
+            if metadataFound > 0 && recordsFound == 0 {
+                print("[PARSE] ⚠️ Got only metadata (81 04), no actual data (81 00). Need different request format!")
+            }
+        }
+
+        // FALLBACK: Direct UTF-16LE string extraction (no record structure required)
+        // This is more reliable when the record format doesn't match our expectations
+        if debug {
+            print("[PARSE] Running fallback UTF-16LE string extraction...")
+        }
+
+        offset = 0
+        while offset < data.count - 20 {
+            // Look for UTF-16LE strings directly: ASCII char (0x20-0x7E) followed by 0x00
+            if data[offset] >= 0x41 && data[offset] <= 0x7A && // A-z
+               offset + 1 < data.count && data[offset + 1] == 0x00 {
+                // Potential UTF-16LE string start
+                var str = ""
+                var j = offset
+                while j < data.count - 1 &&
+                      data[j] >= 0x20 && data[j] <= 0x7E &&
+                      data[j + 1] == 0x00 {
+                    str.append(Character(UnicodeScalar(data[j])))
+                    j += 2
+                }
+
+                // Valid channel/zone name: 3-16 characters, starts with letter
+                // Filter out false positives: language codes, system strings, fragments, and known settings
+                if str.count >= 3 && str.count <= 16 && str.first?.isLetter == true {
+                    // Skip known non-channel strings
+                    let lowercased = str.lowercased()
+
+                    // Check if this matches any excluded string (radio alias, zone names, etc.)
+                    let isExcluded = excludeLowercased.contains(lowercased) ||
+                                    excludeLowercased.contains { excluded in
+                                        lowercased.contains(excluded) || excluded.contains(lowercased)
+                                    }
+
+                    let isLanguageCode = lowercased.contains("-") && str.count <= 6 // e.g., "en-us"
+                    let isSystemString = ["talkset", "scanlist", "contact", "group", "radio", "zone"]
+                        .contains { lowercased == $0 }
+                    let isFragment = lowercased.hasPrefix("et ") || lowercased.hasPrefix("io") ||
+                                    lowercased.hasPrefix("dio") || lowercased.hasPrefix("set ") ||
+                                    lowercased.hasPrefix("kset")
+
+                    if !isExcluded && !isLanguageCode && !isSystemString && !isFragment {
+                        // Check if already found or is a substring/suffix of an existing name
+                        let existingNames = channels.map { $0.name }
+                        let existingZoneNames = zones.map { $0.name }
+                        let isDuplicate = existingNames.contains(str) || existingZoneNames.contains(str)
+                        let isSubstring = existingNames.contains { $0.contains(str) && $0 != str }
+                        // Check if this is a longer version of an existing name (e.g., "dRyan's Radio" vs "Ryan's Radio")
+                        let hasOverlap = existingNames.contains { existing in
+                            str.hasSuffix(existing) || existing.hasSuffix(str)
+                        }
+
+                        if !isDuplicate && !isSubstring && !hasOverlap {
+                            var channel = ChannelData(zoneIndex: 0, channelIndex: channels.count)
+                            channel.name = str
+                            channels.append(channel)
+                            if debug && channels.count <= 10 {
+                                print("[PARSE] UTF-16LE channel found: '\(str)' at offset \(offset)")
+                            }
+                        }
+                    }
+                }
+                offset = j  // Skip past the string
+                continue
+            }
+            offset += 1
+        }
+
+        // Also try the old 02 03 prefix pattern as another fallback
+        offset = 0
+        while offset < data.count - 20 {
+            if data[offset] == 0x02 && data[offset + 1] == 0x03 {
+                // Found potential channel name marker
+                let nameStart = offset + 2
+                let maxNameLength = min(32, data.count - nameStart)
+
+                if maxNameLength > 0 {
+                    let nameData = Data(data[nameStart..<(nameStart + maxNameLength)])
+
+                    // Try to decode as UTF-16LE
+                    if let name = String(data: nameData, encoding: .utf16LittleEndian)?
+                        .trimmingCharacters(in: .controlCharacters)
+                        .trimmingCharacters(in: CharacterSet(["\0"])) {
+
+                        if !name.isEmpty && name.count <= 16 && !name.contains("\u{FFFD}") {
+                            // Check if we already have this channel
+                            let existingNames = channels.map { $0.name }
+                            if !existingNames.contains(name) {
+                                var channel = ChannelData(zoneIndex: 0, channelIndex: channels.count)
+                                channel.name = name
+
+                                // Try to find frequency data nearby (before the name marker)
+                                if offset >= 60 {
+                                    // Look for TX/RX frequencies in the bytes before the name
+                                    // Frequencies may be stored at specific offsets
+                                    channel = extractFrequenciesFromContext(data, nameOffset: offset, channel: channel, debug: debug)
+                                }
+
+                                if debug && channels.count < 10 {
+                                    print("[PARSE] Found channel name '\(name)' at offset \(offset)")
+                                }
+                                channels.append(channel)
+                            }
+                        }
+                    }
+                }
+            }
+            offset += 1
+        }
+
+        // If we found channels but no zones, create a default zone
+        if !channels.isEmpty && zones.isEmpty {
+            var zone = ParsedZone(name: "Zone 1", position: 0)
+            zone.channels = channels
+            zones.append(zone)
+        }
+
+        if debug {
+            print("[PARSE] Extracted \(zones.count) zones with \(channels.count) channels total")
+        }
+
+        return (zones, channels)
+    }
+
+    /// Parses a channel data record (0x0084).
+    private func parseChannelRecord(_ data: Data, dataStart: Int, length: Int, channelIndex: Int, debug: Bool) -> ChannelData? {
+        guard dataStart + 70 <= data.count else { return nil }
+
+        var channel = ChannelData(zoneIndex: 0, channelIndex: channelIndex)
+
+        // From CPS traffic analysis, channel name is at offset ~60 from data start
+        // Look for the 02 03 prefix before UTF-16LE channel name
+        for searchOffset in stride(from: dataStart + 50, to: min(dataStart + length, data.count - 20), by: 1) {
+            if data[searchOffset] == 0x02 && data[searchOffset + 1] == 0x03 {
+                let nameStart = searchOffset + 2
+                let maxLen = min(32, data.count - nameStart)
+                let nameData = Data(data[nameStart..<(nameStart + maxLen)])
+
+                if let name = String(data: nameData, encoding: .utf16LittleEndian)?
+                    .trimmingCharacters(in: .controlCharacters)
+                    .trimmingCharacters(in: CharacterSet(["\0"])) {
+                    if !name.isEmpty && name.count <= 16 {
+                        channel.name = name
+                        break
+                    }
+                }
+            }
+        }
+
+        // If no name found, return nil
+        if channel.name.starts(with: "CH") {
+            return nil
+        }
+
+        return channel
+    }
+
+    /// Parses a zone record (0x0074) to extract zone name.
+    /// Zone names are typically stored as UTF-16LE strings.
+    private func parseZoneRecord(_ data: Data, dataStart: Int, length: Int, zoneIndex: Int, debug: Bool) -> ParsedZone? {
+        guard dataStart + 10 <= data.count else { return nil }
+
+        var zone = ParsedZone(position: zoneIndex)
+
+        // Look for UTF-16LE zone name in the record
+        // Try different offsets for the name
+        for searchOffset in stride(from: dataStart, to: min(dataStart + length, data.count - 10), by: 1) {
+            // Look for printable UTF-16LE text
+            let nameData = Data(data[searchOffset..<min(searchOffset + 32, data.count)])
+
+            if let name = String(data: nameData, encoding: .utf16LittleEndian)?
+                .trimmingCharacters(in: .controlCharacters)
+                .trimmingCharacters(in: CharacterSet(["\0"])) {
+                if name.count >= 2 && name.count <= 16 && !name.contains("\u{FFFD}") && name.first?.isLetter == true {
+                    zone.name = name
+                    if debug { print("[PARSE] Zone name found: '\(name)' at offset \(searchOffset)") }
+                    return zone
+                }
+            }
+        }
+
+        return nil
+    }
+
+    /// Tries to extract TX/RX frequencies from data around a channel name.
+    private func extractFrequenciesFromContext(_ data: Data, nameOffset: Int, channel: ChannelData, debug: Bool) -> ChannelData {
+        var result = channel
+
+        // Frequencies may be stored before the name in the record
+        // Look for 4-byte values that could be frequencies
+        // DMR frequencies are often stored in 10 Hz or 100 Hz units
+
+        // Scan backward from name for frequency patterns
+        for searchOffset in stride(from: max(0, nameOffset - 60), through: max(0, nameOffset - 20), by: 4) {
+            if searchOffset + 4 <= data.count {
+                // Try little-endian first (common in DMR)
+                let freqLE = UInt32(data[searchOffset]) |
+                            (UInt32(data[searchOffset + 1]) << 8) |
+                            (UInt32(data[searchOffset + 2]) << 16) |
+                            (UInt32(data[searchOffset + 3]) << 24)
+
+                // Check if this looks like a frequency
+                // UHF: 400-520 MHz (40000000-52000000 in 10Hz units)
+                // VHF: 136-174 MHz (13600000-17400000 in 10Hz units)
+                let freqMHz = Double(freqLE) / 100000.0  // Assuming 10Hz units
+
+                if (freqMHz >= 400 && freqMHz <= 520) || (freqMHz >= 136 && freqMHz <= 174) {
+                    if result.rxFrequencyHz == 0 {
+                        result.rxFrequencyHz = UInt32(freqLE) * 10
+                        if debug { print("[PARSE] Found RX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
+                    } else if result.txFrequencyHz == 0 {
+                        result.txFrequencyHz = UInt32(freqLE) * 10
+                        if debug { print("[PARSE] Found TX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
+                    }
+                }
+            }
+        }
+
+        return result
     }
 }
 
