@@ -11,6 +11,8 @@
 		11A2B3C4D5E6F7890AB1CD23 /* CodeplugValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B3C4D5E6F78901BC2DE345 /* CodeplugValidator.swift */; };
 		122E55597F3D22C057E98B38 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */; };
 		33C4D5E6F7890123CD4EF567 /* ValidationResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D5E6F78901234DE5F06789 /* ValidationResultsView.swift */; };
+		66A1B2C3D4E5F6A7B8C9D0E1 /* CSVService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */; };
+		88C3D4E5F6A7B8C9D0E1F203 /* CSVImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */; };
 		14EFD017D20CC255F3917705 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */; };
 		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
 		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
@@ -35,6 +37,8 @@
 		00F220EECD3E92E259A3BA12 /* CPSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CPSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		038A36D46CEF3C6B08C52F3A /* RadioModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioModels; path = ../Packages/RadioModels; sourceTree = SOURCE_ROOT; };
 		1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
+		77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVService.swift; sourceTree = "<group>"; };
+		99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportView.swift; sourceTree = "<group>"; };
 		22B3C4D5E6F78901BC2DE345 /* CodeplugValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugValidator.swift; sourceTree = "<group>"; };
 		44D5E6F78901234DE5F06789 /* ValidationResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationResultsView.swift; sourceTree = "<group>"; };
 		1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSCommands.swift; sourceTree = "<group>"; };
@@ -110,8 +114,17 @@
 				1C3263A54BF2DDD488A72F62 /* Components */,
 				68A9AB4E1820AAD6F539A660 /* Core */,
 				BE2D8A0E15F01ABABBF6C880 /* Features */,
+				AAE5F6A7B8C9D0E1F2031425 /* Services */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		AAE5F6A7B8C9D0E1F2031425 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		1C3263A54BF2DDD488A72F62 /* Components */ = {
@@ -164,12 +177,21 @@
 			isa = PBXGroup;
 			children = (
 				050A60AC82B014398F8940D4 /* Codeplug */,
+				BBF6A7B8C9D0E1F203142536 /* Import */,
 				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
 				6C4FE5C4999E778943688865 /* RadioProgramming */,
 				55E6F789012345EF6701890A /* Validation */,
 				A16F87105157E6F5F41806C2 /* Welcome */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		BBF6A7B8C9D0E1F203142536 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */,
+			);
+			path = Import;
 			sourceTree = "<group>";
 		};
 		55E6F789012345EF6701890A /* Validation */ = {
@@ -256,6 +278,8 @@
 				6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */,
 				C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */,
 				A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */,
+				66A1B2C3D4E5F6A7B8C9D0E1 /* CSVService.swift in Sources */,
+				88C3D4E5F6A7B8C9D0E1F203 /* CSVImportView.swift in Sources */,
 				EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */,
 				2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */,
 				11A2B3C4D5E6F7890AB1CD23 /* CodeplugValidator.swift in Sources */,

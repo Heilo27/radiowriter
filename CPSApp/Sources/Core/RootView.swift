@@ -1,11 +1,40 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import RadioProgrammer
+
+/// Simple document wrapper for CSV export.
+struct CSVDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.commaSeparatedText, .text] }
+
+    var content: String
+
+    init(content: String) {
+        self.content = content
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        if let data = configuration.file.regularFileContents,
+           let string = String(data: data, encoding: .utf8) {
+            content = string
+        } else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        guard let data = content.data(using: .utf8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return FileWrapper(regularFileWithContents: data)
+    }
+}
 
 /// Router view that switches between welcome and editing phases.
 struct RootView: View {
     @Environment(AppCoordinator.self) private var coordinator
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var csvExportContent: String = ""
 
     var body: some View {
         @Bindable var coordinator = coordinator
@@ -108,6 +137,89 @@ struct RootView: View {
                 Text("Write completed but verification found \(count) discrepanc\(count == 1 ? "y" : "ies"):\n\n\(preview)\(count > 3 ? "\n...and \(count - 3) more" : "")")
             } else {
                 Text("Write verification found discrepancies between written and read-back data.")
+            }
+        }
+        // CSV Import dialogs
+        .fileImporter(
+            isPresented: $coordinator.showingImportChannelsDialog,
+            allowedContentTypes: [.commaSeparatedText, .text],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    coordinator.importChannelsFromCSV(content)
+                } catch {
+                    errorMessage = "Failed to read CSV file: \(error.localizedDescription)"
+                    showingError = true
+                }
+            case .failure(let error):
+                errorMessage = "Could not access file: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+        .fileImporter(
+            isPresented: $coordinator.showingImportContactsDialog,
+            allowedContentTypes: [.commaSeparatedText, .text],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    coordinator.importContactsFromCSV(content)
+                } catch {
+                    errorMessage = "Failed to read CSV file: \(error.localizedDescription)"
+                    showingError = true
+                }
+            case .failure(let error):
+                errorMessage = "Could not access file: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+        // CSV Export dialogs
+        .fileExporter(
+            isPresented: $coordinator.showingExportChannelsDialog,
+            document: CSVDocument(content: coordinator.exportChannelsToCSV() ?? ""),
+            contentType: .commaSeparatedText,
+            defaultFilename: "channels"
+        ) { result in
+            if case .failure(let error) = result {
+                errorMessage = "Failed to export CSV: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+        .fileExporter(
+            isPresented: $coordinator.showingExportContactsDialog,
+            document: CSVDocument(content: coordinator.exportContactsToCSV() ?? ""),
+            contentType: .commaSeparatedText,
+            defaultFilename: "contacts"
+        ) { result in
+            if case .failure(let error) = result {
+                errorMessage = "Failed to export CSV: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+        // CSV Import preview sheets
+        .sheet(isPresented: $coordinator.showingChannelImportSheet) {
+            if let result = coordinator.channelImportResult {
+                ChannelImportPreviewView(importResult: result) {
+                    coordinator.channelImportResult = nil
+                }
+            }
+        }
+        .sheet(isPresented: $coordinator.showingContactImportSheet) {
+            if let result = coordinator.contactImportResult {
+                ContactImportPreviewView(importResult: result) {
+                    coordinator.contactImportResult = nil
+                }
             }
         }
         .focusedValue(\.appCoordinator, coordinator)

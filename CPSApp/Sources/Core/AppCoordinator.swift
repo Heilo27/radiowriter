@@ -49,6 +49,16 @@ final class AppCoordinator {
     var writeVerificationResult: WriteVerificationResult?
     var showingVerificationFailureAlert = false
 
+    // CSV Import/Export state
+    var showingChannelImportSheet = false
+    var showingContactImportSheet = false
+    var channelImportResult: CSVService.ChannelImportResult?
+    var contactImportResult: CSVService.ContactImportResult?
+    var showingExportChannelsDialog = false
+    var showingExportContactsDialog = false
+    var showingImportChannelsDialog = false
+    var showingImportContactsDialog = false
+
     /// Detected devices - tracked separately for proper SwiftUI observation.
     var detectedDevices: [USBDeviceInfo] = []
 
@@ -633,6 +643,38 @@ final class AppCoordinator {
         // For now, this just ensures the codeplug is ready for modification
         // In the future, this could create a named "clone" for fleet management
         // The main use case is already handled - users can modify and write to different radios
+    }
+
+    // MARK: - CSV Import/Export
+
+    /// Exports channels from the current codeplug to CSV.
+    /// - Returns: CSV string content, or nil if no codeplug is loaded
+    func exportChannelsToCSV() -> String? {
+        guard let codeplug = parsedCodeplug else { return nil }
+        return CSVService.exportChannels(from: codeplug)
+    }
+
+    /// Exports contacts from the current codeplug to CSV.
+    /// - Returns: CSV string content, or nil if no codeplug is loaded
+    func exportContactsToCSV() -> String? {
+        guard let codeplug = parsedCodeplug else { return nil }
+        return CSVService.exportContacts(from: codeplug)
+    }
+
+    /// Imports channels from a CSV string and shows the preview sheet.
+    /// - Parameter csvContent: The CSV content to import
+    func importChannelsFromCSV(_ csvContent: String) {
+        let result = CSVService.importChannels(from: csvContent)
+        channelImportResult = result
+        showingChannelImportSheet = true
+    }
+
+    /// Imports contacts from a CSV string and shows the preview sheet.
+    /// - Parameter csvContent: The CSV content to import
+    func importContactsFromCSV(_ csvContent: String) {
+        let result = CSVService.importContacts(from: csvContent)
+        contactImportResult = result
+        showingContactImportSheet = true
     }
 
     // MARK: - Radio Communication

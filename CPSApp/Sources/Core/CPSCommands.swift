@@ -120,6 +120,37 @@ struct CPSCommands: Commands {
         }
 
         CommandMenu("Tools") {
+            // CSV Import/Export
+            Menu("Import") {
+                Button("Channels from CSV...") {
+                    coordinator?.showingImportChannelsDialog = true
+                }
+                .disabled(coordinator?.parsedCodeplug == nil)
+                .accessibilityLabel("Import channels from CSV file")
+
+                Button("Contacts from CSV...") {
+                    coordinator?.showingImportContactsDialog = true
+                }
+                .disabled(coordinator?.parsedCodeplug == nil)
+                .accessibilityLabel("Import contacts from CSV file")
+            }
+
+            Menu("Export") {
+                Button("Channels to CSV...") {
+                    coordinator?.showingExportChannelsDialog = true
+                }
+                .disabled(!hasCodeplug)
+                .accessibilityLabel("Export channels to CSV file")
+
+                Button("Contacts to CSV...") {
+                    coordinator?.showingExportContactsDialog = true
+                }
+                .disabled(!hasCodeplug)
+                .accessibilityLabel("Export contacts to CSV file")
+            }
+
+            Divider()
+
             Button("Frequency Planner") {
                 // Open frequency planner
             }
