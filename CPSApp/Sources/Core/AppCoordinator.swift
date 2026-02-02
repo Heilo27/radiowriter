@@ -79,6 +79,9 @@ final class AppCoordinator {
     var showingImportChannelsDialog = false
     var showingImportContactsDialog = false
 
+    // DMR ID Lookup state
+    var showingDMRIDLookup = false
+
     /// Detected devices - tracked separately for proper SwiftUI observation.
     var detectedDevices: [USBDeviceInfo] = []
 

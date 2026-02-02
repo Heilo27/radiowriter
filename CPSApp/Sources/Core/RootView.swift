@@ -222,6 +222,10 @@ struct RootView: View {
                 }
             }
         }
+        // DMR ID Lookup sheet
+        .sheet(isPresented: $coordinator.showingDMRIDLookup) {
+            DMRIDLookupView()
+        }
         .focusedValue(\.appCoordinator, coordinator)
     }
 }

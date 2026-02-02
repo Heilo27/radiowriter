@@ -168,6 +168,12 @@ struct CPSCommands: Commands {
 
             Divider()
 
+            Button("DMR ID Lookup") {
+                coordinator?.showingDMRIDLookup = true
+            }
+            .keyboardShortcut("l", modifiers: [.command, .option])
+            .accessibilityLabel("Look up DMR IDs from RadioID.net database")
+
             Button("Frequency Planner") {
                 // Open frequency planner
             }
