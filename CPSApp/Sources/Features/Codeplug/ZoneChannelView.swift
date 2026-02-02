@@ -438,7 +438,7 @@ struct ZoneChannelView: View {
 
     private var channelDetailView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header with Edit button
+            // Header with More Options button
             HStack {
                 Text("Channel Details")
                     .font(.headline)
@@ -448,10 +448,11 @@ struct ZoneChannelView: View {
                     Button {
                         showingChannelEditor = true
                     } label: {
-                        Label("Edit", systemImage: "pencil")
+                        Label("More Options", systemImage: "slider.horizontal.3")
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityLabel("Edit selected channel")
+                    .accessibilityLabel("Open full channel editor")
+                    .accessibilityHint("Opens a dialog with all channel settings")
                 }
             }
             .padding(.horizontal)
@@ -459,8 +460,16 @@ struct ZoneChannelView: View {
 
             Divider()
 
-            if let channel = selectedChannel {
-                ChannelDetailView(channel: channel)
+            if let channelIndex = selectedChannelIndex,
+               let zones = coordinator.parsedCodeplug?.zones,
+               selectedZoneIndex >= 0 && selectedZoneIndex < zones.count,
+               channelIndex >= 0 && channelIndex < zones[selectedZoneIndex].channels.count {
+                EditableChannelDetailView(
+                    channel: zones[selectedZoneIndex].channels[channelIndex],
+                    onUpdate: { updatedChannel in
+                        updateChannel(updatedChannel)
+                    }
+                )
             } else {
                 ContentUnavailableView {
                     Label("Select Channel", systemImage: "info.circle")
@@ -956,6 +965,335 @@ struct SettingRow: View {
                 .fontWeight(.medium)
         }
         .font(.callout)
+    }
+}
+
+// MARK: - Editable Channel Detail View
+
+/// An editable version of the channel detail view for inline editing of common fields.
+struct EditableChannelDetailView: View {
+    let channel: ChannelData
+    let onUpdate: (ChannelData) -> Void
+
+    @State private var editingChannel: ChannelData
+    @State private var rxFrequencyString: String
+    @State private var txFrequencyString: String
+    @State private var expandedSections: Set<String> = ["quick", "frequency", "digital"]
+
+    /// Unique key for the channel to detect when a new channel is selected.
+    private var channelKey: String {
+        "\(channel.zoneIndex)-\(channel.channelIndex)"
+    }
+
+    init(channel: ChannelData, onUpdate: @escaping (ChannelData) -> Void) {
+        self.channel = channel
+        self.onUpdate = onUpdate
+        _editingChannel = State(initialValue: channel)
+        _rxFrequencyString = State(initialValue: String(format: "%.5f", channel.rxFrequencyMHz))
+        _txFrequencyString = State(initialValue: String(format: "%.5f", channel.txFrequencyMHz))
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                // MARK: - Quick Edit Section
+                DisclosureGroup(
+                    isExpanded: binding(for: "quick"),
+                    content: { quickEditContent },
+                    label: { sectionHeader("Quick Edit", icon: "pencil.circle") }
+                )
+
+                Divider()
+
+                // MARK: - Frequency Section (Editable)
+                DisclosureGroup(
+                    isExpanded: binding(for: "frequency"),
+                    content: { frequencyEditContent },
+                    label: { sectionHeader("Frequencies", icon: "waveform") }
+                )
+
+                Divider()
+
+                // MARK: - Digital Settings (Editable if digital)
+                if editingChannel.isDigital {
+                    DisclosureGroup(
+                        isExpanded: binding(for: "digital"),
+                        content: { digitalEditContent },
+                        label: { sectionHeader("Digital (DMR)", icon: "antenna.radiowaves.left.and.right") }
+                    )
+
+                    Divider()
+                }
+
+                // MARK: - Power Settings
+                DisclosureGroup(
+                    isExpanded: binding(for: "power"),
+                    content: { powerEditContent },
+                    label: { sectionHeader("Power & Options", icon: "bolt.fill") }
+                )
+
+                Divider()
+
+                // MARK: - Read-only Advanced Info
+                DisclosureGroup(
+                    isExpanded: binding(for: "advanced"),
+                    content: { advancedReadOnlyContent },
+                    label: { sectionHeader("Advanced (Read-Only)", icon: "info.circle") }
+                )
+
+                Spacer(minLength: 20)
+            }
+            .padding()
+        }
+        .onChange(of: channelKey) { _, _ in
+            // Update when a different channel is selected
+            editingChannel = channel
+            rxFrequencyString = String(format: "%.5f", channel.rxFrequencyMHz)
+            txFrequencyString = String(format: "%.5f", channel.txFrequencyMHz)
+        }
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(_ title: String, icon: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            Text(title)
+                .font(.headline)
+        }
+    }
+
+    private func binding(for section: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedSections.contains(section) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedSections.insert(section)
+                } else {
+                    expandedSections.remove(section)
+                }
+            }
+        )
+    }
+
+    // MARK: - Quick Edit Content
+
+    private var quickEditContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Channel Name
+            HStack {
+                Text("Name")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                TextField("Channel Name", text: $editingChannel.name)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        onUpdate(editingChannel)
+                    }
+                    .accessibilityLabel("Channel name")
+            }
+
+            // Channel Type (read-only display)
+            HStack {
+                Text("Type")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                Text(editingChannel.isDigital ? "Digital (DMR)" : "Analog")
+                    .fontWeight(.medium)
+            }
+        }
+        .padding(.leading, 24)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Frequency Edit Content
+
+    private var frequencyEditContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // RX Frequency
+            HStack {
+                Text("RX Freq")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                TextField("RX Frequency", text: $rxFrequencyString)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+                    .onSubmit {
+                        if let freq = Double(rxFrequencyString) {
+                            editingChannel.rxFrequencyHz = UInt32(freq * 1_000_000)
+                            onUpdate(editingChannel)
+                        }
+                    }
+                    .accessibilityLabel("Receive frequency in MHz")
+                Text("MHz")
+                    .foregroundStyle(.secondary)
+            }
+
+            // TX Frequency
+            HStack {
+                Text("TX Freq")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                TextField("TX Frequency", text: $txFrequencyString)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+                    .onSubmit {
+                        if let freq = Double(txFrequencyString) {
+                            editingChannel.txFrequencyHz = UInt32(freq * 1_000_000)
+                            onUpdate(editingChannel)
+                        }
+                    }
+                    .accessibilityLabel("Transmit frequency in MHz")
+                Text("MHz")
+                    .foregroundStyle(.secondary)
+            }
+
+            // Offset (read-only calculated)
+            if editingChannel.rxFrequencyHz != editingChannel.txFrequencyHz {
+                HStack {
+                    Text("Offset")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 100, alignment: .leading)
+                    Text(String(format: "%+.4f MHz", editingChannel.txOffsetMHz))
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .padding(.leading, 24)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Digital Edit Content
+
+    private var digitalEditContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Color Code
+            HStack {
+                Text("Color Code")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: $editingChannel.colorCode) {
+                    ForEach(0...15, id: \.self) { cc in
+                        Text("\(cc)").tag(cc)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 80)
+                .onChange(of: editingChannel.colorCode) { _, _ in
+                    onUpdate(editingChannel)
+                }
+                .accessibilityLabel("Color code")
+            }
+
+            // Time Slot
+            HStack {
+                Text("Time Slot")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: $editingChannel.timeSlot) {
+                    Text("TS1").tag(1)
+                    Text("TS2").tag(2)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 100)
+                .onChange(of: editingChannel.timeSlot) { _, _ in
+                    onUpdate(editingChannel)
+                }
+                .accessibilityLabel("Time slot")
+            }
+
+            // Contact ID
+            HStack {
+                Text("Contact ID")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                TextField("Contact ID", value: $editingChannel.contactID, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 100)
+                    .onSubmit {
+                        onUpdate(editingChannel)
+                    }
+                    .accessibilityLabel("Contact ID")
+            }
+        }
+        .padding(.leading, 24)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Power Edit Content
+
+    private var powerEditContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // TX Power
+            HStack {
+                Text("TX Power")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: $editingChannel.txPowerHigh) {
+                    Text("High").tag(true)
+                    Text("Low").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 100)
+                .onChange(of: editingChannel.txPowerHigh) { _, _ in
+                    onUpdate(editingChannel)
+                }
+                .accessibilityLabel("Transmit power")
+            }
+
+            // Bandwidth
+            HStack {
+                Text("Bandwidth")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: $editingChannel.bandwidthWide) {
+                    Text("12.5 kHz").tag(false)
+                    Text("25 kHz").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+                .onChange(of: editingChannel.bandwidthWide) { _, _ in
+                    onUpdate(editingChannel)
+                }
+                .accessibilityLabel("Bandwidth")
+            }
+
+            // RX Only
+            Toggle(isOn: $editingChannel.rxOnly) {
+                Text("RX Only")
+                    .foregroundStyle(.secondary)
+            }
+            .onChange(of: editingChannel.rxOnly) { _, _ in
+                onUpdate(editingChannel)
+            }
+            .accessibilityLabel("Receive only mode")
+        }
+        .padding(.leading, 24)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Advanced Read-Only Content
+
+    private var advancedReadOnlyContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingRow("Position", value: "\(editingChannel.channelIndex + 1)")
+            SettingRow("TOT Timeout", value: "\(editingChannel.totTimeout) seconds")
+            SettingRow("Allow Talkaround", value: editingChannel.allowTalkaround ? "Yes" : "No")
+            if editingChannel.isDigital {
+                SettingRow("RX Group List", value: "\(editingChannel.rxGroupListID)")
+                SettingRow("Privacy", value: editingChannel.privacyType == 0 ? "None" : "Enabled")
+            }
+            SettingRow("Auto Scan", value: editingChannel.autoScan ? "Yes" : "No")
+
+            Text("Use 'More Options' for additional settings")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 8)
+        }
+        .padding(.leading, 24)
+        .padding(.vertical, 8)
     }
 }
 
