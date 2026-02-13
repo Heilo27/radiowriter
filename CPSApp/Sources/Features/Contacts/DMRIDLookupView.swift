@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioModelCore
 
 /// View for looking up DMR IDs from the RadioID.net database.
 struct DMRIDLookupView: View {

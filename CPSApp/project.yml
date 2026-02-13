@@ -29,6 +29,15 @@ targets:
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
+    postBuildScripts:
+      - script: |
+          if command -v swiftlint >/dev/null 2>&1; then
+            swiftlint lint --config "${SRCROOT}/../.swiftlint.yml" --quiet
+          else
+            echo "warning: SwiftLint not installed. Run 'brew install swiftlint'."
+          fi
+        name: SwiftLint
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: RadioCore
       - package: RadioModels
@@ -36,3 +45,16 @@ targets:
       - package: RadioHardware
         product: RadioHardware
       - package: AudioEngine
+  CPSAppUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.heiloprojects.MotorolaCPS.uitests
+        SWIFT_VERSION: "5.9"
+        TEST_TARGET_NAME: CPSApp
+        GENERATE_INFOPLIST_FILE: true
+    dependencies:
+      - target: CPSApp

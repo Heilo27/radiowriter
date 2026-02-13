@@ -99,7 +99,7 @@ We may update this privacy policy to reflect changes in the Application. Updates
 
 ## Open Source
 
-RadioWriter is free and open source software. You can review the source code to verify these privacy claims.
+RadioWriter is free and open source software, licensed under the [MIT License](../LICENSE). You can review the source code to verify these privacy claims. See [LEGAL.md](../LEGAL.md) for full legal disclaimers and [Terms of Service](TERMS_OF_SERVICE.md) for usage terms.
 
 ---
 

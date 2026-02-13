@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// XNL Authentication encryption for MOTOTRBO radios.
 /// Uses TEA (Tiny Encryption Algorithm) variant.
@@ -114,10 +115,12 @@ public struct XNLEncryption {
             [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0],
         ]
 
-        print("XNL Encryption Test Vectors")
-        print("Key: \(key.map { String(format: "0x%08X", $0) }.joined(separator: ", "))")
-        print("Delta: 0x\(String(format: "%08X", delta))")
-        print("")
+        RadioLog.crypto.debug("XNL Encryption Test Vectors")
+        let keyFormatted = key.map { String(format: "0x%08X", $0) }.joined(separator: ", ")
+        RadioLog.crypto.debug("Key: \(keyFormatted, privacy: .public)")
+        let deltaFormatted = String(format: "%08X", delta)
+        RadioLog.crypto.debug("Delta: 0x\(deltaFormatted, privacy: .public)")
+        RadioLog.crypto.debug("")
 
         for input in testInputs {
             let inputData = Data(input)
@@ -125,9 +128,9 @@ public struct XNLEncryption {
 
             if let output = encrypt(inputData) {
                 let outputHex = output.map { String(format: "%02X", $0) }.joined(separator: " ")
-                print("Input:  \(inputHex)")
-                print("Output: \(outputHex)")
-                print("")
+                RadioLog.crypto.debug("Input:  \(inputHex, privacy: .public)")
+                RadioLog.crypto.debug("Output: \(outputHex, privacy: .public)")
+                RadioLog.crypto.debug("")
             }
         }
     }

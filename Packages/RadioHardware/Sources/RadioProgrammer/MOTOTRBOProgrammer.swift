@@ -1,6 +1,8 @@
 import Foundation
 import Network
 import USBTransport
+import RadioModelCore
+import os
 
 /// Programmer for MOTOTRBO radios (XPR, SL, DP, DM series).
 /// Uses TCP/IP communication over CDC ECM network interface.
@@ -41,7 +43,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         case .success(let assignedAddress):
             self.xnlConnection = connection
             self.xcmpClient = XCMPClient(xnlConnection: connection)
-            print("MOTOTRBO connected, XNL address: 0x\(String(format: "%04X", assignedAddress))")
+            let addressHex = String(format: "%04X", assignedAddress)
+            RadioLog.programmer.info("MOTOTRBO connected, XNL address: 0x\(addressHex, privacy: .public)")
 
         case .authenticationFailed(let code):
             throw MOTOTRBOError.protocolError("XNL authentication failed (code: 0x\(String(format: "%02X", code)))")
@@ -179,26 +182,29 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         progress(0.0)
 
         // Step 1: Get security key (CPS does this first)
-        if debug { print("[READ] Getting security key...") }
+        if debug { RadioLog.programmer.debug("[READ] Getting security key...") }
         guard let securityKey = try await client.getSecurityKey(debug: debug) else {
             throw MOTOTRBOError.protocolError("Failed to get security key")
         }
-        if debug { print("[READ] Security key: \(securityKey.map { String(format: "%02X", $0) }.joined(separator: " "))") }
+        if debug {
+            let keyHex = securityKey.map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.programmer.debug("[READ] Security key: \(keyHex, privacy: .public)")
+        }
 
         progress(0.1)
 
         // Step 2: Get device info
-        if debug { print("[READ] Getting device info...") }
+        if debug { RadioLog.programmer.debug("[READ] Getting device info...") }
         let model = try await client.getModelNumberCPS(debug: debug)
         let firmware = try await client.getFirmwareVersionCPS(debug: debug)
         let serial = try await client.getSerialNumberCPS(debug: debug)
         let codeplugID = try await client.getCodeplugID(debug: debug)
 
         if debug {
-            print("[READ] Model: \(model ?? "unknown")")
-            print("[READ] Firmware: \(firmware ?? "unknown")")
-            print("[READ] Serial: \(serial ?? "unknown")")
-            print("[READ] Codeplug ID: \(codeplugID ?? "unknown")")
+            RadioLog.programmer.debug("[READ] Model: \(model ?? "unknown", privacy: .public)")
+            RadioLog.programmer.debug("[READ] Firmware: \(firmware ?? "unknown", privacy: .public)")
+            RadioLog.programmer.debug("[READ] Serial: \(serial ?? "unknown", privacy: .public)")
+            RadioLog.programmer.debug("[READ] Codeplug ID: \(codeplugID ?? "unknown", privacy: .public)")
         }
 
         progress(0.2)
@@ -207,7 +213,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         let radioFamily = family ?? RadioProtocolRegistry.detectFamily(from: model ?? "")
 
         // Step 3: Read codeplug records in batches
-        if debug { print("[READ] Reading codeplug records for family: \(radioFamily ?? "unknown")...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading codeplug records for family: \(radioFamily ?? "unknown", privacy: .public)...") }
 
         var allData = Data()
         let recordIDs = Self.recordIDs(for: radioFamily)
@@ -218,11 +224,14 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             let endIndex = min(startIndex + batchSize, recordIDs.count)
             let batchRecords = Array(recordIDs[startIndex..<endIndex])
 
-            if debug { print("[READ] Batch \(batchIndex + 1)/\(totalBatches): records \(batchRecords.map { String(format: "0x%04X", $0) }.joined(separator: ", "))") }
+            if debug {
+                let recordsHex = batchRecords.map { String(format: "0x%04X", $0) }.joined(separator: ", ")
+                RadioLog.programmer.debug("[READ] Batch \(batchIndex + 1, privacy: .public)/\(totalBatches, privacy: .public): records \(recordsHex, privacy: .public)")
+            }
 
             if let recordData = try await client.readCodeplugRecords(batchRecords, debug: debug) {
                 allData.append(recordData)
-                if debug { print("[READ] Got \(recordData.count) bytes") }
+                if debug { RadioLog.programmer.debug("[READ] Got \(recordData.count, privacy: .public) bytes") }
             }
 
             // Update progress (0.2 to 0.9)
@@ -232,7 +241,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         progress(1.0)
 
-        if debug { print("[READ] Complete! Total data: \(allData.count) bytes") }
+        if debug { RadioLog.programmer.debug("[READ] Complete! Total data: \(allData.count, privacy: .public) bytes") }
 
         return allData
     }
@@ -270,39 +279,39 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         progress(0.0)
 
         // Step 1: Get security key
-        if debug { print("[READ] Getting security key...") }
+        if debug { RadioLog.programmer.debug("[READ] Getting security key...") }
         _ = try await client.getSecurityKey(debug: debug)
         progress(0.02)
 
         // Step 2: Get device info
-        if debug { print("[READ] Getting device info...") }
+        if debug { RadioLog.programmer.debug("[READ] Getting device info...") }
         result.modelNumber = try await client.getModelNumberCPS(debug: debug) ?? "Unknown"
         result.serialNumber = try await client.getSerialNumberCPS(debug: debug) ?? ""
         result.firmwareVersion = try await client.getFirmwareVersionCPS(debug: debug) ?? ""
         result.codeplugVersion = try await client.getCodeplugID(debug: debug) ?? ""
 
         if debug {
-            print("[READ] Model: \(result.modelNumber)")
-            print("[READ] Serial: \(result.serialNumber)")
-            print("[READ] Firmware: \(result.firmwareVersion)")
+            RadioLog.programmer.debug("[READ] Model: \(result.modelNumber, privacy: .public)")
+            RadioLog.programmer.debug("[READ] Serial: \(result.serialNumber, privacy: .public)")
+            RadioLog.programmer.debug("[READ] Firmware: \(result.firmwareVersion, privacy: .public)")
         }
 
         progress(0.05)
 
         // Step 3: Start a reading session using CPS method (0x0105)
         // This is what CPS does - NOT programming mode (0x0106/0x0300/0x0301)
-        if debug { print("[READ] Starting read session (0x0105)...") }
+        if debug { RadioLog.programmer.debug("[READ] Starting read session (0x0105)...") }
         let availableRecords = try await client.startReadSession(debug: debug)
         if availableRecords.isEmpty {
-            if debug { print("[READ] Session start returned no records, will try fallback...") }
+            if debug { RadioLog.programmer.debug("[READ] Session start returned no records, will try fallback...") }
         } else {
-            if debug { print("[READ] Session started with \(availableRecords.count) available records") }
+            if debug { RadioLog.programmer.debug("[READ] Session started with \(availableRecords.count, privacy: .public) available records") }
         }
 
         progress(0.08)
 
         // Step 4: Get radio general settings
-        if debug { print("[READ] Reading radio settings...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading radio settings...") }
         let settings = try await client.readGeneralSettings(debug: debug)
 
         // Copy settings to result
@@ -345,15 +354,15 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         result.manDownEnabled = settings.manDownEnabled
 
         if debug {
-            print("[READ] Radio ID: \(result.radioID)")
-            print("[READ] Radio Alias: \(result.radioAlias)")
+            RadioLog.programmer.debug("[READ] Radio ID: \(result.radioID, privacy: .public)")
+            RadioLog.programmer.debug("[READ] Radio Alias: \(result.radioAlias, privacy: .public)")
         }
 
         progress(0.12)
 
         // Step 5: Read channels using indexed record format (0x0FFB)
         // This is the correct CPS 2.0 protocol - channels are indexed records
-        if debug { print("[READ] Reading channels using indexed record format (0x0FFB)...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading channels using indexed record format (0x0FFB)...") }
 
         let channelRecords = try await client.readAllChannels(debug: debug) { channelProgress in
             // Map channel reading progress to 12% - 45%
@@ -361,7 +370,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         if !channelRecords.isEmpty {
-            if debug { print("[READ] Successfully read \(channelRecords.count) channels from indexed records") }
+            if debug { RadioLog.programmer.debug("[READ] Successfully read \(channelRecords.count, privacy: .public) channels from indexed records") }
 
             // Convert ParsedChannelRecord to ChannelData and create a default zone
             var zone = ParsedZone(name: "Zone 1", position: 0)
@@ -370,12 +379,12 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 zone.channels.append(channelData)
 
                 if debug && zone.channels.count <= 5 {
-                    print("[READ] Channel \(record.index): '\(record.name)' @ \(record.rxFrequencyMHz) MHz")
+                    RadioLog.programmer.debug("[READ] Channel \(record.index, privacy: .public): '\(record.name, privacy: .public)' @ \(record.rxFrequencyMHz, privacy: .public) MHz")
                 }
             }
             result.zones.append(zone)
         } else {
-            if debug { print("[READ] Indexed channel read returned no channels, trying fallback...") }
+            if debug { RadioLog.programmer.debug("[READ] Indexed channel read returned no channels, trying fallback...") }
 
             // Fallback: Try the old metadata-based approach
             var allRecordData = Data()
@@ -383,11 +392,11 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             // Read zone/channel mapping records
             let mappingRecords: [UInt16] = [0x0084, 0x0093, 0x009D, 0x005E, 0x005F, 0x0060]
             if let batchData = try await client.readCodeplugRecords(mappingRecords, debug: debug) {
-                if debug { print("[READ] Fallback got \(batchData.count) bytes from mapping records") }
+                if debug { RadioLog.programmer.debug("[READ] Fallback got \(batchData.count, privacy: .public) bytes from mapping records") }
                 allRecordData.append(batchData)
             }
 
-            if allRecordData.count > 0 {
+            if !allRecordData.isEmpty {
                 // Exclude known settings strings like the radio alias
                 var excludeStrings: Set<String> = []
                 if !result.radioAlias.isEmpty && result.radioAlias != "Radio" {
@@ -402,7 +411,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 let parsed = parseCodeplugRecordData(allRecordData, excludeStrings: excludeStrings, debug: debug)
                 if !parsed.zones.isEmpty {
                     result.zones = parsed.zones
-                    if debug { print("[READ] Fallback parsed \(result.zones.count) zones") }
+                    if debug { RadioLog.programmer.debug("[READ] Fallback parsed \(result.zones.count, privacy: .public) zones") }
                 }
             }
         }
@@ -445,9 +454,9 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 // Try to read zone name using CloneRead
                 if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
                     zone.name = zoneName
-                    if debug { print("[READ] Zone \(zoneIndex): \(zoneName)") }
+                    if debug { RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public): \(zoneName, privacy: .public)") }
                 } else if debug {
-                    print("[READ] Zone \(zoneIndex): No name returned from CloneRead")
+                    RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public): No name returned from CloneRead")
                 }
 
                 // Read channels in this zone
@@ -465,7 +474,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     // Check for error response
                     if let reply = nameReply {
                         if debug && channelIndex == 0 {
-                            print("[READ] CloneRead reply for Z\(zoneIndex)C\(channelIndex): error=\(reply.errorCode) data=\(reply.data.count) bytes")
+                            RadioLog.programmer.debug("[READ] CloneRead reply for Z\(zoneIndex, privacy: .public)C\(channelIndex, privacy: .public): error=\(reply.errorCode.rawValue, privacy: .public) data=\(reply.data.count, privacy: .public) bytes")
                         }
                     }
 
@@ -474,7 +483,10 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     if name == nil || name?.isEmpty == true {
                         emptyChannelCount += 1
                         if emptyChannelCount >= 2 {
-                            if debug { print("[READ] Zone \(zoneIndex) has \(channelIndex - emptyChannelCount + 1) channels") }
+                            if debug {
+                                let channelCount = channelIndex - emptyChannelCount + 1
+                                RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public) has \(channelCount, privacy: .public) channels")
+                            }
                             break
                         }
                         channelIndex += 1
@@ -502,8 +514,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     emptyZoneCount = 0
                 } else {
                     emptyZoneCount += 1
-                    if result.zones.count > 0 && emptyZoneCount >= 2 {
-                        if debug { print("[READ] Stopping zone scan after \(result.zones.count) zones") }
+                    if !result.zones.isEmpty && emptyZoneCount >= 2 {
+                        if debug { RadioLog.programmer.debug("[READ] Stopping zone scan after \(result.zones.count, privacy: .public) zones") }
                         break
                     }
                 }
@@ -514,7 +526,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         // Step 6: Read contacts
         // Progress allocation: 50% to 70%
-        if debug { print("[READ] Reading contacts...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading contacts...") }
         let maxContacts = 256  // Typical max for XPR series
         var contactIndex = 0
 
@@ -541,12 +553,12 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             progress(min(contactProgress, 0.70))
         }
 
-        if debug { print("[READ] Read \(result.contacts.count) contacts") }
+        if debug { RadioLog.programmer.debug("[READ] Read \(result.contacts.count, privacy: .public) contacts") }
         progress(0.70)
 
         // Step 7: Read scan lists
         // Progress allocation: 70% to 85%
-        if debug { print("[READ] Reading scan lists...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading scan lists...") }
         let maxScanLists = 64  // Typical max
         var scanListIndex = 0
 
@@ -658,7 +670,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         // Check for success
-        if startReply.data.count > 0 && startReply.data[0] != 0x00 {
+        if !startReply.data.isEmpty && startReply.data[0] != 0x00 {
             let errorCode = startReply.data[0]
             throw MOTOTRBOError.protocolError("Session start failed with error: 0x\(String(format: "%02X", errorCode))")
         }
@@ -786,7 +798,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         // Check for success
-        if startReply.data.count > 0 && startReply.data[0] != 0x00 {
+        if !startReply.data.isEmpty && startReply.data[0] != 0x00 {
             let errorCode = startReply.data[0]
             throw MOTOTRBOError.protocolError("Write session start failed with error: 0x\(String(format: "%02X", errorCode))")
         }
@@ -805,7 +817,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.protocolError("No reply to PSDT unlock request")
         }
 
-        if unlockReply.data.count > 0 && unlockReply.data[0] != 0x00 {
+        if !unlockReply.data.isEmpty && unlockReply.data[0] != 0x00 {
             throw MOTOTRBOError.protocolError("PSDT unlock failed")
         }
 
@@ -825,7 +837,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 throw MOTOTRBOError.protocolError("No reply to data transfer at offset \(offset)")
             }
 
-            if transferReply.data.count > 0 && transferReply.data[0] != 0x00 {
+            if !transferReply.data.isEmpty && transferReply.data[0] != 0x00 {
                 throw MOTOTRBOError.protocolError("Data transfer failed at offset \(offset)")
             }
 
@@ -843,7 +855,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.protocolError("No reply to CRC validation request")
         }
 
-        if validateReply.data.count > 0 && validateReply.data[0] != 0x00 {
+        if !validateReply.data.isEmpty && validateReply.data[0] != 0x00 {
             throw MOTOTRBOError.protocolError("CRC validation failed")
         }
 
@@ -855,7 +867,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             throw MOTOTRBOError.protocolError("No reply to deploy request")
         }
 
-        if deployReply.data.count > 0 && deployReply.data[0] != 0x00 {
+        if !deployReply.data.isEmpty && deployReply.data[0] != 0x00 {
             throw MOTOTRBOError.protocolError("Deploy failed")
         }
 
@@ -1430,220 +1442,6 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         return result
-    }
-}
-
-// MARK: - Parsed Codeplug Structure
-
-/// Parsed codeplug data from MOTOTRBO radio.
-/// This is the structured representation of zone/channel data.
-public struct ParsedCodeplug: Sendable {
-    // MARK: - Device Information (read-only from radio)
-    public var modelNumber: String = ""
-    public var serialNumber: String = ""
-    public var firmwareVersion: String = ""
-    public var codeplugVersion: String = ""
-
-    // MARK: - General Settings
-    public var radioID: UInt32 = 1
-    public var radioAlias: String = "Radio"
-    public var introScreenLine1: String = ""
-    public var introScreenLine2: String = ""
-    public var powerOnPassword: String = ""
-    public var defaultPowerLevel: Bool = true  // true=High, false=Low
-
-    // MARK: - Display Settings
-    public var backlightTime: UInt8 = 5  // seconds, 0=Always On
-    public var backlightAuto: Bool = true
-
-    // MARK: - Audio Settings
-    public var voxEnabled: Bool = false
-    public var voxSensitivity: UInt8 = 3  // 1-10
-    public var voxDelay: UInt16 = 500  // ms
-    public var keypadTones: Bool = true
-    public var callAlertTone: Bool = true
-    public var powerUpTone: Bool = true
-    public var audioEnhancement: Bool = false
-
-    // MARK: - Timing Settings
-    public var totTime: UInt16 = 60  // seconds (0=infinite)
-    public var totResetTime: UInt8 = 0  // seconds
-    public var groupCallHangTime: UInt16 = 5000  // ms
-    public var privateCallHangTime: UInt16 = 5000  // ms
-
-    // MARK: - Signaling Settings
-    public var radioCheckEnabled: Bool = true
-    public var remoteMonitorEnabled: Bool = false
-    public var callConfirmation: Bool = true
-    public var emergencyAlertType: UInt8 = 0  // 0=Alarm, 1=Silent, 2=AlarmWithCall
-    public var emergencyDestinationID: UInt32 = 0
-
-    // MARK: - GPS/GNSS Settings
-    public var gpsEnabled: Bool = false
-    public var gpsRevertChannelEnabled: Bool = false
-    public var enhancedGNSSEnabled: Bool = false
-
-    // MARK: - Lone Worker Settings
-    public var loneWorkerEnabled: Bool = false
-    public var loneWorkerResponseTime: UInt16 = 30  // seconds
-    public var loneWorkerReminderTime: UInt16 = 300  // seconds
-
-    // MARK: - Man Down Settings (if supported)
-    public var manDownEnabled: Bool = false
-    public var manDownDelay: UInt16 = 10  // seconds
-
-    // MARK: - Zones and Channels
-    public var zones: [ParsedZone] = []
-
-    // MARK: - Contacts
-    public var contacts: [ParsedContact] = []
-
-    // MARK: - Scan Lists
-    public var scanLists: [ParsedScanList] = []
-
-    // MARK: - RX Group Lists
-    public var rxGroupLists: [ParsedRxGroupList] = []
-
-    // MARK: - Text Messages (pre-programmed)
-    public var textMessages: [PresetTextMessage] = []
-
-    // MARK: - Emergency Systems
-    public var emergencySystems: [EmergencySystem] = []
-
-    // MARK: - Button Assignments
-    public var topButtonShortPress: ButtonFunction = .none
-    public var topButtonLongPress: ButtonFunction = .none
-    public var sideButton1ShortPress: ButtonFunction = .none
-    public var sideButton1LongPress: ButtonFunction = .none
-    public var sideButton2ShortPress: ButtonFunction = .none
-    public var sideButton2LongPress: ButtonFunction = .none
-
-    /// Total number of channels across all zones.
-    public var totalChannels: Int {
-        zones.reduce(0) { $0 + $1.channels.count }
-    }
-
-    public init() {}
-}
-
-/// Pre-programmed text message
-public struct PresetTextMessage: Sendable, Identifiable {
-    public var id = UUID()
-    public var text: String = ""
-
-    public init(text: String = "") {
-        self.text = text
-    }
-}
-
-/// Emergency system definition
-public struct EmergencySystem: Sendable, Identifiable {
-    public var id = UUID()
-    public var name: String = "Emergency"
-    public var alarmType: UInt8 = 0  // 0=Alarm, 1=AlarmWithCall, 2=AlarmWithVoice, 3=Silent
-    public var mode: UInt8 = 0  // 0=Regular, 1=Acknowledged
-    public var hotMicEnabled: Bool = false
-    public var hotMicDuration: UInt8 = 10  // seconds
-    public var destinationID: UInt32 = 0
-    public var callType: UInt8 = 1  // 0=Private, 1=Group, 2=AllCall
-
-    public init() {}
-}
-
-/// Available button functions
-public enum ButtonFunction: String, Sendable, CaseIterable {
-    case none = "None"
-    case monitor = "Monitor"
-    case scan = "Scan"
-    case emergency = "Emergency"
-    case zoneSelect = "Zone Select"
-    case powerLevel = "Power Level"
-    case talkaround = "Talkaround"
-    case vox = "VOX"
-    case oneTouchCall = "One Touch Call"
-    case textMessage = "Text Message"
-    case privacy = "Privacy"
-    case audioToggle = "Audio Toggle"
-    case bluetooth = "Bluetooth"
-    case gps = "GPS"
-    case manDown = "Man Down"
-    case loneWorker = "Lone Worker"
-    case radioCheck = "Radio Check"
-    case remoteMonitor = "Remote Monitor"
-    case callLog = "Call Log"
-    case contacts = "Contacts"
-}
-
-/// A zone in the parsed codeplug.
-public struct ParsedZone: Sendable {
-    public var name: String = "Zone"
-    public var position: Int = 0
-    public var channels: [ChannelData] = []
-
-    public init(name: String = "Zone", position: Int = 0) {
-        self.name = name
-        self.position = position
-    }
-}
-
-/// A contact in the parsed codeplug.
-public struct ParsedContact: Sendable, Identifiable {
-    public var id = UUID()
-    public var name: String = "Contact"
-    public var contactType: ContactCallType = .group
-    public var dmrID: UInt32 = 0
-    public var callReceiveTone: Bool = true
-    public var callAlert: Bool = false
-
-    public init(name: String = "Contact", dmrID: UInt32 = 0, type: ContactCallType = .group) {
-        self.name = name
-        self.dmrID = dmrID
-        self.contactType = type
-    }
-}
-
-/// Contact call types.
-public enum ContactCallType: String, Sendable, CaseIterable {
-    case privateCall = "Private Call"
-    case group = "Group Call"
-    case allCall = "All Call"
-}
-
-/// A scan list in the parsed codeplug.
-public struct ParsedScanList: Sendable, Identifiable {
-    public var id = UUID()
-    public var name: String = "Scan List"
-    public var channelMembers: [ScanListMember] = []
-    public var priorityChannel1Index: Int? = nil
-    public var priorityChannel2Index: Int? = nil
-    public var talkbackEnabled: Bool = true
-    public var holdTime: UInt16 = 500  // ms
-
-    public init(name: String = "Scan List") {
-        self.name = name
-    }
-}
-
-/// A member of a scan list.
-public struct ScanListMember: Sendable, Identifiable {
-    public var id = UUID()
-    public var zoneIndex: Int
-    public var channelIndex: Int
-
-    public init(zoneIndex: Int, channelIndex: Int) {
-        self.zoneIndex = zoneIndex
-        self.channelIndex = channelIndex
-    }
-}
-
-/// An RX group list in the parsed codeplug.
-public struct ParsedRxGroupList: Sendable, Identifiable {
-    public var id = UUID()
-    public var name: String = "RX Group"
-    public var contactIndices: [Int] = []  // Indices into contacts array
-
-    public init(name: String = "RX Group") {
-        self.name = name
     }
 }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioModelCore
 
 /// Editable view for general radio settings.
 struct GeneralSettingsView: View {

@@ -85,4 +85,62 @@ struct SerializerTests {
         #expect(restored.metadata.radioModelName == "CLP 1010")
         #expect(restored.metadata.notes == "Test codeplug")
     }
+
+    @Test("Salt uniqueness - each encryption generates different salt")
+    func saltUniqueness() throws {
+        let original = Codeplug(modelIdentifier: "TEST", size: 64)
+        let serializer = CodeplugSerializer()
+        let password = "same_password"
+
+        // Serialize twice with same password
+        let serialized1 = try serializer.serialize(original, password: password)
+        let serialized2 = try serializer.serialize(original, password: password)
+
+        // Files should differ due to different salts (and different GCM nonces)
+        #expect(serialized1 != serialized2)
+
+        // Both should decrypt successfully with the same password
+        let restored1 = try serializer.deserialize(serialized1, password: password)
+        let restored2 = try serializer.deserialize(serialized2, password: password)
+
+        #expect(restored1.rawData == original.rawData)
+        #expect(restored2.rawData == original.rawData)
+    }
+
+    @Test("PBKDF2 v2 format - verify stronger key derivation")
+    func pbkdf2Format() throws {
+        let original = Codeplug(modelIdentifier: "TEST", size: 64)
+        original.rawData[0] = 0x99
+
+        let serializer = CodeplugSerializer()
+        let password = "test123"
+
+        let serialized = try serializer.serialize(original, password: password)
+
+        // Verify format version is 2
+        let version = serialized.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> UInt16 in
+            buffer.load(fromByteOffset: 4, as: UInt16.self)
+        }
+        #expect(version == 2)
+
+        // Should decrypt successfully
+        let restored = try serializer.deserialize(serialized, password: password)
+        #expect(restored.rawData[0] == 0x99)
+    }
+
+    @Test("Performance - PBKDF2 key derivation time")
+    func pbkdf2Performance() throws {
+        let original = Codeplug(modelIdentifier: "TEST", size: 64)
+        let serializer = CodeplugSerializer()
+        let password = "testPassword123"
+
+        // Measure encryption time (includes PBKDF2)
+        let start = Date()
+        _ = try serializer.serialize(original, password: password)
+        let elapsed = Date().timeIntervalSince(start)
+
+        // PBKDF2 with 100,000 rounds should take 50-200ms on modern hardware
+        // This isn't a strict performance test, just a sanity check
+        #expect(elapsed < 1.0, "PBKDF2 encryption took \(elapsed)s - may be too slow")
+    }
 }

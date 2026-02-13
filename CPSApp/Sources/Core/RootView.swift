@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import RadioProgrammer
+import RadioModelCore
 
 /// Simple document wrapper for CSV export.
 struct CSVDocument: FileDocument {
@@ -57,11 +58,15 @@ struct RootView: View {
                 guard let url = urls.first else { return }
                 let accessing = url.startAccessingSecurityScopedResource()
                 defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    try coordinator.openDocument(url)
-                } catch {
-                    errorMessage = "Failed to open file: \(error.localizedDescription)"
-                    showingError = true
+
+                // Run async open operation
+                Task {
+                    do {
+                        try await coordinator.openDocument(url)
+                    } catch {
+                        errorMessage = "Failed to open file: \(error.localizedDescription)"
+                        showingError = true
+                    }
                 }
             case .failure(let error):
                 errorMessage = "Could not access file: \(error.localizedDescription)"

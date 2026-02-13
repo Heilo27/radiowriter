@@ -7,20 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07F2BFCE0A95FF2EDBA3498F /* KeyboardShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96048593DFE912B7728127F6 /* KeyboardShortcutTests.swift */; };
+		0AFEC3B8D5B28058B47A24B4 /* NavigationFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A04D40F2605342DA95B8ED /* NavigationFlowTests.swift */; };
 		0CC023E144ACFCB59E0B761D /* RadioInputControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3294DB3D86A49A5466E527E /* RadioInputControls.swift */; };
-		11A2B3C4D5E6F7890AB1CD23 /* CodeplugValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22B3C4D5E6F78901BC2DE345 /* CodeplugValidator.swift */; };
+		11EBF952E2299ACD2BD71E1E /* RadioCommunicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0488B444B1534B3C06B28F /* RadioCommunicationTests.swift */; };
 		122E55597F3D22C057E98B38 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */; };
-		33C4D5E6F7890123CD4EF567 /* ValidationResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D5E6F78901234DE5F06789 /* ValidationResultsView.swift */; };
-		66A1B2C3D4E5F6A7B8C9D0E1 /* CSVService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */; };
-		88C3D4E5F6A7B8C9D0E1F203 /* CSVImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */; };
-		AAB1C2D3E4F5A6B7C8D9E0F1 /* DMRIDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB1C2D3E4F5A6B7C8D9E0F1 /* DMRIDService.swift */; };
-		CCC1D2E3F4A5B6C7D8E9F0A1 /* DMRIDLookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD1D2E3F4A5B6C7D8E9F0A1 /* DMRIDLookupView.swift */; };
 		14EFD017D20CC255F3917705 /* RxGroupListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */; };
+		1B8BFB51A16CA1F3BDA125C0 /* WelcomeWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538200A01F0FF9E93DFE7C67 /* WelcomeWorkflowTests.swift */; };
 		2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */; };
+		30A674A42D43D57D501118CE /* CSVImportExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59B831118E3F595FDC2ED127 /* CSVImportExportTests.swift */; };
 		3626B81A652178A674E65227 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7045699C1220506A0839A451 /* WelcomeView.swift */; };
 		36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D947EF4413403ED59D491FE8 /* ProgrammingView.swift */; };
+		3749D1E926DF1D19EEC2E68F /* DMRIDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2339756B3CB25977D952C2 /* DMRIDService.swift */; };
+		3EDA80D544F767C4CAA10D39 /* DMRIDLookupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7CE3ACF1A9498D2FCDBF17 /* DMRIDLookupView.swift */; };
+		40B205349B7AD27C7275E657 /* CSVService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AC34137419DD1A7F05CFDD /* CSVService.swift */; };
+		4ADAE97B06087E87CD4AD675 /* CodeplugValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0FDE6DF443A8AB564BFF269 /* CodeplugValidator.swift */; };
+		5D054D2555050FC786460448 /* ValidationWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56714095B1E3B5F725B8F05 /* ValidationWorkflowTests.swift */; };
 		628F588880242E5548D712D5 /* RadioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9E243FB90AB6835FD64AF52B /* RadioCore */; };
+		674587F68FBEB43D815D32A8 /* ChannelEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A513CD2C3FC8AE62D6B29B /* ChannelEditingTests.swift */; };
 		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
+		7A4F0BAF7EA7A976FF5C2E3A /* ValidationResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC1CF9F6D2091C23CB66771 /* ValidationResultsView.swift */; };
 		A3718BA5D7921F61E804CEC6 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA3E964C71F2193DC364541 /* ContactsView.swift */; };
 		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
 		A8D410CF24E3EDD792424B22 /* RadioHardware in Frameworks */ = {isa = PBXBuildFile; productRef = 6613216EC89E86B998EAE93D /* RadioHardware */; };
@@ -29,26 +35,40 @@
 		AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21553D5F1A22A99A938D86B2 /* FormEditorView.swift */; };
 		AFC7705C5E56634C5746A5F4 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FCC870D38EAA31A0BE0595 /* GeneralSettingsView.swift */; };
 		C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA97A75BB7ACA2A288957482 /* CPSApp.swift */; };
+		C9B3E5B62D82904815EDC019 /* CSVImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0A71675D127EBD6853D496 /* CSVImportView.swift */; };
 		D95573F3744D70C5280B7453 /* AudioEngine in Frameworks */ = {isa = PBXBuildFile; productRef = F44256D435CF54DEFCA111E7 /* AudioEngine */; };
 		E5A0C28F04BCBB17147C8BAE /* ZoneChannelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24ED5EED7E5F297F57B81049 /* ZoneChannelView.swift */; };
+		E69B9330DCBCEEEAA0621967 /* CPSAppUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5870FD41C7F846BCC0D1F1F1 /* CPSAppUITestCase.swift */; };
 		EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */; };
 		F7301CD3237D96687FF46C18 /* ScanListsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */; };
+		F9A9500E83F4B1A0D7075483 /* CodeplugFileWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EECD99BE0F39D3E903C4EC58 /* CodeplugFileWorkflowTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		FEE473EA85FEFF72C2308A20 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0C534708B33F4ABB3FF4A153 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C9CD084788574D16204846ED;
+			remoteInfo = CPSApp;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		00F220EECD3E92E259A3BA12 /* CPSApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CPSApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		038A36D46CEF3C6B08C52F3A /* RadioModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioModels; path = ../Packages/RadioModels; sourceTree = SOURCE_ROOT; };
+		06A513CD2C3FC8AE62D6B29B /* ChannelEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelEditingTests.swift; sourceTree = "<group>"; };
 		1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
-		77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVService.swift; sourceTree = "<group>"; };
-		BBB1C2D3E4F5A6B7C8D9E0F1 /* DMRIDService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMRIDService.swift; sourceTree = "<group>"; };
-		DDD1D2E3F4A5B6C7D8E9F0A1 /* DMRIDLookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMRIDLookupView.swift; sourceTree = "<group>"; };
-		99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportView.swift; sourceTree = "<group>"; };
-		22B3C4D5E6F78901BC2DE345 /* CodeplugValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugValidator.swift; sourceTree = "<group>"; };
-		44D5E6F78901234DE5F06789 /* ValidationResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationResultsView.swift; sourceTree = "<group>"; };
+		1DC1CF9F6D2091C23CB66771 /* ValidationResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationResultsView.swift; sourceTree = "<group>"; };
+		1E0488B444B1534B3C06B28F /* RadioCommunicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioCommunicationTests.swift; sourceTree = "<group>"; };
 		1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSCommands.swift; sourceTree = "<group>"; };
 		21553D5F1A22A99A938D86B2 /* FormEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormEditorView.swift; sourceTree = "<group>"; };
 		24ED5EED7E5F297F57B81049 /* ZoneChannelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneChannelView.swift; sourceTree = "<group>"; };
 		25B37BF1194EF81CDE179154 /* RadioCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioCore; path = ../Packages/RadioCore; sourceTree = SOURCE_ROOT; };
+		38A04D40F2605342DA95B8ED /* NavigationFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationFlowTests.swift; sourceTree = "<group>"; };
+		538200A01F0FF9E93DFE7C67 /* WelcomeWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWorkflowTests.swift; sourceTree = "<group>"; };
+		5870FD41C7F846BCC0D1F1F1 /* CPSAppUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSAppUITestCase.swift; sourceTree = "<group>"; };
+		59B831118E3F595FDC2ED127 /* CSVImportExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportExportTests.swift; sourceTree = "<group>"; };
 		5F80EEF1BFDDF4B913C68855 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		6E94C79F5841B6532AE3C9D1 /* AudioEngine */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AudioEngine; path = ../Packages/AudioEngine; sourceTree = SOURCE_ROOT; };
@@ -56,13 +76,22 @@
 		7045699C1220506A0839A451 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		73FCC870D38EAA31A0BE0595 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		754F2CCF0F90A0DB28A7879F /* RadioHardware */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RadioHardware; path = ../Packages/RadioHardware; sourceTree = SOURCE_ROOT; };
+		7B7CE3ACF1A9498D2FCDBF17 /* DMRIDLookupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMRIDLookupView.swift; sourceTree = "<group>"; };
 		86C4CB4D6625E007110360D9 /* ChannelEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelEditorView.swift; sourceTree = "<group>"; };
+		96048593DFE912B7728127F6 /* KeyboardShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutTests.swift; sourceTree = "<group>"; };
 		98B916E60BDD4C858EC1B631 /* RxGroupListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RxGroupListsView.swift; sourceTree = "<group>"; };
+		9D0A71675D127EBD6853D496 /* CSVImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVImportView.swift; sourceTree = "<group>"; };
+		AA2E773009A518C0BFBFD3C2 /* CPSAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CPSAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AD2339756B3CB25977D952C2 /* DMRIDService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMRIDService.swift; sourceTree = "<group>"; };
 		BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugDocument.swift; sourceTree = "<group>"; };
+		C3AC34137419DD1A7F05CFDD /* CSVService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVService.swift; sourceTree = "<group>"; };
+		C56714095B1E3B5F725B8F05 /* ValidationWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationWorkflowTests.swift; sourceTree = "<group>"; };
 		CA97A75BB7ACA2A288957482 /* CPSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSApp.swift; sourceTree = "<group>"; };
 		CCA3E964C71F2193DC364541 /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
 		D3294DB3D86A49A5466E527E /* RadioInputControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioInputControls.swift; sourceTree = "<group>"; };
 		D947EF4413403ED59D491FE8 /* ProgrammingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgrammingView.swift; sourceTree = "<group>"; };
+		E0FDE6DF443A8AB564BFF269 /* CodeplugValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugValidator.swift; sourceTree = "<group>"; };
+		EECD99BE0F39D3E903C4EC58 /* CodeplugFileWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeplugFileWorkflowTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				00F220EECD3E92E259A3BA12 /* CPSApp.app */,
+				AA2E773009A518C0BFBFD3C2 /* CPSAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,18 +148,9 @@
 				1C3263A54BF2DDD488A72F62 /* Components */,
 				68A9AB4E1820AAD6F539A660 /* Core */,
 				BE2D8A0E15F01ABABBF6C880 /* Features */,
-				AAE5F6A7B8C9D0E1F2031425 /* Services */,
+				D3456563178E3D8CAA477D4F /* Services */,
 			);
 			path = Sources;
-			sourceTree = "<group>";
-		};
-		AAE5F6A7B8C9D0E1F2031425 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				77B2C3D4E5F6A7B8C9D0E1F2 /* CSVService.swift */,
-				BBB1C2D3E4F5A6B7C8D9E0F1 /* DMRIDService.swift */,
-			);
-			path = Services;
 			sourceTree = "<group>";
 		};
 		1C3263A54BF2DDD488A72F62 /* Components */ = {
@@ -140,12 +161,28 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		670DA4D3383968941B364B7B /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				9D0A71675D127EBD6853D496 /* CSVImportView.swift */,
+			);
+			path = Import;
+			sourceTree = "<group>";
+		};
+		674F3D9A93A1E219DF3AFA15 /* Validation */ = {
+			isa = PBXGroup;
+			children = (
+				1DC1CF9F6D2091C23CB66771 /* ValidationResultsView.swift */,
+			);
+			path = Validation;
+			sourceTree = "<group>";
+		};
 		68A9AB4E1820AAD6F539A660 /* Core */ = {
 			isa = PBXGroup;
 			children = (
 				6F9791C2F318D4534E3B809B /* AppCoordinator.swift */,
 				BB497821FFD3A05789DA99ED /* CodeplugDocument.swift */,
-				22B3C4D5E6F78901BC2DE345 /* CodeplugValidator.swift */,
+				E0FDE6DF443A8AB564BFF269 /* CodeplugValidator.swift */,
 				5F80EEF1BFDDF4B913C68855 /* ContentView.swift */,
 				1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */,
 				6E17EB2C7FFBDF4EA6A96892 /* RootView.swift */,
@@ -161,6 +198,22 @@
 			path = RadioProgramming;
 			sourceTree = "<group>";
 		};
+		773712B40B1DFE32B933E2F9 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				06A513CD2C3FC8AE62D6B29B /* ChannelEditingTests.swift */,
+				EECD99BE0F39D3E903C4EC58 /* CodeplugFileWorkflowTests.swift */,
+				5870FD41C7F846BCC0D1F1F1 /* CPSAppUITestCase.swift */,
+				59B831118E3F595FDC2ED127 /* CSVImportExportTests.swift */,
+				96048593DFE912B7728127F6 /* KeyboardShortcutTests.swift */,
+				38A04D40F2605342DA95B8ED /* NavigationFlowTests.swift */,
+				1E0488B444B1534B3C06B28F /* RadioCommunicationTests.swift */,
+				C56714095B1E3B5F725B8F05 /* ValidationWorkflowTests.swift */,
+				538200A01F0FF9E93DFE7C67 /* WelcomeWorkflowTests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
 		A16F87105157E6F5F41806C2 /* Welcome */ = {
 			isa = PBXGroup;
 			children = (
@@ -174,6 +227,7 @@
 			children = (
 				03D26078BCD42639FBE7E519 /* Packages */,
 				18AC9A0B8FF45FDF00054B2A /* Sources */,
+				773712B40B1DFE32B933E2F9 /* UITests */,
 				11DBB2A078705EA2744390EF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -182,38 +236,31 @@
 			isa = PBXGroup;
 			children = (
 				050A60AC82B014398F8940D4 /* Codeplug */,
-				EEE1E2F3A4B5C6D7E8F9A0B1 /* Contacts */,
-				BBF6A7B8C9D0E1F203142536 /* Import */,
+				CC3046AA9ECBCE0763D86737 /* Contacts */,
+				670DA4D3383968941B364B7B /* Import */,
 				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
 				6C4FE5C4999E778943688865 /* RadioProgramming */,
-				55E6F789012345EF6701890A /* Validation */,
+				674F3D9A93A1E219DF3AFA15 /* Validation */,
 				A16F87105157E6F5F41806C2 /* Welcome */,
 			);
 			path = Features;
 			sourceTree = "<group>";
 		};
-		EEE1E2F3A4B5C6D7E8F9A0B1 /* Contacts */ = {
+		CC3046AA9ECBCE0763D86737 /* Contacts */ = {
 			isa = PBXGroup;
 			children = (
-				DDD1D2E3F4A5B6C7D8E9F0A1 /* DMRIDLookupView.swift */,
+				7B7CE3ACF1A9498D2FCDBF17 /* DMRIDLookupView.swift */,
 			);
 			path = Contacts;
 			sourceTree = "<group>";
 		};
-		BBF6A7B8C9D0E1F203142536 /* Import */ = {
+		D3456563178E3D8CAA477D4F /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				99D4E5F6A7B8C9D0E1F20314 /* CSVImportView.swift */,
+				C3AC34137419DD1A7F05CFDD /* CSVService.swift */,
+				AD2339756B3CB25977D952C2 /* DMRIDService.swift */,
 			);
-			path = Import;
-			sourceTree = "<group>";
-		};
-		55E6F789012345EF6701890A /* Validation */ = {
-			isa = PBXGroup;
-			children = (
-				44D5E6F78901234DE5F06789 /* ValidationResultsView.swift */,
-			);
-			path = Validation;
+			path = Services;
 			sourceTree = "<group>";
 		};
 		F5A60B9EE876A6C275BA497A /* RadioConfiguration */ = {
@@ -250,6 +297,24 @@
 			productReference = 00F220EECD3E92E259A3BA12 /* CPSApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		DA72B94536E84AABD8D4223E /* CPSAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FEFB47775B6486F1586A42B2 /* Build configuration list for PBXNativeTarget "CPSAppUITests" */;
+			buildPhases = (
+				0F9C2BB77C1B64D75D971662 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A81D0492300612BD611580DB /* PBXTargetDependency */,
+			);
+			name = CPSAppUITests;
+			packageProductDependencies = (
+			);
+			productName = CPSAppUITests;
+			productReference = AA2E773009A518C0BFBFD3C2 /* CPSAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -258,6 +323,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					DA72B94536E84AABD8D4223E = {
+						TestTargetID = C9CD084788574D16204846ED;
+					};
+				};
 			};
 			buildConfigurationList = ED524AFBF886E38EFFEE3891 /* Build configuration list for PBXProject "CPSApp" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -280,11 +350,28 @@
 			projectRoot = "";
 			targets = (
 				C9CD084788574D16204846ED /* CPSApp */,
+				DA72B94536E84AABD8D4223E /* CPSAppUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0F9C2BB77C1B64D75D971662 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E69B9330DCBCEEEAA0621967 /* CPSAppUITestCase.swift in Sources */,
+				30A674A42D43D57D501118CE /* CSVImportExportTests.swift in Sources */,
+				674587F68FBEB43D815D32A8 /* ChannelEditingTests.swift in Sources */,
+				F9A9500E83F4B1A0D7075483 /* CodeplugFileWorkflowTests.swift in Sources */,
+				07F2BFCE0A95FF2EDBA3498F /* KeyboardShortcutTests.swift in Sources */,
+				0AFEC3B8D5B28058B47A24B4 /* NavigationFlowTests.swift in Sources */,
+				11EBF952E2299ACD2BD71E1E /* RadioCommunicationTests.swift in Sources */,
+				5D054D2555050FC786460448 /* ValidationWorkflowTests.swift in Sources */,
+				1B8BFB51A16CA1F3BDA125C0 /* WelcomeWorkflowTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BFF9188E1081C73F6A339567 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -292,15 +379,15 @@
 				6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */,
 				C659F806DBAFCE8A4E77028C /* CPSApp.swift in Sources */,
 				A9349F8187646BBE9D13F0F6 /* CPSCommands.swift in Sources */,
-				66A1B2C3D4E5F6A7B8C9D0E1 /* CSVService.swift in Sources */,
-				88C3D4E5F6A7B8C9D0E1F203 /* CSVImportView.swift in Sources */,
-				AAB1C2D3E4F5A6B7C8D9E0F1 /* DMRIDService.swift in Sources */,
-				CCC1D2E3F4A5B6C7D8E9F0A1 /* DMRIDLookupView.swift in Sources */,
+				C9B3E5B62D82904815EDC019 /* CSVImportView.swift in Sources */,
+				40B205349B7AD27C7275E657 /* CSVService.swift in Sources */,
 				EA503374C362FA25B2C59B34 /* ChannelEditorView.swift in Sources */,
 				2EC334706822BC91BBC42862 /* CodeplugDocument.swift in Sources */,
-				11A2B3C4D5E6F7890AB1CD23 /* CodeplugValidator.swift in Sources */,
+				4ADAE97B06087E87CD4AD675 /* CodeplugValidator.swift in Sources */,
 				A3718BA5D7921F61E804CEC6 /* ContactsView.swift in Sources */,
 				A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */,
+				3EDA80D544F767C4CAA10D39 /* DMRIDLookupView.swift in Sources */,
+				3749D1E926DF1D19EEC2E68F /* DMRIDService.swift in Sources */,
 				AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */,
 				AFC7705C5E56634C5746A5F4 /* GeneralSettingsView.swift in Sources */,
 				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
@@ -308,13 +395,21 @@
 				122E55597F3D22C057E98B38 /* RootView.swift in Sources */,
 				14EFD017D20CC255F3917705 /* RxGroupListsView.swift in Sources */,
 				F7301CD3237D96687FF46C18 /* ScanListsView.swift in Sources */,
-				33C4D5E6F7890123CD4EF567 /* ValidationResultsView.swift in Sources */,
+				7A4F0BAF7EA7A976FF5C2E3A /* ValidationResultsView.swift in Sources */,
 				3626B81A652178A674E65227 /* WelcomeView.swift in Sources */,
 				E5A0C28F04BCBB17147C8BAE /* ZoneChannelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A81D0492300612BD611580DB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C9CD084788574D16204846ED /* CPSApp */;
+			targetProxy = FEE473EA85FEFF72C2308A20 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		311BD91B9BD646283C7E9F19 /* Debug */ = {
@@ -333,6 +428,24 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		604570ED7F2E7AF252C503BA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS.uitests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_TARGET_NAME = CPSApp;
 			};
 			name = Debug;
 		};
@@ -474,6 +587,24 @@
 			};
 			name = Release;
 		};
+		E9ED34EC5A9CAB5D9E40F547 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.heiloprojects.MotorolaCPS.uitests;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+				TEST_TARGET_NAME = CPSApp;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -491,6 +622,15 @@
 			buildConfigurations = (
 				7CC9A85FF8E519D6778F2257 /* Debug */,
 				AE866C9B919A531AD84FA9CA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FEFB47775B6486F1586A42B2 /* Build configuration list for PBXNativeTarget "CPSAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				604570ED7F2E7AF252C503BA /* Debug */,
+				E9ED34EC5A9CAB5D9E40F547 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

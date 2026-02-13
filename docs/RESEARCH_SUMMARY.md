@@ -240,8 +240,8 @@ Practical Swift implementation:
 
 ### Open Source References
 - Moto.Net: MIT License (constants not included)
-- xcmp-xnl-dissector: No explicit license
-- codeplug: No explicit license
+- xcmp-xnl-dissector: GPL-2.0 (removed from repo; referenced externally only)
+- codeplug: MIT License
 
 **All three projects state they are not affiliated with Motorola Solutions.**
 
@@ -279,10 +279,10 @@ Practical Swift implementation:
 - `docs/protocols/IMPLEMENTATION_GUIDE.md` - Swift implementation guide
 - `docs/RESEARCH_SUMMARY.md` - This document
 
-### Source Repositories (Cloned Locally)
-- `/Users/home/Documents/Development/MotorolaCPS/Moto.Net/`
-- `/Users/home/Documents/Development/MotorolaCPS/xcmp-xnl-dissector/`
-- `/Users/home/Documents/Development/MotorolaCPS/codeplug/`
+### Source Repositories
+- `Moto.Net/` - C# reference implementation (MIT License, cloned locally)
+- `codeplug/` - Python codeplug tools (MIT License, cloned locally)
+- [xcmp-xnl-dissector](https://github.com/george-hopkins/xcmp-xnl-dissector) - Wireshark Lua dissector (GPL-2.0, external reference only — not included in repo)
 
 ### External References
 - GitHub: pboyd04/Moto.Net

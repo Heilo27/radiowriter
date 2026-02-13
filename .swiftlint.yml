@@ -1,0 +1,116 @@
+# SwiftLint Configuration — MotorolaCPS
+# HeiloProjects standard rules, tuned for reverse engineering / binary analysis
+
+# Paths to lint
+included:
+  - CPSApp/Sources
+  - Packages/RadioCore/Sources
+  - Packages/RadioModels/Sources
+  - Packages/RadioHardware/Sources
+  - Packages/AudioEngine/Sources
+
+# Paths to exclude
+excluded:
+  - .build
+  - .swiftpm
+  - DerivedData
+  - Packages/*/Tests
+  - Moto.Net
+
+# Disabled rules — handled by formatter or too noisy for this project
+disabled_rules:
+  - trailing_whitespace       # swift-format handles
+  - trailing_comma            # project uses trailing commas consistently
+  - todo                      # TODOs are expected in reverse engineering work
+  - inclusive_language         # radio protocol terms use domain-specific language
+
+# Opt-in rules for stricter quality
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - discouraged_optional_boolean
+  - fallthrough
+  - fatal_error_message
+  - last_where
+  - modifier_order
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_first_last
+  - unowned_variable_capture
+  - vertical_parameter_alignment_on_call
+
+# Rule configuration
+line_length:
+  warning: 120
+  error: 150
+  ignores_urls: true
+  ignores_comments: true
+
+function_body_length:
+  warning: 60
+  error: 120
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 500
+  error: 1000
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+nesting:
+  type_level: 2
+  function_level: 3
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - i
+    - j
+    - k
+    - x
+    - y
+    - id
+  allowed_symbols:
+    - _
+
+type_name:
+  min_length:
+    warning: 3
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  allowed_symbols:
+    - _
+
+large_tuple:
+  warning: 4
+  error: 5
+
+# Custom rules
+custom_rules:
+  no_print_statements:
+    name: "No print() Statements"
+    regex: '^\s*print\s*\('
+    message: "Use os.Logger instead of print(). See TASK-089."
+    severity: warning

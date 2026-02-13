@@ -8,7 +8,7 @@ import IOKit.usb
 /// All observable properties are isolated to MainActor for safe SwiftUI access.
 @Observable
 @MainActor
-public final class RadioDetector: Sendable {
+public final class RadioDetector {
     public private(set) var detectedDevices: [USBDeviceInfo] = []
     public private(set) var isScanning = false
 

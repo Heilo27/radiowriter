@@ -134,8 +134,8 @@ This directory contains comprehensive documentation of the MOTOTRBO XCMP/XNL pro
 2. Review [`protocols/XCMP_XNL_PROTOCOL.md`](protocols/XCMP_XNL_PROTOCOL.md) - Authentication flow
 3. Source analysis in cloned repositories:
    - `Moto.Net/` - C# reference implementation
-   - `xcmp-xnl-dissector/` - Wireshark Lua dissector
    - `codeplug/` - Python file format tools
+4. External reference: [xcmp-xnl-dissector](https://github.com/george-hopkins/xcmp-xnl-dissector) - Wireshark Lua dissector (GPL-2.0, not included in repo)
 
 ---
 
@@ -186,12 +186,12 @@ This directory contains comprehensive documentation of the MOTOTRBO XCMP/XNL pro
   - Completeness: ~80% of protocol
   - License: MIT (constants not included)
 
-- **xcmp-xnl-dissector**
-  - Path: `/Users/home/Documents/Development/MotorolaCPS/xcmp-xnl-dissector/`
+- **xcmp-xnl-dissector** *(removed from repo — GPL-2.0)*
+  - GitHub: [george-hopkins/xcmp-xnl-dissector](https://github.com/george-hopkins/xcmp-xnl-dissector)
   - Language: Lua (Wireshark)
   - Quality: Research-grade
   - Completeness: Major opcodes covered
-  - License: Not specified
+  - License: GPL-2.0 — referenced externally only, no code derived
 
 - **codeplug**
   - Path: `/Users/home/Documents/Development/MotorolaCPS/codeplug/`
@@ -231,6 +231,20 @@ This directory contains comprehensive documentation of the MOTOTRBO XCMP/XNL pro
 2. Implement Swift version
 3. Compare byte-for-byte with captures
 4. Verify radio accepts packets
+
+---
+
+## License
+
+This project is licensed under the [MIT License](../LICENSE). See also [LEGAL.md](../LEGAL.md) for important disclaimers regarding reverse engineering compliance, regulatory requirements, and trademark notices.
+
+### Third-Party Licenses
+
+| Component | License | Usage |
+|-----------|---------|-------|
+| [Moto.Net](https://github.com/pboyd04/Moto.Net) | Apache-2.0 | Protocol reference (included locally) |
+| [codeplug](https://github.com/george-hopkins/codeplug) | MIT | Codeplug format reference (included locally) |
+| [xcmp-xnl-dissector](https://github.com/george-hopkins/xcmp-xnl-dissector) | GPL-2.0 | External reference only (not included in repo) |
 
 ---
 

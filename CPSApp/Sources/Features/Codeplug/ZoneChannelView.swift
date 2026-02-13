@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioModelCore
 import RadioCore
 
 /// View displaying zones and channels from a parsed codeplug.
@@ -35,6 +36,22 @@ struct ZoneChannelView: View {
             // Right: Channel detail
             channelDetailView
                 .frame(minWidth: 300)
+        }
+        .accessibilityRotor("Zones") {
+            if let zones = coordinator.parsedCodeplug?.zones {
+                ForEach(Array(zones.enumerated()), id: \.offset) { index, zone in
+                    AccessibilityRotorEntry(zone.name, id: index) {
+                        selectedZoneIndex = index
+                    }
+                }
+            }
+        }
+        .accessibilityRotor("Channels") {
+            ForEach(filteredChannels, id: \.index) { item in
+                AccessibilityRotorEntry(item.channel.name, id: item.index) {
+                    selectedChannelIndex = item.index
+                }
+            }
         }
         // Prevent layout recursion by disabling animations on external state changes
         .transaction { transaction in
@@ -1375,6 +1392,7 @@ struct ChannelEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editedChannel: ChannelData
     @State private var frequencyStep: RadioConstants.FrequencyStep = .step12_5kHz
+    @Namespace private var formSections
     let onSave: (ChannelData) -> Void
 
     init(channel: ChannelData, onSave: @escaping (ChannelData) -> Void) {
@@ -1382,153 +1400,205 @@ struct ChannelEditorSheet: View {
         self.onSave = onSave
     }
 
+    /// Section identifiers for VoiceOver rotor navigation.
+    private enum FormSection: String, CaseIterable {
+        case basic = "Basic Information"
+        case frequencies = "Frequencies"
+        case powerTiming = "Power & Timing"
+        case digital = "Digital (DMR) Settings"
+        case advancedDigital = "Advanced Digital"
+        case analogSignaling = "Analog Signaling"
+        case analogOptions = "Analog Options"
+        case privacy = "Privacy/Encryption"
+        case signaling = "Signaling"
+        case scanning = "Scanning"
+        case mototrbo = "MOTOTRBO Features"
+
+        /// Sections relevant for a digital channel.
+        static var digitalSections: [FormSection] {
+            [.basic, .frequencies, .powerTiming, .digital, .advancedDigital, .privacy, .signaling, .scanning, .mototrbo]
+        }
+
+        /// Sections relevant for an analog channel.
+        static var analogSections: [FormSection] {
+            [.basic, .frequencies, .powerTiming, .analogSignaling, .analogOptions, .privacy, .signaling, .scanning, .mototrbo]
+        }
+    }
+
+    /// Active sections based on channel type.
+    private var activeSections: [FormSection] {
+        editedChannel.isDigital ? FormSection.digitalSections : FormSection.analogSections
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                // MARK: - Basic Settings
-                Section("Basic Information") {
-                    TextField("Channel Name", text: $editedChannel.name)
-                        .accessibilityLabel("Channel Name")
-                    ChannelModePicker(isDigital: $editedChannel.isDigital)
-                    BandwidthPicker(wideband: $editedChannel.bandwidthWide)
-                }
-
-                // MARK: - Frequencies
-                Section {
-                    FrequencyInput(frequencyHz: $editedChannel.rxFrequencyHz, step: frequencyStep, label: "RX Frequency")
-                    FrequencyInput(frequencyHz: $editedChannel.txFrequencyHz, step: frequencyStep, label: "TX Frequency")
-
-                    // Show offset for repeaters
-                    if editedChannel.txFrequencyHz != editedChannel.rxFrequencyHz {
-                        LabeledContent("TX Offset") {
-                            Text(String(format: "%+.4f MHz", editedChannel.txOffsetMHz))
-                                .foregroundStyle(.secondary)
-                        }
+            ScrollViewReader { scrollProxy in
+                Form {
+                    // MARK: - Basic Settings
+                    Section("Basic Information") {
+                        TextField("Channel Name", text: $editedChannel.name)
+                            .accessibilityLabel("Channel Name")
+                        ChannelModePicker(isDigital: $editedChannel.isDigital)
+                        BandwidthPicker(wideband: $editedChannel.bandwidthWide)
                     }
+                    .id(FormSection.basic)
 
-                    Picker("Frequency Step", selection: $frequencyStep) {
-                        ForEach(RadioConstants.FrequencyStep.allCases, id: \.self) { step in
-                            Text(step.displayName).tag(step)
-                        }
-                    }
-                } header: {
-                    Text("Frequencies")
-                }
+                    // MARK: - Frequencies
+                    Section {
+                        FrequencyInput(frequencyHz: $editedChannel.rxFrequencyHz, step: frequencyStep, label: "RX Frequency")
+                        FrequencyInput(frequencyHz: $editedChannel.txFrequencyHz, step: frequencyStep, label: "TX Frequency")
 
-                // MARK: - Power & Timing
-                Section("Power & Timing") {
-                    PowerPicker(highPower: $editedChannel.txPowerHigh)
-                    Toggle("RX Only", isOn: $editedChannel.rxOnly)
-
-                    Stepper("TOT Timeout: \(editedChannel.totTimeout)s",
-                            value: $editedChannel.totTimeout, in: 0...300, step: 15)
-                        .accessibilityLabel("Timeout Timer")
-                        .accessibilityValue("\(editedChannel.totTimeout) seconds")
-
-                    Toggle("Allow Talkaround", isOn: $editedChannel.allowTalkaround)
-                }
-
-                // MARK: - Digital Settings
-                if editedChannel.isDigital {
-                    Section("Digital (DMR) Settings") {
-                        ColorCodePicker(colorCode: $editedChannel.colorCode)
-                        TimeslotPicker(timeslot: $editedChannel.timeSlot)
-
-                        LabeledContent("Contact ID") {
-                            TextField("Contact ID", value: $editedChannel.contactID, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 100)
-                                .accessibilityLabel("DMR Contact ID")
-                                .accessibilityHint("Enter the contact DMR ID number")
+                        // Show offset for repeaters
+                        if editedChannel.txFrequencyHz != editedChannel.rxFrequencyHz {
+                            LabeledContent("TX Offset") {
+                                Text(String(format: "%+.4f MHz", editedChannel.txOffsetMHz))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
 
-                        ContactTypePicker(contactType: $editedChannel.contactType)
+                        Picker("Frequency Step", selection: $frequencyStep) {
+                            ForEach(RadioConstants.FrequencyStep.allCases, id: \.self) { step in
+                                Text(step.displayName).tag(step)
+                            }
+                        }
+                    } header: {
+                        Text("Frequencies")
+                    }
+                    .id(FormSection.frequencies)
+
+                    // MARK: - Power & Timing
+                    Section("Power & Timing") {
+                        PowerPicker(highPower: $editedChannel.txPowerHigh)
+                        Toggle("RX Only", isOn: $editedChannel.rxOnly)
+
+                        Stepper("TOT Timeout: \(editedChannel.totTimeout)s",
+                                value: $editedChannel.totTimeout, in: 0...300, step: 15)
+                            .accessibilityLabel("Timeout Timer")
+                            .accessibilityValue("\(editedChannel.totTimeout) seconds")
+
+                        Toggle("Allow Talkaround", isOn: $editedChannel.allowTalkaround)
+                    }
+                    .id(FormSection.powerTiming)
+
+                    // MARK: - Digital Settings
+                    if editedChannel.isDigital {
+                        Section("Digital (DMR) Settings") {
+                            ColorCodePicker(colorCode: $editedChannel.colorCode)
+                            TimeslotPicker(timeslot: $editedChannel.timeSlot)
+
+                            LabeledContent("Contact ID") {
+                                TextField("Contact ID", value: $editedChannel.contactID, format: .number)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 100)
+                                    .accessibilityLabel("DMR Contact ID")
+                                    .accessibilityHint("Enter the contact DMR ID number")
+                            }
+
+                            ContactTypePicker(contactType: $editedChannel.contactType)
+                        }
+                        .id(FormSection.digital)
+
+                        Section("Advanced Digital") {
+                            ColorCodePicker(colorCode: $editedChannel.inboundColorCode, label: "Inbound CC")
+                            ColorCodePicker(colorCode: $editedChannel.outboundColorCode, label: "Outbound CC")
+
+                            Toggle("Dual Capacity Direct Mode", isOn: $editedChannel.dualCapacityDirectMode)
+
+                            TimingLeaderPicker(preference: $editedChannel.timingLeaderPreference)
+
+                            Toggle("Extended Range Direct Mode", isOn: $editedChannel.extendedRangeDirectMode)
+                            Toggle("Compressed UDP Header", isOn: $editedChannel.compressedUDPHeader)
+
+                            Picker("Text Message Type", selection: $editedChannel.textMessageType) {
+                                Text("DMR Standard").tag(0)
+                                Text("MOTOTRBO").tag(1)
+                            }
+                        }
+                        .id(FormSection.advancedDigital)
                     }
 
-                    Section("Advanced Digital") {
-                        ColorCodePicker(colorCode: $editedChannel.inboundColorCode, label: "Inbound CC")
-                        ColorCodePicker(colorCode: $editedChannel.outboundColorCode, label: "Outbound CC")
+                    // MARK: - Analog Settings
+                    if !editedChannel.isDigital {
+                        Section("Analog Signaling") {
+                            SquelchTypePicker(squelchType: $editedChannel.rxSquelchType)
 
-                        Toggle("Dual Capacity Direct Mode", isOn: $editedChannel.dualCapacityDirectMode)
+                            CTCSSPicker(toneHz: $editedChannel.txCTCSSHz, label: "TX CTCSS")
+                            CTCSSPicker(toneHz: $editedChannel.rxCTCSSHz, label: "RX CTCSS")
 
-                        TimingLeaderPicker(preference: $editedChannel.timingLeaderPreference)
+                            DCSPicker(code: $editedChannel.txDCSCode, inverted: $editedChannel.dcsInvert, label: "TX DCS")
+                            DCSPicker(code: $editedChannel.rxDCSCode, inverted: $editedChannel.dcsInvert, label: "RX DCS")
+                        }
+                        .id(FormSection.analogSignaling)
 
-                        Toggle("Extended Range Direct Mode", isOn: $editedChannel.extendedRangeDirectMode)
-                        Toggle("Compressed UDP Header", isOn: $editedChannel.compressedUDPHeader)
+                        Section("Analog Options") {
+                            Toggle("Scramble", isOn: $editedChannel.scrambleEnabled)
+                            Toggle("Voice Emphasis", isOn: $editedChannel.voiceEmphasis)
+                        }
+                        .id(FormSection.analogOptions)
+                    }
 
-                        Picker("Text Message Type", selection: $editedChannel.textMessageType) {
-                            Text("DMR Standard").tag(0)
-                            Text("MOTOTRBO").tag(1)
+                    // MARK: - Privacy
+                    Section("Privacy/Encryption") {
+                        PrivacyTypePicker(privacyType: $editedChannel.privacyType)
+
+                        if editedChannel.privacyType > 0 {
+                            Stepper("Privacy Key: \(editedChannel.privacyKey)",
+                                    value: $editedChannel.privacyKey, in: 0...255)
+                                .accessibilityLabel("Privacy Key")
+                                .accessibilityValue("\(editedChannel.privacyKey) of 255")
+
+                            Toggle("Fixed Key Decryption", isOn: $editedChannel.fixedPrivacyKeyDecryption)
+                        }
+
+                        Toggle("Ignore RX Clear Voice", isOn: $editedChannel.ignoreRxClearVoice)
+                    }
+                    .id(FormSection.privacy)
+
+                    // MARK: - Signaling
+                    Section("Signaling") {
+                        Toggle("ARS", isOn: $editedChannel.arsEnabled)
+                        Toggle("Enhanced GNSS", isOn: $editedChannel.enhancedGNSSEnabled)
+                        Toggle("Lone Worker", isOn: $editedChannel.loneWorker)
+                        Toggle("Emergency Alarm Ack", isOn: $editedChannel.emergencyAlarmAck)
+                        Toggle("ARTS", isOn: $editedChannel.artsEnabled)
+
+                        Picker("TX Interrupt", selection: $editedChannel.txInterruptType) {
+                            Text("Disabled").tag(0)
+                            Text("Always Allow").tag(1)
                         }
                     }
-                }
+                    .id(FormSection.signaling)
 
-                // MARK: - Analog Settings
-                if !editedChannel.isDigital {
-                    Section("Analog Signaling") {
-                        SquelchTypePicker(squelchType: $editedChannel.rxSquelchType)
+                    // MARK: - Scanning
+                    Section("Scanning") {
+                        Stepper("Scan List: \(editedChannel.scanListID)",
+                                value: $editedChannel.scanListID, in: 0...255)
+                            .accessibilityLabel("Scan List ID")
+                            .accessibilityValue(editedChannel.scanListID == 0 ? "None" : "List \(editedChannel.scanListID)")
 
-                        CTCSSPicker(toneHz: $editedChannel.txCTCSSHz, label: "TX CTCSS")
-                        CTCSSPicker(toneHz: $editedChannel.rxCTCSSHz, label: "RX CTCSS")
-
-                        DCSPicker(code: $editedChannel.txDCSCode, inverted: $editedChannel.dcsInvert, label: "TX DCS")
-                        DCSPicker(code: $editedChannel.rxDCSCode, inverted: $editedChannel.dcsInvert, label: "RX DCS")
+                        Toggle("Auto Scan", isOn: $editedChannel.autoScan)
                     }
+                    .id(FormSection.scanning)
 
-                    Section("Analog Options") {
-                        Toggle("Scramble", isOn: $editedChannel.scrambleEnabled)
-                        Toggle("Voice Emphasis", isOn: $editedChannel.voiceEmphasis)
+                    // MARK: - MOTOTRBO
+                    Section("MOTOTRBO Features") {
+                        Toggle("MOTOTRBO Link", isOn: $editedChannel.mototrboLinkEnabled)
+                        Toggle("OTA Battery Management", isOn: $editedChannel.otaBatteryManagement)
+                        Toggle("Audio Enhancement", isOn: $editedChannel.audioEnhancement)
                     }
+                    .id(FormSection.mototrbo)
                 }
-
-                // MARK: - Privacy
-                Section("Privacy/Encryption") {
-                    PrivacyTypePicker(privacyType: $editedChannel.privacyType)
-
-                    if editedChannel.privacyType > 0 {
-                        Stepper("Privacy Key: \(editedChannel.privacyKey)",
-                                value: $editedChannel.privacyKey, in: 0...255)
-                            .accessibilityLabel("Privacy Key")
-                            .accessibilityValue("\(editedChannel.privacyKey) of 255")
-
-                        Toggle("Fixed Key Decryption", isOn: $editedChannel.fixedPrivacyKeyDecryption)
+                .formStyle(.grouped)
+                .accessibilityRotor("Form Sections") {
+                    ForEach(activeSections, id: \.self) { section in
+                        AccessibilityRotorEntry(section.rawValue, id: section) {
+                            withAnimation {
+                                scrollProxy.scrollTo(section, anchor: .top)
+                            }
+                        }
                     }
-
-                    Toggle("Ignore RX Clear Voice", isOn: $editedChannel.ignoreRxClearVoice)
-                }
-
-                // MARK: - Signaling
-                Section("Signaling") {
-                    Toggle("ARS", isOn: $editedChannel.arsEnabled)
-                    Toggle("Enhanced GNSS", isOn: $editedChannel.enhancedGNSSEnabled)
-                    Toggle("Lone Worker", isOn: $editedChannel.loneWorker)
-                    Toggle("Emergency Alarm Ack", isOn: $editedChannel.emergencyAlarmAck)
-                    Toggle("ARTS", isOn: $editedChannel.artsEnabled)
-
-                    Picker("TX Interrupt", selection: $editedChannel.txInterruptType) {
-                        Text("Disabled").tag(0)
-                        Text("Always Allow").tag(1)
-                    }
-                }
-
-                // MARK: - Scanning
-                Section("Scanning") {
-                    Stepper("Scan List: \(editedChannel.scanListID)",
-                            value: $editedChannel.scanListID, in: 0...255)
-                        .accessibilityLabel("Scan List ID")
-                        .accessibilityValue(editedChannel.scanListID == 0 ? "None" : "List \(editedChannel.scanListID)")
-
-                    Toggle("Auto Scan", isOn: $editedChannel.autoScan)
-                }
-
-                // MARK: - MOTOTRBO
-                Section("MOTOTRBO Features") {
-                    Toggle("MOTOTRBO Link", isOn: $editedChannel.mototrboLinkEnabled)
-                    Toggle("OTA Battery Management", isOn: $editedChannel.otaBatteryManagement)
-                    Toggle("Audio Enhancement", isOn: $editedChannel.audioEnhancement)
                 }
             }
-            .formStyle(.grouped)
             .navigationTitle("Edit Channel")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

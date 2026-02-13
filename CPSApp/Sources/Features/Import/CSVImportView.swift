@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioModelCore
 
 /// View for previewing and confirming CSV channel imports.
 struct ChannelImportPreviewView: View {

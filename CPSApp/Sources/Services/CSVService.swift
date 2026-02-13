@@ -1,5 +1,6 @@
 import Foundation
 import RadioProgrammer
+import RadioModelCore
 
 /// Service for importing and exporting channel and contact data as CSV.
 /// Designed for CHIRP compatibility and fleet management workflows.

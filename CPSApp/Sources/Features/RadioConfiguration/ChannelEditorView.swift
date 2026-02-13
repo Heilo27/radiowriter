@@ -49,7 +49,7 @@ struct ChannelEditorView: View {
                 }
                 .width(min: 50, ideal: 60)
             }
-            .contextMenu(forSelectionType: Int.self) { indices in
+            .contextMenu(forSelectionType: Int.self) { _ in
                 Button("Copy Channel") {}
                     .accessibilityIdentifier("contextMenu.copyChannel")
                 Button("Paste Channel") {}
@@ -57,7 +57,7 @@ struct ChannelEditorView: View {
                 Divider()
                 Button("Clear Channel") {}
                     .accessibilityIdentifier("contextMenu.clearChannel")
-            } primaryAction: { indices in
+            } primaryAction: { _ in
                 // Double-click to edit
             }
             .accessibilityIdentifier("channelTable")

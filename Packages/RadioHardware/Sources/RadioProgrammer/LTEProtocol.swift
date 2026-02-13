@@ -2,11 +2,11 @@ import Foundation
 
 // MARK: - LTE/PBB Protocol
 
-/// LTE/PBB (Packet-Based Broadband) protocol for programming LTE radios.
-/// Unlike PCR radios that use serial binary protocols, PBB radios use HTTP/REST APIs.
-///
-/// Transport: HTTP/HTTPS over WiFi or LTE
-/// Content Types: application/json, application/octet-stream, application/zip
+// LTE/PBB (Packet-Based Broadband) protocol for programming LTE radios.
+// Unlike PCR radios that use serial binary protocols, PBB radios use HTTP/REST APIs.
+//
+// Transport: HTTP/HTTPS over WiFi or LTE
+// Content Types: application/json, application/octet-stream, application/zip
 
 // MARK: - API Endpoints
 

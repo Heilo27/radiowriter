@@ -75,10 +75,14 @@ MotorolaCPS/
 
 ## Privacy & Legal
 
-- This is for educational/interoperability research purposes
-- Follow responsible disclosure practices
-- Do not distribute proprietary binaries
+**See [LEGAL.md](LEGAL.md) for the full legal disclaimer, including reverse engineering compliance, regulatory warnings, and contribution guidelines.**
+
+- This is for educational/interoperability research purposes under DMCA Section 1201(f) and EU Directive 2009/24/EC
+- Follow clean-room methodology — separate analysis from implementation
+- Follow responsible disclosure practices for any security findings
+- Do not distribute proprietary binaries, encryption keys, or Motorola source code
 - Focus on protocol documentation and interoperability
+- Users are responsible for FCC Part 90/95/97 compliance when programming radios
 
 ---
 

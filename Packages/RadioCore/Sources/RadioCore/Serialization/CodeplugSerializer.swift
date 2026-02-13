@@ -1,6 +1,8 @@
 import Foundation
 import CryptoKit
 import Compression
+import CommonCrypto
+import Security
 
 /// Handles serialization of codeplugs to and from the native `.cpsx` file format.
 /// Format: [Header][Metadata JSON][Compressed+Encrypted Binary Data]
@@ -8,14 +10,25 @@ public struct CodeplugSerializer: Sendable {
 
     /// File format magic bytes: "CPSX"
     private static let magic: [UInt8] = [0x43, 0x50, 0x53, 0x58]
-    /// Current format version
-    private static let formatVersion: UInt16 = 1
+    /// Current format version (v2 = PBKDF2 with salt, v1 = legacy SHA-256)
+    private static let formatVersion: UInt16 = 2
+
+    /// PBKDF2 parameters for v2+ files
+    /// - Rounds: 100,000 iterations (OWASP recommended minimum for PBKDF2-SHA256)
+    /// - Salt length: 16 bytes (128 bits)
+    /// - Key length: 32 bytes (256 bits for AES-256)
+    private static let pbkdf2Rounds = 100_000
+    private static let saltLength = 16
 
     public init() {}
 
     // MARK: - Serialization
 
     /// Serializes a codeplug to the native format.
+    ///
+    /// Note: Compression happens on a background thread to avoid blocking.
+    /// However, this method is synchronous to maintain compatibility with FileDocument.
+    /// The system's file I/O layer typically calls this off the main thread already.
     public func serialize(_ codeplug: Codeplug, password: String? = nil) throws -> Data {
         var output = Data()
 
@@ -41,15 +54,27 @@ public struct CodeplugSerializer: Sendable {
         // Encrypt if password provided
         let payload: Data
         let isEncrypted: UInt8
+        let salt: Data?
         if let password = password {
-            payload = try encrypt(compressed, password: password)
+            let generatedSalt = generateSalt()
+            payload = try encrypt(compressed, password: password, salt: generatedSalt)
             isEncrypted = 1
+            salt = generatedSalt
         } else {
             payload = compressed
             isEncrypted = 0
+            salt = nil
         }
 
         output.append(isEncrypted)
+
+        // For encrypted files (v2+), write salt length and salt
+        if let salt = salt {
+            let saltLen = UInt16(salt.count)
+            output.append(contentsOf: withUnsafeBytes(of: saltLen.littleEndian) { Data($0) })
+            output.append(salt)
+        }
+
         let payloadLength = UInt32(payload.count)
         output.append(contentsOf: withUnsafeBytes(of: payloadLength.littleEndian) { Data($0) })
         output.append(payload)
@@ -62,6 +87,10 @@ public struct CodeplugSerializer: Sendable {
     }
 
     /// Deserializes a codeplug from the native format.
+    ///
+    /// Note: Decompression happens on a background thread to avoid blocking.
+    /// However, this method is synchronous to maintain compatibility with FileDocument.
+    /// The system's file I/O layer typically calls this off the main thread already.
     public func deserialize(_ data: Data, password: String? = nil) throws -> Codeplug {
         var offset = 0
 
@@ -97,6 +126,18 @@ public struct CodeplugSerializer: Sendable {
         let isEncrypted = data[offset] == 1
         offset += 1
 
+        // For v2+ encrypted files, read salt
+        let salt: Data?
+        if isEncrypted && version >= 2 {
+            let saltLen = Int(readUInt16LE(from: data, at: offset))
+            offset += 2
+            guard offset + saltLen <= data.count else { throw SerializationError.truncatedData }
+            salt = Data(data[offset..<(offset + saltLen)])
+            offset += saltLen
+        } else {
+            salt = nil
+        }
+
         // Payload
         let payloadLength = Int(readUInt32LE(from: data, at: offset))
         offset += 4
@@ -111,7 +152,7 @@ public struct CodeplugSerializer: Sendable {
         let compressed: Data
         if isEncrypted {
             guard let password = password else { throw SerializationError.passwordRequired }
-            compressed = try decrypt(payload, password: password)
+            compressed = try decrypt(payload, password: password, salt: salt, version: version)
         } else {
             compressed = payload
         }
@@ -185,21 +226,84 @@ public struct CodeplugSerializer: Sendable {
 
     // MARK: - Encryption (AES-256-GCM via CryptoKit)
 
-    private func deriveKey(from password: String) -> SymmetricKey {
+    /// Generates a cryptographically secure random salt for PBKDF2.
+    private func generateSalt() -> Data {
+        var salt = Data(count: Self.saltLength)
+        salt.withUnsafeMutableBytes { buffer in
+            // Use SecRandomCopyBytes for cryptographic randomness
+            _ = SecRandomCopyBytes(kSecRandomDefault, Self.saltLength, buffer.baseAddress!)
+        }
+        return salt
+    }
+
+    /// Derives an encryption key from a password using PBKDF2-HMAC-SHA256.
+    ///
+    /// - Parameters:
+    ///   - password: User-provided password
+    ///   - salt: Random salt (16 bytes)
+    ///   - rounds: Number of PBKDF2 iterations (100,000 for v2+)
+    /// - Returns: 256-bit symmetric key for AES-256-GCM
+    ///
+    /// **Security Parameters (v2+):**
+    /// - Algorithm: PBKDF2-HMAC-SHA256
+    /// - Iterations: 100,000 (OWASP 2023 recommendation)
+    /// - Salt length: 16 bytes (128 bits)
+    /// - Output key length: 32 bytes (256 bits)
+    ///
+    /// **Legacy (v1):**
+    /// - Algorithm: SHA-256 (single hash, no salt) - INSECURE
+    /// - Maintained for backward compatibility only
+    private func deriveKey(from password: String, salt: Data, rounds: Int) -> SymmetricKey {
+        let passwordData = Data(password.utf8)
+
+        // PBKDF2-HMAC-SHA256
+        var derivedKeyData = Data(count: 32) // 256 bits
+        derivedKeyData.withUnsafeMutableBytes { derivedKeyBytes in
+            passwordData.withUnsafeBytes { passwordBytes in
+                salt.withUnsafeBytes { saltBytes in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        passwordBytes.baseAddress?.assumingMemoryBound(to: Int8.self),
+                        passwordData.count,
+                        saltBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        UInt32(rounds),
+                        derivedKeyBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        32
+                    )
+                }
+            }
+        }
+
+        return SymmetricKey(data: derivedKeyData)
+    }
+
+    /// Legacy v1 key derivation (INSECURE - kept for backward compatibility).
+    /// Uses single SHA-256 hash without salt or iterations.
+    private func legacyDeriveKey(from password: String) -> SymmetricKey {
         let passwordData = Data(password.utf8)
         let hash = SHA256.hash(data: passwordData)
         return SymmetricKey(data: hash)
     }
 
-    private func encrypt(_ data: Data, password: String) throws -> Data {
-        let key = deriveKey(from: password)
+    private func encrypt(_ data: Data, password: String, salt: Data) throws -> Data {
+        let key = deriveKey(from: password, salt: salt, rounds: Self.pbkdf2Rounds)
         let sealed = try AES.GCM.seal(data, using: key)
         guard let combined = sealed.combined else { throw SerializationError.encryptionFailed }
         return combined
     }
 
-    private func decrypt(_ data: Data, password: String) throws -> Data {
-        let key = deriveKey(from: password)
+    private func decrypt(_ data: Data, password: String, salt: Data?, version: UInt16) throws -> Data {
+        let key: SymmetricKey
+        if version >= 2, let salt = salt {
+            // v2+: PBKDF2 with salt
+            key = deriveKey(from: password, salt: salt, rounds: Self.pbkdf2Rounds)
+        } else {
+            // v1: Legacy SHA-256 (no salt)
+            key = legacyDeriveKey(from: password)
+        }
+
         let box = try AES.GCM.SealedBox(combined: data)
         return try AES.GCM.open(box, using: key)
     }

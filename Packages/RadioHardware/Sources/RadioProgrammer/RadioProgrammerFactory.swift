@@ -397,7 +397,7 @@ public actor TETRAProgrammer: RadioFamilyProgrammer {
         // Check for rejection
         if response.opcode == TETRAOpcode.rejectIndication.rawValue {
             // Check rejection reason
-            if response.payload.count > 0 {
+            if !response.payload.isEmpty {
                 throw TETRAError.commandRejected(reason: "Code: 0x\(String(format: "%02X", response.payload[0]))")
             }
             throw TETRAError.commandRejected(reason: "Unknown")

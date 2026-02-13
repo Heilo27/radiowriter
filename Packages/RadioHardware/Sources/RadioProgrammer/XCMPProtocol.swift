@@ -1,4 +1,5 @@
 import Foundation
+import RadioModelCore
 
 // MARK: - XCMP OpCodes
 
@@ -2686,7 +2687,7 @@ public struct ParsedChannelRecord: Sendable {
     public var totSeconds: Int = 0
 
     /// Raw record data (324 bytes) for further parsing
-    public var rawData: Data = Data()
+    public var rawData = Data()
 
     public init(index: Int = 0) {
         self.index = index
@@ -2743,156 +2744,3 @@ public struct ParsedChannelRecord: Sendable {
         return parts.joined(separator: " | ")
     }
 }
-
-// MARK: - Channel Data
-
-/// Parsed channel data from CloneRead operations.
-/// Contains all configurable settings for a channel.
-public struct ChannelData: Sendable {
-    // MARK: - Identity
-    public var zoneIndex: Int = 0
-    public var channelIndex: Int = 0
-    public var name: String = ""
-    public var alias: String = ""
-
-    // MARK: - Frequencies
-    public var rxFrequencyHz: UInt32 = 0
-    public var txFrequencyHz: UInt32 = 0
-
-    public var rxFrequencyMHz: Double { Double(rxFrequencyHz) / 1_000_000.0 }
-    public var txFrequencyMHz: Double { Double(txFrequencyHz) / 1_000_000.0 }
-
-    /// TX offset in MHz (positive = +offset, negative = -offset, 0 = simplex)
-    public var txOffsetMHz: Double {
-        (Double(txFrequencyHz) - Double(rxFrequencyHz)) / 1_000_000.0
-    }
-
-    // MARK: - Channel Type
-    public var isDigital: Bool = true
-
-    // MARK: - Digital (DMR) Settings
-    public var timeSlot: Int = 1
-    public var colorCode: Int = 1
-    public var inboundColorCode: Int = 1
-    public var outboundColorCode: Int = 1
-    public var contactID: UInt32 = 0
-    public var contactType: Int = 0  // 0=Private, 1=Group, 2=All Call
-    public var rxGroupListID: UInt8 = 0
-    public var dualCapacityDirectMode: Bool = false
-    public var timingLeaderPreference: Int = 0  // 0=Either, 1=Preferred, 2=Followed
-    public var extendedRangeDirectMode: Bool = false
-    public var windowSize: UInt8 = 1
-
-    // MARK: - Power & Bandwidth
-    public var txPowerHigh: Bool = true
-    public var bandwidthWide: Bool = false  // false=12.5kHz, true=25kHz
-
-    // MARK: - Analog Settings
-    public var rxSquelchType: Int = 0  // 0=Carrier, 1=CTCSS/DCS, 2=Tight
-    public var txCTCSSHz: Double = 0  // In Hz (e.g., 100.0)
-    public var rxCTCSSHz: Double = 0
-    public var txDCSCode: UInt16 = 0  // Octal code (e.g., 023)
-    public var rxDCSCode: UInt16 = 0
-    public var dcsInvert: Bool = false
-    public var scrambleEnabled: Bool = false
-    public var voiceEmphasis: Bool = false
-
-    // MARK: - Privacy/Encryption
-    public var privacyType: Int = 0  // 0=None, 1=Basic, 2=Enhanced, 3=AES
-    public var privacyKey: UInt8 = 0
-    public var privacyAlias: String = ""
-    public var ignoreRxClearVoice: Bool = false
-    public var fixedPrivacyKeyDecryption: Bool = false
-
-    // MARK: - Signaling
-    public var arsEnabled: Bool = false
-    public var enhancedGNSSEnabled: Bool = false
-    public var loneWorker: Bool = false
-    public var emergencyAlarmAck: Bool = false
-    public var txInterruptType: Int = 0  // 0=Disabled, 1=Always Allow
-    public var artsEnabled: Bool = false
-    public var rasAlias: String = ""
-
-    // MARK: - Power & Timing
-    public var rxOnly: Bool = false
-    public var totTimeout: UInt16 = 60
-    public var allowTalkaround: Bool = true
-    public var autoScan: Bool = false
-    public var scanListID: UInt8 = 0
-    public var admitCriteria: Int = 0
-
-    // MARK: - MOTOTRBO Features
-    public var mototrboLinkEnabled: Bool = false
-    public var compressedUDPHeader: Bool = false
-    public var textMessageType: Int = 0  // 0=DMR, 1=MOTOTRBO
-    public var otaBatteryManagement: Bool = false
-    public var audioEnhancement: Bool = false
-    public var phoneSystem: String = ""
-
-    // MARK: - Voice Announcement
-    public var voiceAnnouncement: String = ""
-
-    public init(zoneIndex: Int = 0, channelIndex: Int = 0) {
-        self.zoneIndex = zoneIndex
-        self.channelIndex = channelIndex
-    }
-
-    // MARK: - Display Helpers
-
-    /// Human-readable channel type
-    public var channelTypeDisplay: String {
-        isDigital ? "Digital (DMR)" : "Analog"
-    }
-
-    /// Human-readable bandwidth
-    public var bandwidthDisplay: String {
-        bandwidthWide ? "25 kHz" : "12.5 kHz"
-    }
-
-    /// Human-readable power level
-    public var powerDisplay: String {
-        txPowerHigh ? "High" : "Low"
-    }
-
-    /// Human-readable squelch type
-    public var squelchTypeDisplay: String {
-        switch rxSquelchType {
-        case 0: return "Carrier"
-        case 1: return "CTCSS/DCS"
-        case 2: return "Tight"
-        default: return "Unknown"
-        }
-    }
-
-    /// Human-readable privacy type
-    public var privacyTypeDisplay: String {
-        switch privacyType {
-        case 0: return "None"
-        case 1: return "Basic"
-        case 2: return "Enhanced"
-        case 3: return "AES-256"
-        default: return "Unknown"
-        }
-    }
-
-    /// Human-readable timing leader preference
-    public var timingLeaderDisplay: String {
-        switch timingLeaderPreference {
-        case 0: return "Either"
-        case 1: return "Preferred"
-        case 2: return "Followed"
-        default: return "Unknown"
-        }
-    }
-
-    /// Human-readable contact type
-    public var contactTypeDisplay: String {
-        switch contactType {
-        case 0: return "Private Call"
-        case 1: return "Group Call"
-        case 2: return "All Call"
-        default: return "Unknown"
-        }
-    }
-}
-

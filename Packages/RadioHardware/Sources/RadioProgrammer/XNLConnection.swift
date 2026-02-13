@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import os
 
 /// XNL protocol opcodes for MOTOTRBO radios.
 /// VERIFIED FROM CPS 2.0 CAPTURES: 2026-01-30
@@ -193,7 +194,7 @@ public actor XNLConnection {
     ///
     /// CPS captures show ~546ms delay before first XCMP command.
     private func handleInitBroadcast(debug: Bool = false) async {
-        if debug { print("[INIT] Waiting for DeviceInitStatusBroadcast (0xB400)...") }
+        if debug { RadioLog.xnl.debug("[INIT] Waiting for DeviceInitStatusBroadcast (0xB400)...") }
 
         var sentOurResponse = false
         var receivedInitComplete = false
@@ -205,28 +206,28 @@ public actor XNLConnection {
                 // If we've already sent our response, check if we should proceed
                 if sentOurResponse {
                     if receivedInitComplete {
-                        if debug { print("[INIT] Handshake complete, proceeding...") }
+                        if debug { RadioLog.xnl.debug("[INIT] Handshake complete, proceeding...") }
                         return
                     }
                     // Give radio time to send InitComplete broadcasts
                     if attempt > 10 {
-                        if debug { print("[INIT] Timeout waiting for InitComplete, proceeding anyway...") }
+                        if debug { RadioLog.xnl.debug("[INIT] Timeout waiting for InitComplete, proceeding anyway...") }
                         return
                     }
                 }
-                if debug && attempt % 5 == 0 { print("[INIT] Waiting for broadcast (attempt \(attempt + 1))") }
+                if debug && attempt % 5 == 0 { RadioLog.xnl.debug("[INIT] Waiting for broadcast (attempt \(attempt + 1))") }
                 continue
             }
 
             // Handle DataMessageAck - just skip (radio sends these)
             if data.count >= 4 && data[3] == XNLOpCode.dataMessageAck.rawValue {
-                if debug { print("[INIT] Received ACK from radio") }
+                if debug { RadioLog.xnl.debug("[INIT] Received ACK from radio") }
                 continue
             }
 
             // Skip DevSysMapBroadcast (XNL opcode 0x09)
             if data.count >= 4 && data[3] == XNLOpCode.deviceSysMapBroadcast.rawValue {
-                if debug { print("[INIT] Skipping DevSysMapBroadcast") }
+                if debug { RadioLog.xnl.debug("[INIT] Skipping DevSysMapBroadcast") }
                 continue
             }
 
@@ -235,7 +236,7 @@ public actor XNLConnection {
                   data[3] == XNLOpCode.dataMessage.rawValue,
                   data[4] == 0x01  // XCMP flag
             else {
-                if debug { print("[INIT] Received non-XCMP packet, skipping...") }
+                if debug { RadioLog.xnl.debug("[INIT] Received non-XCMP packet, skipping...") }
                 continue
             }
 
@@ -244,7 +245,11 @@ public actor XNLConnection {
             let rxTxID = UInt16(data[10]) << 8 | UInt16(data[11])
             let srcAddr = UInt16(data[8]) << 8 | UInt16(data[9])
 
-            if debug { print("[INIT] Received DataMessage txID 0x\(String(format: "%04X", rxTxID)) from 0x\(String(format: "%04X", srcAddr)) (no ACK per CPS protocol)") }
+            if debug {
+                let txIDHex = String(format: "%04X", rxTxID)
+                let srcAddrHex = String(format: "%04X", srcAddr)
+                RadioLog.xnl.debug("[INIT] Received DataMessage txID 0x\(txIDHex, privacy: .public) from 0x\(srcAddrHex, privacy: .public) (no ACK per CPS protocol)")
+            }
 
             // Extract XCMP opcode (bytes 14-15)
             let xcmpOpcode = UInt16(data[14]) << 8 | UInt16(data[15])
@@ -252,8 +257,9 @@ public actor XNLConnection {
             // Handle DeviceInitStatusBroadcast (0xB400)
             if xcmpOpcode == 0xB400 {
                 if debug {
-                    print("[INIT] Received DeviceInitStatusBroadcast")
-                    print("[INIT] Full packet: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                    RadioLog.xnl.debug("[INIT] Received DeviceInitStatusBroadcast")
+                    let packetHex = data.map { String(format: "%02X", $0) }.joined(separator: " ")
+                    RadioLog.xnl.debug("[INIT] Full packet: \(packetHex, privacy: .public)")
                 }
 
                 // Extract the radio's transaction ID (bytes 10-11)
@@ -264,11 +270,18 @@ public actor XNLConnection {
                 // XCMP payload starts at packet offset 14, so initComplete is at offset 14 + 6 = 20
                 if data.count >= 21 {
                     let initComplete = data[20]
-                    if debug { print("[INIT] InitComplete: 0x\(String(format: "%02X", initComplete)), radioTxID: 0x\(String(format: "%04X", radioTxID))") }
+                    if debug {
+                        let initCompleteHex = String(format: "%02X", initComplete)
+                        let radioTxIDHex = String(format: "%04X", radioTxID)
+                        RadioLog.xnl.debug("[INIT] InitComplete: 0x\(initCompleteHex, privacy: .public), radioTxID: 0x\(radioTxIDHex, privacy: .public)")
+                    }
 
                     if initComplete == 0x00 && !sentOurResponse {
                         // Radio wants us to respond - send our DeviceInitStatusBroadcast
-                        if debug { print("[INIT] InitComplete=0, sending response (mirroring txID 0x\(String(format: "%04X", radioTxID)))...") }
+                        if debug {
+                            let radioTxIDHex = String(format: "%04X", radioTxID)
+                            RadioLog.xnl.debug("[INIT] InitComplete=0, sending response (mirroring txID 0x\(radioTxIDHex, privacy: .public))...")
+                        }
 
                         // Build our response: opcode + version(3) + entityType(1) + initComplete(1) + status...
                         // CRITICAL: CPS uses version 00 00 00, NOT the radio's version!
@@ -285,7 +298,11 @@ public actor XNLConnection {
                         response.append(0x00)  // Status low
                         response.append(0x00)  // Descriptor length: 0
 
-                        if debug { print("[INIT] Sending to master (0x\(String(format: "%04X", masterAddress))): \(response.map { String(format: "%02X", $0) }.joined(separator: " "))") }
+                        if debug {
+                            let masterAddrHex = String(format: "%04X", masterAddress)
+                            let responseHex = response.map { String(format: "%02X", $0) }.joined(separator: " ")
+                            RadioLog.xnl.debug("[INIT] Sending to master (0x\(masterAddrHex, privacy: .public)): \(responseHex, privacy: .public)")
+                        }
 
                         // CRITICAL: Mirror the radio's txID in our response (CPS verified)
                         try? await sendXCMPToMaster(response, mirrorTxID: radioTxID, debug: debug)
@@ -294,11 +311,15 @@ public actor XNLConnection {
 
                     } else if initComplete == 0x01 || initComplete == 0x02 {
                         // InitComplete != 0x00 means radio is transitioning (0x02) or ready (0x01)
-                        if debug { print("[INIT] InitComplete=0x\(String(format: "%02X", initComplete)) - \(initComplete == 0x01 ? "READY" : "transitioning")") }
+                        if debug {
+                            let initCompleteHex = String(format: "%02X", initComplete)
+                            let status = initComplete == 0x01 ? "READY" : "transitioning"
+                            RadioLog.xnl.debug("[INIT] InitComplete=0x\(initCompleteHex, privacy: .public) - \(status)")
+                        }
                         receivedInitComplete = true
                         if initComplete == 0x01 {
                             // Radio is fully ready
-                            if debug { print("[INIT] Radio initialization complete!") }
+                            if debug { RadioLog.xnl.debug("[INIT] Radio initialization complete!") }
                             // CPS waits ~546ms after auth before first command - add a small delay
                             try? await Task.sleep(for: .milliseconds(100))
                             return
@@ -311,12 +332,15 @@ public actor XNLConnection {
 
             // Skip other broadcasts (0xB410, etc.)
             if xcmpOpcode & 0xF000 == 0xB000 {
-                if debug { print("[INIT] Skipping broadcast 0x\(String(format: "%04X", xcmpOpcode))") }
+                if debug {
+                    let xcmpOpcodeHex = String(format: "%04X", xcmpOpcode)
+                    RadioLog.xnl.debug("[INIT] Skipping broadcast 0x\(xcmpOpcodeHex, privacy: .public)")
+                }
                 continue
             }
         }
 
-        if debug { print("[INIT] Init broadcast handling complete (attempts exhausted)") }
+        if debug { RadioLog.xnl.debug("[INIT] Init broadcast handling complete (attempts exhausted)") }
         // Add delay similar to CPS behavior even if we didn't see InitComplete=0x01
         try? await Task.sleep(for: .milliseconds(100))
     }
@@ -532,7 +556,7 @@ public actor XNLConnection {
             throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
         }
 
-        if debug { print("[SEND] Attempting to send \(data.count) bytes...") }
+        if debug { RadioLog.xnl.debug("[SEND] Attempting to send \(data.count) bytes...") }
 
         var bytes = [UInt8](data)
         var totalSent = 0
@@ -546,7 +570,7 @@ public actor XNLConnection {
 
             if sent < 0 {
                 let err = errno
-                if debug { print("[SEND] ERROR: errno \(err) after \(totalSent) bytes") }
+                if debug { RadioLog.xnl.error("[SEND] ERROR: errno \(err) after \(totalSent) bytes") }
 
                 // Handle connection closed/broken pipe
                 if err == EPIPE || err == ECONNRESET || err == ENOTCONN {
@@ -569,11 +593,11 @@ public actor XNLConnection {
             totalSent += sent
 
             if debug && sent < remaining {
-                print("[SEND] Partial send: \(sent)/\(remaining) bytes, continuing...")
+                RadioLog.xnl.debug("[SEND] Partial send: \(sent)/\(remaining) bytes, continuing...")
             }
         }
 
-        if debug { print("[SEND] Success - \(totalSent) bytes sent") }
+        if debug { RadioLog.xnl.debug("[SEND] Success - \(totalSent) bytes sent") }
     }
 
     private func receivePacket(timeout: TimeInterval) async -> Data? {
@@ -612,31 +636,31 @@ public actor XNLConnection {
         let startTime = Date()
         let maxDrainTime: TimeInterval = 2.0  // Maximum total drain time
 
-        if debug { print("[DRAIN] Starting drain...") }
+        if debug { RadioLog.xnl.debug("[DRAIN] Starting drain...") }
 
         // Check for any pending data - continue until we have 3 clean reads
         // or we've consumed 10 messages (to avoid infinite loop)
         for iteration in 0..<20 {
             // Safety: don't drain for more than maxDrainTime total
             if Date().timeIntervalSince(startTime) > maxDrainTime {
-                if debug { print("[DRAIN] Total time limit reached, proceeding...") }
+                if debug { RadioLog.xnl.debug("[DRAIN] Total time limit reached, proceeding...") }
                 return
             }
 
-            if debug { print("[DRAIN] Iteration \(iteration), waiting for data...") }
+            if debug { RadioLog.xnl.debug("[DRAIN] Iteration \(iteration), waiting for data...") }
 
             guard let data = await receivePacket(timeout: 0.15) else {
                 cleanIterations += 1
-                if debug { print("[DRAIN] Clean read \(cleanIterations)/3 (iteration \(iteration))") }
+                if debug { RadioLog.xnl.debug("[DRAIN] Clean read \(cleanIterations)/3 (iteration \(iteration))") }
                 // After 3 clean reads in a row, we're done
                 if cleanIterations >= 3 {
-                    if debug { print("[DRAIN] Complete after \(messagesConsumed) messages, \(cleanIterations) clean reads") }
+                    if debug { RadioLog.xnl.debug("[DRAIN] Complete after \(messagesConsumed) messages, \(cleanIterations) clean reads") }
                     return
                 }
                 continue
             }
 
-            if debug { print("[DRAIN] Received \(data.count) bytes") }
+            if debug { RadioLog.xnl.debug("[DRAIN] Received \(data.count) bytes") }
 
             // Reset clean counter when we receive data
             cleanIterations = 0
@@ -644,7 +668,7 @@ public actor XNLConnection {
 
             // Limit how many messages we drain to avoid getting stuck
             if messagesConsumed > 10 {
-                if debug { print("[DRAIN] Limit reached, proceeding...") }
+                if debug { RadioLog.xnl.debug("[DRAIN] Limit reached, proceeding...") }
                 return
             }
 
@@ -658,25 +682,32 @@ public actor XNLConnection {
                         // Check if it's a B4xx broadcast
                         if data.count >= 16 {
                             let xcmpOpcode = UInt16(data[14]) << 8 | UInt16(data[15])
+                            let xcmpOpcodeHex = String(format: "%04X", xcmpOpcode)
+                            let rxTxIDHex = String(format: "%04X", rxTxID)
                             if xcmpOpcode & 0xF000 == 0xB000 {
-                                print("[DRAIN] Consumed broadcast 0x\(String(format: "%04X", xcmpOpcode)) txID 0x\(String(format: "%04X", rxTxID))")
+                                RadioLog.xnl.debug("[DRAIN] Consumed broadcast 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)")
                             } else {
-                                print("[DRAIN] Consumed stale response 0x\(String(format: "%04X", xcmpOpcode)) txID 0x\(String(format: "%04X", rxTxID))")
+                                RadioLog.xnl.debug("[DRAIN] Consumed stale response 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)")
                             }
                         } else {
-                            print("[DRAIN] Consumed message txID 0x\(String(format: "%04X", rxTxID))")
+                            let rxTxIDHex = String(format: "%04X", rxTxID)
+                            RadioLog.xnl.debug("[DRAIN] Consumed message txID 0x\(rxTxIDHex, privacy: .public)")
                         }
                     }
                 } else if opcode == XNLOpCode.dataMessageAck.rawValue {
                     // Just a stray ACK from radio, ignore
-                    if debug { print("[DRAIN] Ignored stray ACK txID 0x\(String(format: "%04X", rxTxID))") }
+                    if debug {
+                        let rxTxIDHex = String(format: "%04X", rxTxID)
+                        RadioLog.xnl.debug("[DRAIN] Ignored stray ACK txID 0x\(rxTxIDHex, privacy: .public)")
+                    }
                 } else if debug {
-                    print("[DRAIN] Discarded message opcode 0x\(String(format: "%02X", opcode))")
+                    let opcodeHex = String(format: "%02X", opcode)
+                    RadioLog.xnl.debug("[DRAIN] Discarded message opcode 0x\(opcodeHex, privacy: .public)")
                 }
             }
         }
 
-        if debug { print("[DRAIN] Max iterations reached after \(messagesConsumed) messages") }
+        if debug { RadioLog.xnl.debug("[DRAIN] Max iterations reached after \(messagesConsumed) messages") }
     }
 
     /// Sends an XCMP broadcast without waiting for a response.
@@ -696,7 +727,8 @@ public actor XNLConnection {
         packet[4] = 0x01
 
         if debug {
-            print("[XNL TX BROADCAST] \(packet.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            let packetHex = packet.map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.xnl.debug("[XNL TX BROADCAST] \(packetHex, privacy: .public)")
         }
 
         try await send(packet)
@@ -724,7 +756,8 @@ public actor XNLConnection {
         packet[4] = 0x01
 
         if debug {
-            print("[XNL TX TO MASTER] \(packet.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            let packetHex = packet.map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.xnl.debug("[XNL TX TO MASTER] \(packetHex, privacy: .public)")
         }
 
         try await send(packet)
@@ -744,10 +777,10 @@ public actor XNLConnection {
 
         // Check connection state
         if debug {
-            if socketFD >= 0 {
-                print("[XNL] Connection state: connected (fd=\(socketFD))")
+            if self.socketFD >= 0 {
+                RadioLog.xnl.debug("[XNL] Connection state: connected (fd=\(self.socketFD))")
             } else {
-                print("[XNL] WARNING: not connected!")
+                RadioLog.xnl.error("[XNL] WARNING: not connected!")
             }
         }
 
@@ -805,7 +838,11 @@ public actor XNLConnection {
         packet.append(xcmpData)                     // XCMP payload (byte 14+)
 
         if debug {
-            print("[XNL TX] \(packet.map { String(format: "%02X", $0) }.joined(separator: " ")) (xcmpTxID=0x\(String(format: "%04X", ourTxID)), msgID=0x\(String(format: "%02X", messageID)), session=0x\(String(format: "%02X", xcmpSessionPrefix)))")
+            let packetHex = packet.map { String(format: "%02X", $0) }.joined(separator: " ")
+            let ourTxIDHex = String(format: "%04X", ourTxID)
+            let messageIDHex = String(format: "%02X", messageID)
+            let sessionHex = String(format: "%02X", xcmpSessionPrefix)
+            RadioLog.xnl.debug("[XNL TX] \(packetHex, privacy: .public) (xcmpTxID=0x\(ourTxIDHex, privacy: .public), msgID=0x\(messageIDHex, privacy: .public), session=0x\(sessionHex, privacy: .public))")
         }
 
         try await send(packet, debug: debug)
@@ -818,7 +855,7 @@ public actor XNLConnection {
         // previous responses, so we need many attempts to wait through all of them.
         var receivedOurAck = false
 
-        if debug { print("[XNL] Waiting for response (total timeout=\(timeout)s)...") }
+        if debug { RadioLog.xnl.debug("[XNL] Waiting for response (total timeout=\(timeout)s)...") }
 
         // Use shorter per-receive timeout (0.5s like Python) with multiple attempts
         // Total wait time is controlled by number of attempts * per-receive timeout
@@ -826,9 +863,9 @@ public actor XNLConnection {
         let maxAttempts = Int(timeout / perReceiveTimeout) + 10  // Extra attempts for processing
 
         for attempt in 0..<maxAttempts {
-            if debug { print("[XNL RX] Attempt \(attempt + 1)/\(maxAttempts), waiting...") }
+            if debug { RadioLog.xnl.debug("[XNL RX] Attempt \(attempt + 1)/\(maxAttempts), waiting...") }
             guard let data = await receivePacket(timeout: perReceiveTimeout) else {
-                if debug { print("[XNL RX] Timeout (attempt \(attempt + 1))") }
+                if debug { RadioLog.xnl.debug("[XNL RX] Timeout (attempt \(attempt + 1))") }
                 // Only return nil after exhausting all attempts
                 if attempt >= maxAttempts - 1 {
                     return nil
@@ -837,7 +874,8 @@ public actor XNLConnection {
             }
 
             if debug {
-                print("[XNL RX] \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                let dataHex = data.map { String(format: "%02X", $0) }.joined(separator: " ")
+                RadioLog.xnl.debug("[XNL RX] \(dataHex, privacy: .public)")
             }
 
             if data.count >= 14 {
@@ -846,23 +884,25 @@ public actor XNLConnection {
                 let rxTxID = UInt16(data[10]) << 8 | UInt16(data[11])
 
                 if debug {
-                    print("         Opcode: 0x\(String(format: "%02X", opcode)), XCMP flag: \(xcmpFlag), txID: 0x\(String(format: "%04X", rxTxID))")
+                    let opcodeHex = String(format: "%02X", opcode)
+                    let rxTxIDHex = String(format: "%04X", rxTxID)
+                    RadioLog.xnl.debug("         Opcode: 0x\(opcodeHex, privacy: .public), XCMP flag: \(xcmpFlag), txID: 0x\(rxTxIDHex, privacy: .public)")
                 }
 
                 // Handle DataMessageAck (0x0C)
                 if opcode == XNLOpCode.dataMessageAck.rawValue {
                     if rxTxID == ourTxID {
-                        if debug { print("         (ACK for our request, waiting for response...)") }
+                        if debug { RadioLog.xnl.debug("         (ACK for our request, waiting for response...)") }
                         receivedOurAck = true
                     } else {
-                        if debug { print("         (ACK for different txID, skipping...)") }
+                        if debug { RadioLog.xnl.debug("         (ACK for different txID, skipping...)") }
                     }
                     continue  // Keep waiting for actual DataMessage response
                 }
 
                 // Skip DevSysMapBroadcast (0x09) - system broadcast, not our response
                 if opcode == XNLOpCode.deviceSysMapBroadcast.rawValue {
-                    if debug { print("         (SysMapBroadcast, skipping...)") }
+                    if debug { RadioLog.xnl.debug("         (SysMapBroadcast, skipping...)") }
                     continue
                 }
 
@@ -879,14 +919,19 @@ public actor XNLConnection {
                     if debug {
                         let destAddr = UInt16(data[6]) << 8 | UInt16(data[7])
                         let srcAddr = UInt16(data[8]) << 8 | UInt16(data[9])
-                        print("         (DataMessage from 0x\(String(format: "%04X", srcAddr)) to 0x\(String(format: "%04X", destAddr)), no ACK per CPS protocol)")
+                        let srcAddrHex = String(format: "%04X", srcAddr)
+                        let destAddrHex = String(format: "%04X", destAddr)
+                        RadioLog.xnl.debug("         (DataMessage from 0x\(srcAddrHex, privacy: .public) to 0x\(destAddrHex, privacy: .public), no ACK per CPS protocol)")
                     }
 
                     // Check if it's a broadcast XCMP message (0xBxxx opcodes)
                     if data.count > 14 {
                         let xcmpOpcode = UInt16(data[14]) << 8 | UInt16(data[15])
                         if xcmpOpcode & 0xF000 == 0xB000 {
-                            if debug { print("         (XCMP broadcast 0x\(String(format: "%04X", xcmpOpcode)), skipping...)") }
+                            if debug {
+                                let xcmpOpcodeHex = String(format: "%04X", xcmpOpcode)
+                                RadioLog.xnl.debug("         (XCMP broadcast 0x\(xcmpOpcodeHex, privacy: .public), skipping...)")
+                            }
                             continue
                         }
                     }
@@ -894,14 +939,21 @@ public actor XNLConnection {
                     // CRITICAL: Check if this response matches our request's transaction ID
                     // The radio may send responses for previous requests if they were queued
                     if rxTxID != ourTxID {
-                        if debug { print("         (Response for different txID 0x\(String(format: "%04X", rxTxID)), expected 0x\(String(format: "%04X", ourTxID)), skipping...)") }
+                        if debug {
+                            let rxTxIDHex = String(format: "%04X", rxTxID)
+                            let ourTxIDHex = String(format: "%04X", ourTxID)
+                            RadioLog.xnl.debug("         (Response for different txID 0x\(rxTxIDHex, privacy: .public), expected 0x\(ourTxIDHex, privacy: .public), skipping...)")
+                        }
                         continue
                     }
 
                     // Extract XCMP payload (skip XNL header: 14 bytes)
                     if data.count > 14 {
                         let xcmpPayload = Data(data[14...])
-                        if debug { print("         XCMP payload: \(xcmpPayload.map { String(format: "%02X", $0) }.joined(separator: " "))") }
+                        if debug {
+                            let payloadHex = xcmpPayload.map { String(format: "%02X", $0) }.joined(separator: " ")
+                            RadioLog.xnl.debug("         XCMP payload: \(payloadHex, privacy: .public)")
+                        }
 
                         // Add delay after receiving response before returning
                         // Testing longer delays to see if radio needs processing time
@@ -916,9 +968,9 @@ public actor XNLConnection {
 
         if debug {
             if receivedOurAck {
-                print("[XNL] Radio ACKed our command but never sent response - possible protocol issue")
+                RadioLog.xnl.error("[XNL] Radio ACKed our command but never sent response - possible protocol issue")
             } else {
-                print("[XNL] No ACK or response received")
+                RadioLog.xnl.error("[XNL] No ACK or response received")
             }
         }
         return nil
@@ -956,11 +1008,11 @@ public actor XNLConnection {
         }
 
         if debug {
-            print("[INIT] Starting radio initialization sequence...")
+            RadioLog.xnl.debug("[INIT] Starting radio initialization sequence...")
         }
 
         // Step 0: Enter programming mode - REQUIRED before RCMP commands work
-        if debug { print("[INIT] Step 0: Entering programming mode (0x0106)...") }
+        if debug { RadioLog.xnl.debug("[INIT] Step 0: Entering programming mode (0x0106)...") }
         let enterProgramCmd = Data([
             UInt8(XCMPOpcode.ishProgramMode.rawValue >> 8),
             UInt8(XCMPOpcode.ishProgramMode.rawValue & 0xFF),
@@ -968,7 +1020,7 @@ public actor XNLConnection {
         ])
 
         guard let programResponse = try? await sendXCMP(enterProgramCmd, timeout: 5.0, debug: debug) else {
-            if debug { print("[INIT] Failed to enter programming mode: timeout") }
+            if debug { RadioLog.xnl.error("[INIT] Failed to enter programming mode: timeout") }
             return .timeout
         }
 
@@ -976,11 +1028,14 @@ public actor XNLConnection {
         if programResponse.count >= 3 {
             let programError = programResponse[2]
             if programError != 0x00 {
-                if debug { print("[INIT] Enter programming mode failed with error: 0x\(String(format: "%02X", programError))") }
+                if debug {
+                    let errorHex = String(format: "%02X", programError)
+                    RadioLog.xnl.error("[INIT] Enter programming mode failed with error: 0x\(errorHex, privacy: .public)")
+                }
                 return .enterProgramModeFailed(code: programError)
             }
         }
-        if debug { print("[INIT] Programming mode entered successfully") }
+        if debug { RadioLog.xnl.info("[INIT] Programming mode entered successfully") }
 
         // Step 1: Read radio key
         if debug { print("[INIT] Step 1: Reading radio key (0x0300)...") }

@@ -1,5 +1,6 @@
 import SwiftUI
 import RadioProgrammer
+import RadioModelCore
 
 /// View for managing RX group lists.
 struct RxGroupListsView: View {

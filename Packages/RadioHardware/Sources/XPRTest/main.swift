@@ -353,7 +353,7 @@ struct XPRTest {
             }, debug: verbose)
 
             print("  ✓ CodeplugRead: Got \(data.count) bytes")
-            if verbose && data.count > 0 {
+            if verbose && !data.isEmpty {
                 let preview = data.prefix(min(32, data.count))
                 print("    First bytes: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
             }

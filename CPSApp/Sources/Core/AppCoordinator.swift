@@ -168,7 +168,7 @@ final class AppCoordinator {
     /// Error message if programming failed.
     var programmingError: String?
 
-    private var observationTask: Task<Void, Never>?
+    nonisolated(unsafe) private var observationTask: Task<Void, Never>?
     private var previousDeviceCount = 0
 
     init() {
@@ -199,6 +199,10 @@ final class AppCoordinator {
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
+    }
+
+    deinit {
+        observationTask?.cancel()
     }
 
     /// Called when a radio is newly detected.
@@ -294,7 +298,6 @@ final class AppCoordinator {
         }
     }
 
-
     /// All available radio models for the UI.
     var availableModels: [RadioModelInfo] {
         RadioModelRegistry.allIdentifiers.compactMap { id in
@@ -312,22 +315,40 @@ final class AppCoordinator {
     }
 
     /// Opens a codeplug file from disk and transitions to editing.
-    func openDocument(_ url: URL) throws {
-        let data = try Data(contentsOf: url)
-        let serializer = CodeplugSerializer()
-        let codeplug = try serializer.deserialize(data)
-        currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: codeplug.modelIdentifier)
-        documentURL = url
-        phase = .editing
+    /// Runs heavy deserialization/decompression off the main thread.
+    func openDocument(_ url: URL) async throws {
+        // Load and deserialize on background thread
+        let (codeplug, modelID) = try await Task.detached {
+            let data = try Data(contentsOf: url)
+            let serializer = CodeplugSerializer()
+            let codeplug = try serializer.deserialize(data)
+            return (codeplug, codeplug.modelIdentifier)
+        }.value
+
+        // Update UI on main thread
+        await MainActor.run {
+            currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: modelID)
+            documentURL = url
+            phase = .editing
+        }
     }
 
     /// Saves the current codeplug to a file.
-    func saveDocument(to url: URL) throws {
+    /// Runs heavy serialization/compression off the main thread.
+    func saveDocument(to url: URL) async throws {
         guard let codeplug = currentDocument?.codeplug else { return }
-        let serializer = CodeplugSerializer()
-        let data = try serializer.serialize(codeplug)
-        try data.write(to: url, options: .atomic)
-        documentURL = url
+
+        // Serialize and write on background thread
+        try await Task.detached {
+            let serializer = CodeplugSerializer()
+            let data = try serializer.serialize(codeplug)
+            try data.write(to: url, options: .atomic)
+        }.value
+
+        // Update UI on main thread
+        await MainActor.run {
+            documentURL = url
+        }
     }
 
     /// Returns to the welcome screen.
@@ -353,8 +374,12 @@ final class AppCoordinator {
     /// Save current document then close.
     func saveAndCloseDocument() {
         if let url = documentURL {
-            try? saveDocument(to: url)
-            forceCloseDocument()
+            Task {
+                try? await saveDocument(to: url)
+                await MainActor.run {
+                    forceCloseDocument()
+                }
+            }
         } else {
             showingSaveDialog = true
             pendingCloseAction = { [weak self] in
@@ -506,22 +531,28 @@ final class AppCoordinator {
 
     /// Restores a codeplug from a backup file.
     /// Note: Text-format backups (.txt) from parsed codeplugs are for reference only and cannot be restored.
-    func restoreBackup(_ backup: BackupInfo) throws {
+    /// Runs heavy deserialization/decompression off the main thread.
+    func restoreBackup(_ backup: BackupInfo) async throws {
         if backup.isParsedFormat {
             // Text backups are for reference only - they can't be fully restored
             // because they don't contain the complete binary codeplug data
             throw BackupError.restoreFailed("Text backups are for reference only. They contain a readable summary but cannot be restored to a radio. Use binary (.cpsx) backups for full restore capability.")
         }
 
-        let data = try Data(contentsOf: backup.url)
+        // Load and deserialize on background thread
+        let (codeplug, modelID) = try await Task.detached {
+            let data = try Data(contentsOf: backup.url)
+            let serializer = CodeplugSerializer()
+            let codeplug = try serializer.deserialize(data)
+            return (codeplug, codeplug.modelIdentifier)
+        }.value
 
-        // Restore binary codeplug
-        let serializer = CodeplugSerializer()
-        let codeplug = try serializer.deserialize(data)
-        currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: codeplug.modelIdentifier)
-
-        documentURL = nil
-        phase = .editing
+        // Update UI on main thread
+        await MainActor.run {
+            currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: modelID)
+            documentURL = nil
+            phase = .editing
+        }
     }
 
     /// Deletes a backup file.

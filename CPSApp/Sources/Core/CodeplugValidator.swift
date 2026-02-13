@@ -1,5 +1,6 @@
 import Foundation
 import RadioProgrammer
+import RadioModelCore
 
 /// Severity level for validation issues.
 enum ValidationSeverity: Comparable {
