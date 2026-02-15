@@ -365,7 +365,9 @@ struct ZoneChannelView: View {
                                 Button {
                                     selectedChannelIndex = item.index
                                 } label: {
-                                    ParsedChannelRow(channel: item.channel, index: item.index, isHighlighted: highlightMatch(item.channel.name) || highlightMatch(String(format: "%.4f", item.channel.rxFrequencyMHz)))
+                                    let freqString = String(format: "%.4f", item.channel.rxFrequencyMHz)
+                                    let isHighlighted = highlightMatch(item.channel.name) || highlightMatch(freqString)
+                                    ParsedChannelRow(channel: item.channel, index: item.index, isHighlighted: isHighlighted)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
                                         .background(selectedChannelIndex == item.index ? Color.accentColor.opacity(0.2) : Color.clear)

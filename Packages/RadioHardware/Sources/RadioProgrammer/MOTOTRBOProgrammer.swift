@@ -83,7 +83,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         // Use verified CPS protocol to get radio info
@@ -97,7 +97,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         return try await client.identifyCPS(debug: true)
@@ -176,7 +176,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         progress(0.0)
@@ -226,7 +226,9 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
             if debug {
                 let recordsHex = batchRecords.map { String(format: "0x%04X", $0) }.joined(separator: ", ")
-                RadioLog.programmer.debug("[READ] Batch \(batchIndex + 1, privacy: .public)/\(totalBatches, privacy: .public): records \(recordsHex, privacy: .public)")
+                RadioLog.programmer.debug(
+                    "[READ] Batch \(batchIndex + 1, privacy: .public)/\(totalBatches, privacy: .public): records \(recordsHex, privacy: .public)"
+                )
             }
 
             if let recordData = try await client.readCodeplugRecords(batchRecords, debug: debug) {
@@ -271,7 +273,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         var result = ParsedCodeplug()
@@ -379,7 +381,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 zone.channels.append(channelData)
 
                 if debug && zone.channels.count <= 5 {
-                    RadioLog.programmer.debug("[READ] Channel \(record.index, privacy: .public): '\(record.name, privacy: .public)' @ \(record.rxFrequencyMHz, privacy: .public) MHz")
+                    let msg = "[READ] Channel \(record.index): '\(record.name)' @ \(record.rxFrequencyMHz) MHz"
+                    RadioLog.programmer.debug("\(msg, privacy: .public)")
                 }
             }
             result.zones.append(zone)
@@ -474,7 +477,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     // Check for error response
                     if let reply = nameReply {
                         if debug && channelIndex == 0 {
-                            RadioLog.programmer.debug("[READ] CloneRead reply for Z\(zoneIndex, privacy: .public)C\(channelIndex, privacy: .public): error=\(reply.errorCode.rawValue, privacy: .public) data=\(reply.data.count, privacy: .public) bytes")
+                            let msg = "[READ] CloneRead reply for Z\(zoneIndex)C\(channelIndex): error=\(reply.errorCode.rawValue) data=\(reply.data.count) bytes"
+                            RadioLog.programmer.debug("\(msg, privacy: .public)")
                         }
                     }
 
@@ -655,7 +659,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         progress(0.0)
@@ -783,7 +787,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         guard let client = xcmpClient else {
-            throw MOTOTRBOError.notImplemented("XCMP client not initialized")
+            throw MOTOTRBOError.connectionFailed("XCMP client not initialized")
         }
 
         progress(0.0)
@@ -905,8 +909,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     public func getModelNumber() async throws -> String? {
         guard let client = xcmpClient else {
             try await connect()
-            guard let c = xcmpClient else { return nil }
-            return try await c.getModelNumber()
+            guard let connectedClient = xcmpClient else { return nil }
+            return try await connectedClient.getModelNumber()
         }
         return try await client.getModelNumber()
     }
@@ -915,8 +919,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     public func getSerialNumber() async throws -> String? {
         guard let client = xcmpClient else {
             try await connect()
-            guard let c = xcmpClient else { return nil }
-            return try await c.getSerialNumber()
+            guard let connectedClient = xcmpClient else { return nil }
+            return try await connectedClient.getSerialNumber()
         }
         return try await client.getSerialNumber()
     }
@@ -925,8 +929,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     public func getRadioID() async throws -> UInt32? {
         guard let client = xcmpClient else {
             try await connect()
-            guard let c = xcmpClient else { return nil }
-            return try await c.getRadioID()
+            guard let connectedClient = xcmpClient else { return nil }
+            return try await connectedClient.getRadioID()
         }
         return try await client.getRadioID()
     }
@@ -935,8 +939,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     public func getFirmwareVersion() async throws -> String? {
         guard let client = xcmpClient else {
             try await connect()
-            guard let c = xcmpClient else { return nil }
-            return try await c.getFirmwareVersion()
+            guard let connectedClient = xcmpClient else { return nil }
+            return try await connectedClient.getFirmwareVersion()
         }
         return try await client.getFirmwareVersion()
     }
@@ -1055,7 +1059,11 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     /// - Response header: [status:1] [recordCount:1]
     /// - Each record: [size:2] [81:1] [00:1] [00:1] [80:1] [recordID:2] [length:4] [length:4] [data...]
     /// - Channel data (record 0x0084): name at offset 60 from data start, UTF-16LE
-    private func parseCodeplugRecordData(_ data: Data, excludeStrings: Set<String> = [], debug: Bool = false) -> (zones: [ParsedZone], channels: [ChannelData]) {
+    private func parseCodeplugRecordData(
+        _ data: Data,
+        excludeStrings: Set<String> = [],
+        debug: Bool = false
+    ) -> (zones: [ParsedZone], channels: [ChannelData]) {
         var zones: [ParsedZone] = []
         var channels: [ChannelData] = []
 
@@ -1158,7 +1166,13 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     switch recordID {
                     case 0x0084:
                         // Channel data record
-                        if let channel = parseChannelRecord(data, dataStart: dataStart, length: recordLength, channelIndex: channels.count, debug: debug) {
+                        if let channel = parseChannelRecord(
+                            data,
+                            dataStart: dataStart,
+                            length: recordLength,
+                            channelIndex: channels.count,
+                            debug: debug
+                        ) {
                             channels.append(channel)
                             if debug { print("[PARSE] Extracted channel: \(channel.name)") }
                         }
@@ -1183,7 +1197,9 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                         if debug && recordsFound < 5 {
                             // Show some data for unknown records
                             let preview = data[dataStart..<min(dataStart + 32, data.count)]
-                            print("[PARSE] Unknown record 0x\(String(format: "%04X", recordID)): \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))...")
+                            let recordIDHex = String(format: "%04X", recordID)
+                            let previewHex = preview.map { String(format: "%02X", $0) }.joined(separator: " ")
+                            print("[PARSE] Unknown record 0x\(recordIDHex): \(previewHex)...")
                         }
                     }
 

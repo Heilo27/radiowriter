@@ -139,7 +139,9 @@ struct RootView: View {
             if let result = coordinator.writeVerificationResult {
                 let count = result.discrepancies.count
                 let preview = result.discrepancies.prefix(3).map { $0.description }.joined(separator: "\n")
-                Text("Write completed but verification found \(count) discrepanc\(count == 1 ? "y" : "ies"):\n\n\(preview)\(count > 3 ? "\n...and \(count - 3) more" : "")")
+                let plural = count == 1 ? "y" : "ies"
+                let moreText = count > 3 ? "\n...and \(count - 3) more" : ""
+                Text("Write completed but verification found \(count) discrepanc\(plural):\n\n\(preview)\(moreText)")
             } else {
                 Text("Write verification found discrepancies between written and read-back data.")
             }

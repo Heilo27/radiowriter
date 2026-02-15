@@ -323,7 +323,7 @@ public enum SerializationError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidFormat: return "Not a valid CPSX file"
-        case .unsupportedVersion(let v): return "Unsupported format version: \(v)"
+        case .unsupportedVersion(let version): return "Unsupported format version: \(version)"
         case .truncatedData: return "File appears to be truncated"
         case .passwordRequired: return "This file is encrypted. A password is required."
         case .compressionFailed: return "Failed to compress data"

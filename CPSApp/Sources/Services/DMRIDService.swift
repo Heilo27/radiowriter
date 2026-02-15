@@ -246,8 +246,9 @@ final class DMRIDService: ObservableObject {
     }
 
     private func saveMetadata() {
-        lastUpdated = Date()
-        let metadata = DatabaseMetadata(lastUpdated: lastUpdated!)
+        let now = Date()
+        lastUpdated = now
+        let metadata = DatabaseMetadata(lastUpdated: now)
         if let data = try? JSONEncoder().encode(metadata) {
             try? data.write(to: metadataURL)
         }

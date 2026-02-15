@@ -137,7 +137,7 @@ struct FormEditorView: View {
     private func enumBinding(for field: FieldDefinition) -> Binding<UInt16> {
         Binding(
             get: {
-                if case .enumValue(let v) = codeplug.getValue(for: field) { return v }
+                if case .enumValue(let enumVal) = codeplug.getValue(for: field) { return enumVal }
                 return 0
             },
             set: { codeplug.setValue(.enumValue($0), for: field) }

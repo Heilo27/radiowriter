@@ -77,7 +77,9 @@ struct ContactsView: View {
                 } else {
                     List(selection: $selectedContactIndex) {
                         ForEach(filteredContacts, id: \.index) { item in
-                            ContactRow(contact: item.contact, isHighlighted: highlightMatch(item.contact.name) || highlightMatch(String(item.contact.dmrID)))
+                            let isHighlighted = highlightMatch(item.contact.name) ||
+                                highlightMatch(String(item.contact.dmrID))
+                            ContactRow(contact: item.contact, isHighlighted: isHighlighted)
                                 .tag(item.index)
                                 .contextMenu {
                                     Button {
@@ -310,9 +312,9 @@ struct ContactEditorSheet: View {
     init(contact: ParsedContact?, onSave: @escaping (ParsedContact) -> Void) {
         self.isNew = contact == nil
         self.onSave = onSave
-        let c = contact ?? ParsedContact()
-        _name = State(initialValue: c.name)
-        _contactType = State(initialValue: c.contactType)
+        let contactData = contact ?? ParsedContact()
+        _name = State(initialValue: contactData.name)
+        _contactType = State(initialValue: contactData.contactType)
         _dmrID = State(initialValue: c.dmrID)
         _callReceiveTone = State(initialValue: c.callReceiveTone)
         _callAlert = State(initialValue: c.callAlert)

@@ -61,7 +61,15 @@ public struct USBDeviceInfo: Sendable, Identifiable, Equatable {
     public let displayName: String
     public let connectionType: RadioConnectionType
 
-    public init(id: String, vendorID: UInt16, productID: UInt16, serialNumber: String?, portPath: String, displayName: String, connectionType: RadioConnectionType? = nil) {
+    public init(
+        id: String,
+        vendorID: UInt16,
+        productID: UInt16,
+        serialNumber: String?,
+        portPath: String,
+        displayName: String,
+        connectionType: RadioConnectionType? = nil
+    ) {
         self.id = id
         self.vendorID = vendorID
         self.productID = productID

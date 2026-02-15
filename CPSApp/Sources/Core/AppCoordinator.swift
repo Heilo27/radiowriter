@@ -193,7 +193,9 @@ final class AppCoordinator {
 
                     // Auto-transition when radio is newly detected
                     if wasEmpty && nowHasDevices && self.autoTransitionEnabled && self.phase == .welcome {
-                        await self.handleRadioDetected(newDevices.first!)
+                        if let firstDevice = newDevices.first {
+                            await self.handleRadioDetected(firstDevice)
+                        }
                     }
                 }
                 try? await Task.sleep(for: .milliseconds(500))
@@ -536,7 +538,11 @@ final class AppCoordinator {
         if backup.isParsedFormat {
             // Text backups are for reference only - they can't be fully restored
             // because they don't contain the complete binary codeplug data
-            throw BackupError.restoreFailed("Text backups are for reference only. They contain a readable summary but cannot be restored to a radio. Use binary (.cpsx) backups for full restore capability.")
+            let message = """
+                Text backups are for reference only. They contain a readable summary but cannot be restored \
+                to a radio. Use binary (.cpsx) backups for full restore capability.
+                """
+            throw BackupError.restoreFailed(message)
         }
 
         // Load and deserialize on background thread
@@ -568,6 +574,12 @@ final class AppCoordinator {
 
     /// Initiates write with validation and backup prompt.
     func writeToRadioWithBackupPrompt() {
+        let hasParsedOnlyData = parsedCodeplug != nil && (currentDocument?.codeplug?.rawData.isEmpty ?? true)
+        if hasParsedOnlyData {
+            connectionState = .error("Writing parsed radio reads is not available yet. Export or open a binary codeplug profile to write.")
+            return
+        }
+
         // First, validate the codeplug
         if let parsed = parsedCodeplug {
             validationInProgress = true
@@ -1062,6 +1074,12 @@ final class AppCoordinator {
 
     /// Writes the current codeplug to the connected radio.
     func writeToRadio() async {
+        let hasParsedOnlyData = parsedCodeplug != nil && (currentDocument?.codeplug?.rawData.isEmpty ?? true)
+        if hasParsedOnlyData {
+            connectionState = .error("Writing parsed radio reads is not available yet. Open or create a binary codeplug profile to write.")
+            return
+        }
+
         guard let codeplug = currentDocument?.codeplug else {
             connectionState = .error("No codeplug to write")
             return

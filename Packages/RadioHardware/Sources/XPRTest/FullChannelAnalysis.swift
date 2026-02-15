@@ -62,8 +62,8 @@ struct FullChannelAnalysis {
             var asciiParts: [String] = []
             for i in offset..<end {
                 hexParts.append(String(format: "%02X", data[i]))
-                let c = data[i]
-                asciiParts.append((0x20...0x7E).contains(c) ? String(UnicodeScalar(c)) : ".")
+                let byte = data[i]
+                asciiParts.append((0x20...0x7E).contains(byte) ? String(UnicodeScalar(byte)) : ".")
             }
             let hex = hexParts.joined(separator: " ")
             let ascii = asciiParts.joined()

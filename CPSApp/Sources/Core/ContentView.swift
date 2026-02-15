@@ -91,7 +91,11 @@ struct ContentView: View {
                     ParsedCodeplugCategoryView(category: category)
                 }
             case .none:
-                ContentUnavailableView("Select a Category", systemImage: "radio", description: Text("Choose a category from the sidebar to view settings."))
+                ContentUnavailableView(
+                    "Select a Category",
+                    systemImage: "radio",
+                    description: Text("Choose a category from the sidebar to view settings.")
+                )
             }
         }
         // Priority 2: Show traditional document-based editing
@@ -101,10 +105,18 @@ struct ContentView: View {
             } else if let category = selectedCategory {
                 FormEditorView(codeplug: codeplug, category: category, modelIdentifier: doc.modelIdentifier)
             } else {
-                ContentUnavailableView("Select a Category", systemImage: "radio", description: Text("Choose a category from the sidebar to edit settings."))
+                ContentUnavailableView(
+                    "Select a Category",
+                    systemImage: "radio",
+                    description: Text("Choose a category from the sidebar to edit settings.")
+                )
             }
         } else {
-            ContentUnavailableView("No Profile Loaded", systemImage: "doc.badge.plus", description: Text("Create a new profile or read from a connected radio."))
+            ContentUnavailableView(
+                "No Profile Loaded",
+                systemImage: "doc.badge.plus",
+                description: Text("Create a new profile or read from a connected radio.")
+            )
         }
     }
 

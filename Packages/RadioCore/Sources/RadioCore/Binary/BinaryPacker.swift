@@ -121,34 +121,34 @@ public struct BinaryPacker: Sendable {
     public mutating func writeField(_ value: FieldValue, definition: FieldDefinition) {
         seek(toBit: definition.bitOffset)
         switch value {
-        case .uint8(let v):
+        case .uint8(let uint8Value):
             if definition.bitLength == 8 && bitPosition % 8 == 0 {
-                writeUInt8(v)
+                writeUInt8(uint8Value)
             } else {
-                writeBits(UInt32(v), count: definition.bitLength)
+                writeBits(UInt32(uint8Value), count: definition.bitLength)
             }
-        case .uint16(let v):
-            writeBits(UInt32(v), count: definition.bitLength)
-        case .uint32(let v):
-            writeBits(v, count: definition.bitLength)
-        case .int8(let v):
-            writeBits(UInt32(UInt8(bitPattern: v)), count: definition.bitLength)
-        case .int16(let v):
-            writeBits(UInt32(UInt16(bitPattern: v)), count: definition.bitLength)
-        case .int32(let v):
-            writeBits(UInt32(bitPattern: v), count: definition.bitLength)
-        case .bool(let v):
-            writeBit(v)
-        case .string(let s):
+        case .uint16(let uint16Value):
+            writeBits(UInt32(uint16Value), count: definition.bitLength)
+        case .uint32(let uint32Value):
+            writeBits(uint32Value, count: definition.bitLength)
+        case .int8(let int8Value):
+            writeBits(UInt32(UInt8(bitPattern: int8Value)), count: definition.bitLength)
+        case .int16(let int16Value):
+            writeBits(UInt32(UInt16(bitPattern: int16Value)), count: definition.bitLength)
+        case .int32(let int32Value):
+            writeBits(UInt32(bitPattern: int32Value), count: definition.bitLength)
+        case .bool(let boolValue):
+            writeBit(boolValue)
+        case .string(let stringValue):
             if case .string(let maxLen, let enc) = definition.valueType {
-                writeString(s, fixedLength: maxLen, encoding: enc)
+                writeString(stringValue, fixedLength: maxLen, encoding: enc)
             }
-        case .bytes(let d):
-            writeBytes(d)
-        case .enumValue(let v):
-            writeBits(UInt32(v), count: definition.bitLength)
-        case .bitField(let v, _):
-            writeBits(v, count: definition.bitLength)
+        case .bytes(let dataBytes):
+            writeBytes(dataBytes)
+        case .enumValue(let enumValue):
+            writeBits(UInt32(enumValue), count: definition.bitLength)
+        case .bitField(let bitValue, _):
+            writeBits(bitValue, count: definition.bitLength)
         }
     }
 }

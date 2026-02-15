@@ -486,16 +486,58 @@ struct RadioModelCard: View {
             Text("\(model.maxChannels) CH • \(model.frequencyBand.name)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+            capabilityBadges
         }
-        .frame(width: 120, height: 90)
+        .frame(width: 120, height: 118)
         .background(isSelected ? Color.accentColor.opacity(0.1) : (isRecommended ? Color.yellow.opacity(0.05) : Color.clear))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? Color.accentColor : (isRecommended ? Color.yellow.opacity(0.5) : Color.secondary.opacity(0.3)), lineWidth: isSelected ? 2 : 1)
+                .stroke(
+                    isSelected ? Color.accentColor : (isRecommended ? Color.yellow.opacity(0.5) : Color.secondary.opacity(0.3)),
+                    lineWidth: isSelected ? 2 : 1
+                )
         )
         .accessibilityIdentifier("radioModel.\(model.id)")
-        .accessibilityLabel("\(model.displayName), \(model.maxChannels) channels, \(model.frequencyBand.name)\(isRecommended ? ", recommended for detected radio" : "")")
+        .accessibilityLabel(
+            "\(model.displayName), \(model.maxChannels) channels, \(model.frequencyBand.name)" +
+            (isRecommended ? ", recommended for detected radio" : "")
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var capabilityBadges: some View {
+        let badges = capabilityLabels
+        if !badges.isEmpty {
+            VStack(spacing: 2) {
+                ForEach(badges, id: \.self) { badge in
+                    Text(badge)
+                        .font(.system(size: 9, weight: .semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.15))
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
+    private var capabilityLabels: [String] {
+        var labels: [String] = []
+        if model.capabilities.canRead {
+            labels.append("READ")
+        }
+        if model.capabilities.canWrite {
+            labels.append("WRITE")
+        }
+        if model.capabilities.canVerifyWrite {
+            labels.append("VERIFY")
+        }
+        if model.capabilities.isExperimental {
+            labels.append("EXPERIMENTAL")
+        }
+        return labels
     }
 }

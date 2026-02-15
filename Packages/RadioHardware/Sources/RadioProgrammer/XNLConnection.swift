@@ -248,7 +248,9 @@ public actor XNLConnection {
             if debug {
                 let txIDHex = String(format: "%04X", rxTxID)
                 let srcAddrHex = String(format: "%04X", srcAddr)
-                RadioLog.xnl.debug("[INIT] Received DataMessage txID 0x\(txIDHex, privacy: .public) from 0x\(srcAddrHex, privacy: .public) (no ACK per CPS protocol)")
+                RadioLog.xnl.debug(
+                    "[INIT] Received DataMessage txID 0x\(txIDHex, privacy: .public) from 0x\(srcAddrHex, privacy: .public) (no ACK per CPS protocol)"
+                )
             }
 
             // Extract XCMP opcode (bytes 14-15)
@@ -273,7 +275,9 @@ public actor XNLConnection {
                     if debug {
                         let initCompleteHex = String(format: "%02X", initComplete)
                         let radioTxIDHex = String(format: "%04X", radioTxID)
-                        RadioLog.xnl.debug("[INIT] InitComplete: 0x\(initCompleteHex, privacy: .public), radioTxID: 0x\(radioTxIDHex, privacy: .public)")
+                        RadioLog.xnl.debug(
+                            "[INIT] InitComplete: 0x\(initCompleteHex, privacy: .public), radioTxID: 0x\(radioTxIDHex, privacy: .public)"
+                        )
                     }
 
                     if initComplete == 0x00 && !sentOurResponse {
@@ -610,10 +614,10 @@ public actor XNLConnection {
         setsockopt(socketFD, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
         var buffer = [UInt8](repeating: 0, count: 1024)
-        let n = recv(socketFD, &buffer, 1024, 0)
+        let bytesRead = recv(socketFD, &buffer, 1024, 0)
 
-        if n > 0 {
-            return Data(buffer[0..<n])
+        if bytesRead > 0 {
+            return Data(buffer[0..<bytesRead])
         }
         return nil
     }
@@ -685,9 +689,13 @@ public actor XNLConnection {
                             let xcmpOpcodeHex = String(format: "%04X", xcmpOpcode)
                             let rxTxIDHex = String(format: "%04X", rxTxID)
                             if xcmpOpcode & 0xF000 == 0xB000 {
-                                RadioLog.xnl.debug("[DRAIN] Consumed broadcast 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)")
+                                RadioLog.xnl.debug(
+                                    "[DRAIN] Consumed broadcast 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)"
+                                )
                             } else {
-                                RadioLog.xnl.debug("[DRAIN] Consumed stale response 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)")
+                                RadioLog.xnl.debug(
+                                    "[DRAIN] Consumed stale response 0x\(xcmpOpcodeHex, privacy: .public) txID 0x\(rxTxIDHex, privacy: .public)"
+                                )
                             }
                         } else {
                             let rxTxIDHex = String(format: "%04X", rxTxID)
@@ -842,7 +850,12 @@ public actor XNLConnection {
             let ourTxIDHex = String(format: "%04X", ourTxID)
             let messageIDHex = String(format: "%02X", messageID)
             let sessionHex = String(format: "%02X", xcmpSessionPrefix)
-            RadioLog.xnl.debug("[XNL TX] \(packetHex, privacy: .public) (xcmpTxID=0x\(ourTxIDHex, privacy: .public), msgID=0x\(messageIDHex, privacy: .public), session=0x\(sessionHex, privacy: .public))")
+            let txInfo = "xcmpTxID=0x\(ourTxIDHex)"
+            let msgInfo = "msgID=0x\(messageIDHex)"
+            let sessionInfo = "session=0x\(sessionHex)"
+            RadioLog.xnl.debug(
+                "[XNL TX] \(packetHex, privacy: .public) (\(txInfo, privacy: .public), \(msgInfo, privacy: .public), \(sessionInfo, privacy: .public))"
+            )
         }
 
         try await send(packet, debug: debug)
@@ -886,7 +899,9 @@ public actor XNLConnection {
                 if debug {
                     let opcodeHex = String(format: "%02X", opcode)
                     let rxTxIDHex = String(format: "%04X", rxTxID)
-                    RadioLog.xnl.debug("         Opcode: 0x\(opcodeHex, privacy: .public), XCMP flag: \(xcmpFlag), txID: 0x\(rxTxIDHex, privacy: .public)")
+                    RadioLog.xnl.debug(
+                        "         Opcode: 0x\(opcodeHex, privacy: .public), XCMP flag: \(xcmpFlag), txID: 0x\(rxTxIDHex, privacy: .public)"
+                    )
                 }
 
                 // Handle DataMessageAck (0x0C)
@@ -921,7 +936,8 @@ public actor XNLConnection {
                         let srcAddr = UInt16(data[8]) << 8 | UInt16(data[9])
                         let srcAddrHex = String(format: "%04X", srcAddr)
                         let destAddrHex = String(format: "%04X", destAddr)
-                        RadioLog.xnl.debug("         (DataMessage from 0x\(srcAddrHex, privacy: .public) to 0x\(destAddrHex, privacy: .public), no ACK per CPS protocol)")
+                        let msg = "         (DataMessage from 0x\(srcAddrHex) to 0x\(destAddrHex), no ACK per CPS protocol)"
+                        RadioLog.xnl.debug("\(msg, privacy: .public)")
                     }
 
                     // Check if it's a broadcast XCMP message (0xBxxx opcodes)
@@ -942,7 +958,8 @@ public actor XNLConnection {
                         if debug {
                             let rxTxIDHex = String(format: "%04X", rxTxID)
                             let ourTxIDHex = String(format: "%04X", ourTxID)
-                            RadioLog.xnl.debug("         (Response for different txID 0x\(rxTxIDHex, privacy: .public), expected 0x\(ourTxIDHex, privacy: .public), skipping...)")
+                            let msg = "         (Response for different txID 0x\(rxTxIDHex), expected 0x\(ourTxIDHex), skipping...)"
+                            RadioLog.xnl.debug("\(msg, privacy: .public)")
                         }
                         continue
                     }

@@ -64,28 +64,28 @@ public final class Codeplug: Identifiable, @unchecked Sendable {
         }
 
         switch (field.valueType, value) {
-        case (.uint8, .uint8(let v)):
-            setByte(v, at: field.bitOffset)
-        case (.uint16, .uint16(let v)):
-            setUInt16(v, at: field.bitOffset, bitLength: field.bitLength)
-        case (.uint32, .uint32(let v)):
-            setUInt32(v, at: field.bitOffset, bitLength: field.bitLength)
-        case (.int8, .int8(let v)):
-            setByte(UInt8(bitPattern: v), at: field.bitOffset)
-        case (.int16, .int16(let v)):
-            setUInt16(UInt16(bitPattern: v), at: field.bitOffset, bitLength: field.bitLength)
-        case (.int32, .int32(let v)):
-            setUInt32(UInt32(bitPattern: v), at: field.bitOffset, bitLength: field.bitLength)
-        case (.bool, .bool(let v)):
-            setBit(v, at: field.bitOffset)
-        case (.string(let maxLength, let encoding), .string(let s)):
-            setString(s, at: field.byteOffset, maxLength: maxLength, encoding: encoding)
-        case (.bytes, .bytes(let d)):
-            setBytes(d, at: field.byteOffset)
-        case (.enumeration, .enumValue(let v)):
-            setUInt16(v, at: field.bitOffset, bitLength: field.bitLength)
-        case (.bitField, .bitField(let v, _)):
-            setUInt32(v, at: field.bitOffset, bitLength: field.bitLength)
+        case (.uint8, .uint8(let byteValue)):
+            setByte(byteValue, at: field.bitOffset)
+        case (.uint16, .uint16(let uint16Value)):
+            setUInt16(uint16Value, at: field.bitOffset, bitLength: field.bitLength)
+        case (.uint32, .uint32(let uint32Value)):
+            setUInt32(uint32Value, at: field.bitOffset, bitLength: field.bitLength)
+        case (.int8, .int8(let int8Value)):
+            setByte(UInt8(bitPattern: int8Value), at: field.bitOffset)
+        case (.int16, .int16(let int16Value)):
+            setUInt16(UInt16(bitPattern: int16Value), at: field.bitOffset, bitLength: field.bitLength)
+        case (.int32, .int32(let int32Value)):
+            setUInt32(UInt32(bitPattern: int32Value), at: field.bitOffset, bitLength: field.bitLength)
+        case (.bool, .bool(let boolValue)):
+            setBit(boolValue, at: field.bitOffset)
+        case (.string(let maxLength, let encoding), .string(let stringValue)):
+            setString(stringValue, at: field.byteOffset, maxLength: maxLength, encoding: encoding)
+        case (.bytes, .bytes(let dataBytes)):
+            setBytes(dataBytes, at: field.byteOffset)
+        case (.enumeration, .enumValue(let enumValue)):
+            setUInt16(enumValue, at: field.bitOffset, bitLength: field.bitLength)
+        case (.bitField, .bitField(let bitValue, _)):
+            setUInt32(bitValue, at: field.bitOffset, bitLength: field.bitLength)
         default:
             return .invalid("Type mismatch: cannot set \(value) for field type \(field.valueType)")
         }

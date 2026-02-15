@@ -51,9 +51,13 @@ struct ValidationResultsView: View {
         HStack(spacing: 16) {
             if let result = coordinator.validationResult {
                 // Status icon
-                Image(systemName: result.hasErrors ? "xmark.circle.fill" : (result.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"))
+                let iconName = result.hasErrors ? "xmark.circle.fill"
+                    : (result.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                let iconColor = result.hasErrors ? Color.red : (result.warnings.isEmpty ? .green : .orange)
+
+                Image(systemName: iconName)
                     .font(.system(size: 40))
-                    .foregroundStyle(result.hasErrors ? .red : (result.warnings.isEmpty ? .green : .orange))
+                    .foregroundStyle(iconColor)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(result.hasErrors ? "Validation Failed" : (result.warnings.isEmpty ? "Validation Passed" : "Validation Warnings"))

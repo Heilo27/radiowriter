@@ -321,7 +321,11 @@ struct GeneralSettingsView: View {
             }
             .formStyle(.grouped)
         } else {
-            ContentUnavailableView("No Codeplug Loaded", systemImage: "doc.questionmark", description: Text("Read from a radio or open a codeplug file to edit settings."))
+            ContentUnavailableView(
+                "No Codeplug Loaded",
+                systemImage: "doc.questionmark",
+                description: Text("Read from a radio or open a codeplug file to edit settings.")
+            )
         }
     }
 }

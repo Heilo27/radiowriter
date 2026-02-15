@@ -426,7 +426,10 @@ public final class RadioDetector {
     }
 
     /// Finds the network interface created by macOS for a Motorola CDC-ECM USB device.
-    nonisolated private func findUSBNetworkInterface(for usbDevices: [(vendorID: Int, productID: Int, serial: String?)], log: inout String) async -> [USBDeviceInfo] {
+    nonisolated private func findUSBNetworkInterface(
+        for usbDevices: [(vendorID: Int, productID: Int, serial: String?)],
+        log: inout String
+    ) async -> [USBDeviceInfo] {
         var devices: [USBDeviceInfo] = []
 
         // When a MOTOTRBO radio is connected via USB, macOS creates a CDC-ECM
