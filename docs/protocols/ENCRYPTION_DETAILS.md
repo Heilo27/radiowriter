@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../PROTOCOL_REFERENCE.md) — see section 5 "XNL Encryption".
+> This file contains the detailed C# reference implementation and Swift template for the TEA encryption modes. The verified CPS encryption key and delta are documented in the consolidated reference and in `XNLEncryption.swift`. Retained for detailed implementation reference including ControlStation and RepeaterIPSC mode documentation.
+
 # XNL Encryption Implementation Details
 
 **Analysis Date:** 2026-01-29

@@ -1,6 +1,6 @@
 # TASK-108: [MEDIUM] Create CONTRIBUTING.md with clean-room guidelines
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Medium
 **Assignee:** Clio/Themis
 **Created:** 2026-02-05

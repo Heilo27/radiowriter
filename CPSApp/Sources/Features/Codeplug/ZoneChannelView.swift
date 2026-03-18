@@ -788,7 +788,9 @@ struct ChannelDetailView: View {
             SettingRow("Channel Name", value: channel.name)
             SettingRow("Position", value: "\(channel.channelIndex + 1)")
             SettingRow("Channel Type", value: channel.channelTypeDisplay)
+                .help("Analog (conventional FM) or Digital (DMR). Determines which settings apply to this channel.")
             SettingRow("Bandwidth", value: channel.bandwidthDisplay)
+                .help("Channel spacing. 12.5 kHz (Narrow) is standard for Part 90 since 2013. Only use 25 kHz (Wide) if required by your system.")
             if !channel.voiceAnnouncement.isEmpty {
                 SettingRow("Voice Announcement", value: channel.voiceAnnouncement)
             }
@@ -802,13 +804,18 @@ struct ChannelDetailView: View {
     private var frequencyContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("RX Frequency", value: String(format: "%.5f MHz", channel.rxFrequencyMHz))
+                .help("Receive frequency -- the frequency your radio listens on.")
             SettingRow("TX Frequency", value: String(format: "%.5f MHz", channel.txFrequencyMHz))
+                .help("Transmit frequency -- the frequency your radio transmits on. Matches RX for simplex; offset for repeater use.")
 
             if channel.rxFrequencyHz != channel.txFrequencyHz {
                 SettingRow("TX Offset", value: String(format: "%+.4f MHz", channel.txOffsetMHz))
+                    .help("Difference between TX and RX frequencies. Repeaters require an offset so the radio transmits on a different frequency than it receives.")
                 SettingRow("Mode", value: channel.txOffsetMHz > 0 ? "Repeater (+)" : "Repeater (-)")
+                    .help("Repeater mode means the radio uses different TX and RX frequencies to communicate through a repeater station. Simplex uses the same frequency for both.")
             } else {
                 SettingRow("Mode", value: "Simplex")
+                    .help("Simplex means the radio transmits and receives on the same frequency -- direct radio-to-radio communication without a repeater.")
             }
         }
         .padding(.leading, 24)
@@ -820,9 +827,13 @@ struct ChannelDetailView: View {
     private var powerTimingContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("TX Power", value: channel.powerDisplay)
-            SettingRow("RX Only", value: channel.rxOnly ? "Yes" : "No")
+                .help("Transmit power level. High increases range but drains battery faster. Low is sufficient for short-range or indoor use.")
+            SettingRow("RX Only", value: channel.rxOnly ? "Enabled" : "Disabled")
+                .help("When enabled, the radio can only receive on this channel -- transmitting is blocked.")
             SettingRow("TOT Timeout", value: "\(channel.totTimeout) seconds")
-            SettingRow("Allow Talkaround", value: channel.allowTalkaround ? "Yes" : "No")
+                .help("Timeout Timer -- limits continuous transmission time to prevent accidental channel blockage.")
+            SettingRow("Allow Talkaround", value: channel.allowTalkaround ? "Enabled" : "Disabled")
+                .help("Talkaround lets the radio transmit on the receive frequency to bypass the repeater for direct radio-to-radio communication.")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -833,10 +844,15 @@ struct ChannelDetailView: View {
     private var digitalSettingsContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("Color Code", value: "\(channel.colorCode)")
+                .help("DMR Color Code (0-15) separates radio systems on the same frequency. All radios in the same system must use the same Color Code.")
             SettingRow("Time Slot", value: "Slot \(channel.timeSlot)")
+                .help("DMR Time Slot (1 or 2). DMR divides a frequency into two time slots, doubling capacity. Check your repeater's plan for the correct slot.")
             SettingRow("Contact ID", value: channel.contactID > 0 ? "\(channel.contactID)" : "None")
+                .help("The DMR ID of the talk group or individual contact this channel calls by default when you press PTT.")
             SettingRow("Contact Type", value: channel.contactTypeDisplay)
+                .help("Group Call broadcasts to a talk group. Private Call goes to one radio. All Call reaches every radio on the channel.")
             SettingRow("RX Group List", value: channel.rxGroupListID > 0 ? "List \(channel.rxGroupListID)" : "None")
+                .help("RX Group List defines which talk groups this channel will receive. Without one, you only hear the default contact.")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -847,13 +863,19 @@ struct ChannelDetailView: View {
     private var advancedDigitalContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("Inbound Color Code", value: "\(channel.inboundColorCode)")
+                .help("Color Code used for incoming transmissions. Usually matches the main Color Code unless the repeater uses asymmetric routing.")
             SettingRow("Outbound Color Code", value: "\(channel.outboundColorCode)")
+                .help("Color Code used for outgoing transmissions. Usually matches the main Color Code.")
             SettingRow("Dual Capacity Direct Mode", value: channel.dualCapacityDirectMode ? "Enabled" : "Disabled")
+                .help("DCDM allows two simultaneous DMR conversations on the same frequency in simplex mode by using both time slots.")
             SettingRow("Timing Leader Preference", value: channel.timingLeaderDisplay)
+                .help("Controls which radio drives timing in a direct DMR call. Set to Leader if this radio should establish timing; Follower if it should sync to another.")
             SettingRow("Extended Range Direct Mode", value: channel.extendedRangeDirectMode ? "Enabled" : "Disabled")
+                .help("ERDM increases simplex range by using a different modulation technique at the cost of reduced audio quality.")
             SettingRow("Window Size", value: "\(channel.windowSize)")
             SettingRow("Compressed UDP Header", value: channel.compressedUDPHeader ? "Enabled" : "Disabled")
             SettingRow("Text Message Type", value: channel.textMessageType == 0 ? "DMR Standard" : "MOTOTRBO")
+                .help("DMR Standard text messages are compatible with all DMR radios. MOTOTRBO format adds proprietary features but only works with Motorola radios.")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -864,33 +886,43 @@ struct ChannelDetailView: View {
     private var analogSettingsContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("RX Squelch Type", value: channel.squelchTypeDisplay)
+                .help("Squelch suppresses noise when no signal is present. Carrier opens on any signal. CTCSS/DCS only opens when the correct tone or code is received.")
 
             if channel.txCTCSSHz > 0 {
                 SettingRow("TX CTCSS", value: String(format: "%.1f Hz", channel.txCTCSSHz))
+                    .help("CTCSS (Continuous Tone-Coded Squelch) -- a subaudible tone sent with your voice to open squelch on receiving radios set to the same tone.")
             } else {
                 SettingRow("TX CTCSS", value: "None")
+                    .help("CTCSS (Continuous Tone-Coded Squelch) -- a subaudible tone sent with your voice. Set to None if not required by your repeater or group.")
             }
 
             if channel.rxCTCSSHz > 0 {
                 SettingRow("RX CTCSS", value: String(format: "%.1f Hz", channel.rxCTCSSHz))
+                    .help("Receive CTCSS tone -- your radio will only unmute when it receives this specific subaudible tone.")
             } else {
                 SettingRow("RX CTCSS", value: "None")
+                    .help("Receive CTCSS tone. Set to None to hear all transmissions on this frequency regardless of tone.")
             }
 
             if channel.txDCSCode > 0 {
                 SettingRow("TX DCS", value: String(format: "D%03o", channel.txDCSCode))
+                    .help("DCS (Digital-Coded Squelch) -- a digital code sent below the voice to selectively open squelch. Similar to CTCSS but uses digital data.")
             } else {
                 SettingRow("TX DCS", value: "None")
+                    .help("DCS (Digital-Coded Squelch) -- a digital alternative to CTCSS. Set to None if not required.")
             }
 
             if channel.rxDCSCode > 0 {
                 SettingRow("RX DCS", value: String(format: "D%03o", channel.rxDCSCode))
+                    .help("Receive DCS code -- your radio will only unmute when it receives this specific digital code.")
             } else {
                 SettingRow("RX DCS", value: "None")
             }
 
-            SettingRow("DCS Invert", value: channel.dcsInvert ? "Yes" : "No")
+            SettingRow("DCS Invert", value: channel.dcsInvert ? "Enabled" : "Disabled")
+                .help("DCS polarity. Normal (N) or Inverted (I) must match the repeater or other radio.")
             SettingRow("Scramble", value: channel.scrambleEnabled ? "Enabled" : "Disabled")
+                .help("Analog voice scrambling provides basic privacy by inverting the audio. Not true encryption -- it can be defeated with readily available equipment.")
             SettingRow("Voice Emphasis", value: channel.voiceEmphasis ? "Enabled" : "Disabled")
         }
         .padding(.leading, 24)
@@ -902,16 +934,19 @@ struct ChannelDetailView: View {
     private var privacyContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("Privacy Type", value: channel.privacyTypeDisplay)
+                .help("Privacy scrambles transmissions. Basic Privacy is obfuscation only. Enhanced/AES provides stronger protection. All radios must use the same type and key.")
 
             if channel.privacyType > 0 {
                 SettingRow("Privacy Key", value: "\(channel.privacyKey)")
+                    .help("The encryption key index. All radios in the group must use the same key number to communicate.")
                 if !channel.privacyAlias.isEmpty {
                     SettingRow("Privacy Alias", value: channel.privacyAlias)
                 }
                 SettingRow("Fixed Key Decryption", value: channel.fixedPrivacyKeyDecryption ? "Enabled" : "Disabled")
             }
 
-            SettingRow("Ignore RX Clear Voice", value: channel.ignoreRxClearVoice ? "Yes" : "No")
+            SettingRow("Ignore RX Clear Voice", value: channel.ignoreRxClearVoice ? "Enabled" : "Disabled")
+                .help("When enabled and privacy is active, the radio ignores unencrypted voice on this channel.")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -922,11 +957,16 @@ struct ChannelDetailView: View {
     private var signalingContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("ARS", value: channel.arsEnabled ? "Enabled" : "Disabled")
+                .help("ARS (Automatic Registration Service) automatically registers the radio with the system when it powers on or changes channels.")
             SettingRow("Enhanced GNSS", value: channel.enhancedGNSSEnabled ? "Enabled" : "Disabled")
+                .help("Enhanced GNSS uses multiple satellite systems (GPS, GLONASS, Galileo, BeiDou) for faster and more accurate position fixes.")
             SettingRow("Lone Worker", value: channel.loneWorker ? "Enabled" : "Disabled")
+                .help("Lone Worker periodically prompts the user to confirm they are safe. If no response, the radio raises an alert.")
             SettingRow("Emergency Alarm Ack", value: channel.emergencyAlarmAck ? "Enabled" : "Disabled")
             SettingRow("TX Interrupt", value: channel.txInterruptType == 0 ? "Disabled" : "Always Allow")
+                .help("TX Interrupt allows a higher-priority call to interrupt an ongoing transmission on this channel.")
             SettingRow("ARTS", value: channel.artsEnabled ? "Enabled" : "Disabled")
+                .help("ARTS (Auto-Range Transpond System) periodically checks if another radio is within communication range and alerts if contact is lost.")
             if !channel.rasAlias.isEmpty {
                 SettingRow("RAS Alias", value: channel.rasAlias)
             }
@@ -940,7 +980,9 @@ struct ChannelDetailView: View {
     private var scanningContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("Scan List", value: channel.scanListID > 0 ? "List \(channel.scanListID)" : "None")
+                .help("Scan List is a group of channels the radio cycles through to monitor for activity. Assign one to enable scanning from this channel.")
             SettingRow("Auto Scan", value: channel.autoScan ? "Enabled" : "Disabled")
+                .help("When enabled, the radio automatically begins scanning when switched to this channel.")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -1297,12 +1339,12 @@ struct EditableChannelDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             SettingRow("Position", value: "\(editingChannel.channelIndex + 1)")
             SettingRow("TOT Timeout", value: "\(editingChannel.totTimeout) seconds")
-            SettingRow("Allow Talkaround", value: editingChannel.allowTalkaround ? "Yes" : "No")
+            SettingRow("Allow Talkaround", value: editingChannel.allowTalkaround ? "Enabled" : "Disabled")
             if editingChannel.isDigital {
                 SettingRow("RX Group List", value: "\(editingChannel.rxGroupListID)")
                 SettingRow("Privacy", value: editingChannel.privacyType == 0 ? "None" : "Enabled")
             }
-            SettingRow("Auto Scan", value: editingChannel.autoScan ? "Yes" : "No")
+            SettingRow("Auto Scan", value: editingChannel.autoScan ? "Enabled" : "Disabled")
 
             Text("Use 'More Options' for additional settings")
                 .font(.caption)

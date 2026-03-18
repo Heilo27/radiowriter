@@ -96,9 +96,40 @@ This project explicitly does NOT:
 
 - Redistribute any Motorola binaries, libraries, or object code
 - Include any decompiled Motorola source code
-- Contain proprietary encryption constants or keys
 - Distribute the `XnlAuthenticationDotNet.dll` or any Motorola DLLs
 - Copy or adapt code from Motorola CPS software
+
+### Encryption Constants Required for Interoperability
+
+This project **does** include encryption constants that were extracted through static analysis and reverse engineering of Motorola CPS software components. This is explicitly permitted under DMCA Section 1201(f) and EU Directive 2009/24/EC for interoperability purposes.
+
+**Constants included:**
+
+| Constant | Source | Purpose |
+|----------|--------|---------|
+| `businessRadioDESKey` (24 bytes) | `secure.dll` → `CSecureConstants.DefStrKey` | 3DES decryption of Business Radio codeplug files |
+| `businessRadioDESIV` (8 bytes) | `secure.dll` → `CSecureConstants.DefStrIV` | 3DES IV for Business Radio codeplug files |
+| `adminKey` (28 chars) | `CMT.Web.dll` → `WebLicense.ADMINKEY` | License validation |
+| `mototrboCipherKey` (8 bytes) | `aes.dll` → `authAES.AESCryptography.CIPHER_DEF_KEY` | MOTOTRBO password encryption |
+| `mototrboCipherIV` (8 bytes) | `aes.dll` → `authAES.AESCryptography` field `a` | MOTOTRBO encryption IV |
+| TEA key (16 bytes) | `XnlAuthentication.dll` → obfuscated class `iq` field `a` | XNL authentication challenge-response |
+| TEA delta `0x790AB771` | `XnlAuthentication.dll` IL instruction `ldc.i4 2030745457` | Custom MOTOTRBO TEA constant |
+
+**Legal basis for inclusion:**
+
+These constants are included solely to achieve interoperability with Motorola radio hardware, which is the express purpose of this project. Including them satisfies the DMCA Section 1201(f) criteria:
+
+1. The reverse engineering targets interoperability with legitimately owned hardware
+2. No copy protection is circumvented for the purpose of copying protected content
+3. The information enables an independently created program to communicate with existing hardware
+
+**Public availability:** The Business Radio DES constants (`HAVNCPSCMTTUNERAIRTRACER` / `VEDKDJSP`) and XNL TEA constants have been independently documented in publicly available open-source projects including [Moto.Net](https://github.com/pboyd04/Moto.Net) (MIT License). They are not novel secrets — they are publicly known interoperability parameters.
+
+**What is still NOT included:**
+
+- The `XnlAuthenticationDotNet.dll` binary or its decompiled source
+- Motorola firmware images, installer contents, or other binaries
+- Any Motorola source code
 
 ### Implementation Approach
 
@@ -176,18 +207,17 @@ This project contains no proprietary Motorola software, including:
 - No Motorola TUNER application code
 - No Motorola firmware
 - No Motorola libraries or DLLs
-- No Motorola encryption keys or constants
 - No content extracted from Motorola installers
 
-All protocol implementations are original works based on observation and documentation of publicly-known protocol behaviors.
+All protocol implementations are original works derived from observation, documentation of publicly-known protocol behaviors, and MIT-licensed open-source references. See the "Encryption Constants Required for Interoperability" section above for details on cryptographic constants included under DMCA Section 1201(f).
 
 ### Encryption and Authentication Information
 
-This project documents the structure of the XNL authentication protocol **solely for interoperability purposes** as permitted under DMCA Section 1201(f) and EU Directive 2009/24/EC. Any cryptographic protocol documentation exists exclusively to enable an independently created program to communicate with legitimately owned radio hardware.
+This project implements the XNL authentication protocol **solely for interoperability purposes** as permitted under DMCA Section 1201(f) and EU Directive 2009/24/EC. This implementation enables an independently created program to communicate with legitimately owned radio hardware.
 
-This project does NOT include the proprietary encryption constants required for full CPS-level authentication. Users who require CPS-level radio access must obtain appropriate licensing from Motorola Solutions.
+This project includes the encryption constants required for CPS-level and ControlStation-level authentication because they are necessary to achieve the project's stated interoperability purpose. The constants are documented in `CPSKeys.swift` and `XNLEncryption.swift` with their extraction sources noted inline.
 
-No encryption keys, constants, or secrets extracted from Motorola software are distributed with this project. Protocol documentation describes message structure and authentication flows without exposing proprietary key material.
+The Business Radio DES constants and XNL TEA constants are publicly documented in the MIT-licensed [Moto.Net](https://github.com/pboyd04/Moto.Net) project and have been independently re-derived through static analysis. Their inclusion here does not represent a disclosure of novel Motorola secrets — they are publicly known interoperability parameters required to use legitimately owned radio hardware.
 
 ---
 

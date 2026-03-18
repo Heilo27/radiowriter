@@ -47,7 +47,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             RadioLog.programmer.info("MOTOTRBO connected, XNL address: 0x\(addressHex, privacy: .public)")
 
         case .authenticationFailed(let code):
-            throw MOTOTRBOError.protocolError("XNL authentication failed (code: 0x\(String(format: "%02X", code)))")
+            throw MOTOTRBOError.authenticationFailed("Radio rejected authentication (code: 0x\(String(format: "%02X", code)))")
 
         case .connectionError(let message):
             throw MOTOTRBOError.connectionFailed(message)
@@ -423,7 +423,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         // Step 6: If CodeplugRead didn't give us zones, try CloneRead method
         if result.zones.isEmpty {
-            if debug { print("[READ] CodeplugRead didn't return zones, trying CloneRead...") }
+            if debug { RadioLog.programmer.debug("[READ] CodeplugRead didn't return zones, trying CloneRead...") }
 
             // Query zone structure using multiple methods
             var zoneCount = 0
@@ -431,7 +431,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             // Method 1: Try FeatureSetRequest (0x0037)
             if let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug) {
                 zoneCount = zoneResult.zoneCount
-                if debug { print("[READ] FeatureSet query returned \(zoneCount) zones") }
+                if debug { RadioLog.programmer.debug("[READ] FeatureSet query returned \(zoneCount) zones") }
             }
 
             // Method 2: Try reading zone count from radio settings
@@ -439,7 +439,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 if let countReply = try await client.readRadioSetting(dataType: .zoneCount, debug: debug),
                    let count = countReply.byteValue {
                     zoneCount = Int(count)
-                    if debug { print("[READ] Radio settings returned \(zoneCount) zones") }
+                    if debug { RadioLog.programmer.debug("[READ] Radio settings returned \(zoneCount) zones") }
                 }
             }
 
@@ -447,7 +447,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             let maxZones = zoneCount > 0 ? zoneCount : 16
             let maxChannelsPerZone = 64
 
-            if debug { print("[READ] Will scan up to \(maxZones) zones with CloneRead") }
+            if debug { RadioLog.programmer.debug("[READ] Will scan up to \(maxZones) zones with CloneRead") }
 
             var emptyZoneCount = 0
 
@@ -589,12 +589,12 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             progress(min(scanProgress, 0.85))
         }
 
-        if debug { print("[READ] Read \(result.scanLists.count) scan lists") }
+        if debug { RadioLog.programmer.debug("[READ] Read \(result.scanLists.count) scan lists") }
         progress(0.85)
 
         // Step 8: Read RX group lists
         // Progress allocation: 85% to 95%
-        if debug { print("[READ] Reading RX group lists...") }
+        if debug { RadioLog.programmer.debug("[READ] Reading RX group lists...") }
         let maxRxGroups = 64  // Typical max
         var rxGroupIndex = 0
 
@@ -614,23 +614,23 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             progress(min(rxProgress, 0.95))
         }
 
-        if debug { print("[READ] Read \(result.rxGroupLists.count) RX group lists") }
+        if debug { RadioLog.programmer.debug("[READ] Read \(result.rxGroupLists.count) RX group lists") }
         progress(0.95)
 
         // Final progress
         progress(1.0)
 
         if debug {
-            print("[READ] Complete!")
-            print("[READ]   Zones: \(result.zones.count)")
-            print("[READ]   Channels: \(result.totalChannels)")
-            print("[READ]   Contacts: \(result.contacts.count)")
-            print("[READ]   Scan Lists: \(result.scanLists.count)")
-            print("[READ]   RX Groups: \(result.rxGroupLists.count)")
+            RadioLog.programmer.info("[READ] Complete!")
+            RadioLog.programmer.info("[READ]   Zones: \(result.zones.count)")
+            RadioLog.programmer.info("[READ]   Channels: \(result.totalChannels)")
+            RadioLog.programmer.info("[READ]   Contacts: \(result.contacts.count)")
+            RadioLog.programmer.info("[READ]   Scan Lists: \(result.scanLists.count)")
+            RadioLog.programmer.info("[READ]   RX Groups: \(result.rxGroupLists.count)")
         }
 
         // Exit programming mode
-        if debug { print("[READ] Exiting programming mode...") }
+        if debug { RadioLog.programmer.debug("[READ] Exiting programming mode...") }
         if let connection = xnlConnection {
             let exitCmd = Data([
                 UInt8(XCMPOpcode.ishProgramMode.rawValue >> 8),
@@ -1071,14 +1071,14 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         let excludeLowercased = Set(excludeStrings.map { $0.lowercased() })
 
         guard data.count > 10 else {
-            if debug { print("[PARSE] Data too short to contain records") }
+            if debug { RadioLog.programmer.debug("[PARSE] Data too short to contain records") }
             return (zones, channels)
         }
 
         if debug {
-            // Show overview of response data
-            print("[PARSE] Total data: \(data.count) bytes")
-            print("[PARSE] First 64 bytes: \(data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " "))")
+            let hex64 = data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.programmer.debug("[PARSE] Total data: \(data.count) bytes")
+            RadioLog.programmer.debug("[PARSE] First 64 bytes: \(hex64, privacy: .public)")
 
             // Count occurrences of different status patterns
             var dataRecords = 0
@@ -1090,7 +1090,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     metadataRecords += 1
                 }
             }
-            print("[PARSE] Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
+            RadioLog.programmer.debug("[PARSE] Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
         }
 
         // Response format from CodeplugRead (0x802E):
@@ -1111,7 +1111,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         if debug && offset > 0 {
-            print("[PARSE] Skipped \(offset) header bytes to first record")
+            RadioLog.programmer.debug("[PARSE] Skipped \(offset) header bytes to first record")
         }
 
         // Collect all unique record IDs to understand the data format
@@ -1122,7 +1122,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         // First pass: understand what patterns we have
         // Try both "81 00 00 80" (strict) and "81 00" (relaxed) patterns
         if debug {
-            print("[PARSE] Analyzing response format...")
+            RadioLog.programmer.debug("[PARSE] Analyzing response format...")
             var strictPattern = 0
             var relaxedPattern = 0
             for i in 0..<(data.count - 4) {
@@ -1133,7 +1133,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                     }
                 }
             }
-            print("[PARSE] Found \(strictPattern) strict (81 00 00 80) and \(relaxedPattern) relaxed (81 00) patterns")
+            RadioLog.programmer.debug("[PARSE] Found \(strictPattern) strict (81 00 00 80) and \(relaxedPattern) relaxed (81 00) patterns")
         }
 
         // Scan for record patterns: look for "81 00 00 80" (data) or "81 04 00 80" (metadata)
@@ -1152,10 +1152,11 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 let recordLength = Int(data[offset + 8]) | (Int(data[offset + 9]) << 8)
 
                 if debug && recordsFound < 10 {
-                    print("[PARSE] DATA record 0x\(String(format: "%04X", recordID)) at offset \(offset), length \(recordLength)")
-                    // Show first few bytes of record header
+                    let recIDHex = String(format: "%04X", recordID)
+                    RadioLog.programmer.debug("[PARSE] DATA record 0x\(recIDHex, privacy: .public) at offset \(offset), length \(recordLength)")
                     let headerPreview = data[offset..<min(offset + 16, data.count)]
-                    print("[PARSE] Header bytes: \(headerPreview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                    let headerHex = headerPreview.map { String(format: "%02X", $0) }.joined(separator: " ")
+                    RadioLog.programmer.debug("[PARSE] Header bytes: \(headerHex, privacy: .public)")
                 }
 
                 // Skip to data start: 4 (header) + 2 (id) + 2 (offset) + 2 (size) + 2 (padding) = 12
@@ -1174,32 +1175,31 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                             debug: debug
                         ) {
                             channels.append(channel)
-                            if debug { print("[PARSE] Extracted channel: \(channel.name)") }
+                            if debug { RadioLog.programmer.debug("[PARSE] Extracted channel: \(channel.name, privacy: .public)") }
                         }
 
                     case 0x0093:
                         // Zone/channel mapping - may contain zone structure
-                        if debug { print("[PARSE] Found zone mapping record (0x0093)") }
+                        if debug { RadioLog.programmer.debug("[PARSE] Found zone mapping record (0x0093)") }
 
                     case 0x009D:
                         // Zone configuration
-                        if debug { print("[PARSE] Found zone config record (0x009D)") }
+                        if debug { RadioLog.programmer.debug("[PARSE] Found zone config record (0x009D)") }
 
                     case 0x0074:
                         // Zone list - parse zone name
-                        if debug { print("[PARSE] Found zone list record (0x0074)") }
+                        if debug { RadioLog.programmer.debug("[PARSE] Found zone list record (0x0074)") }
                         if let zone = parseZoneRecord(data, dataStart: dataStart, length: recordLength, zoneIndex: zones.count, debug: debug) {
                             zones.append(zone)
-                            if debug { print("[PARSE] Extracted zone: \(zone.name)") }
+                            if debug { RadioLog.programmer.debug("[PARSE] Extracted zone: \(zone.name, privacy: .public)") }
                         }
 
                     default:
                         if debug && recordsFound < 5 {
-                            // Show some data for unknown records
                             let preview = data[dataStart..<min(dataStart + 32, data.count)]
-                            let recordIDHex = String(format: "%04X", recordID)
+                            let recIDHex2 = String(format: "%04X", recordID)
                             let previewHex = preview.map { String(format: "%02X", $0) }.joined(separator: " ")
-                            print("[PARSE] Unknown record 0x\(recordIDHex): \(previewHex)...")
+                            RadioLog.programmer.debug("[PARSE] Unknown record 0x\(recIDHex2, privacy: .public): \(previewHex, privacy: .public)...")
                         }
                     }
 
@@ -1219,7 +1219,8 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 metadataFound += 1
 
                 if debug && metadataFound <= 3 {
-                    print("[PARSE] METADATA record 0x\(String(format: "%04X", recordID)) - no data, just existence info")
+                    let metaIDHex = String(format: "%04X", recordID)
+                    RadioLog.programmer.debug("[PARSE] METADATA record 0x\(metaIDHex, privacy: .public) - no data, just existence info")
                 }
 
                 offset += 14  // Skip the metadata entry
@@ -1230,82 +1231,101 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         if debug {
-            print("[PARSE] Structured parsing: \(recordsFound) data records, \(metadataFound) metadata entries")
+            RadioLog.programmer.debug("[PARSE] Structured parsing: \(recordsFound) data records, \(metadataFound) metadata entries")
             if !recordIDSet.isEmpty {
-                let sortedIDs = recordIDSet.sorted().map { String(format: "0x%04X", $0) }
-                print("[PARSE] Unique record IDs found: \(sortedIDs.joined(separator: ", "))")
+                let sortedIDs = recordIDSet.sorted().map { String(format: "0x%04X", $0) }.joined(separator: ", ")
+                RadioLog.programmer.debug("[PARSE] Unique record IDs found: \(sortedIDs, privacy: .public)")
             }
             if metadataFound > 0 && recordsFound == 0 {
-                print("[PARSE] ⚠️ Got only metadata (81 04), no actual data (81 00). Need different request format!")
+                RadioLog.programmer.error("[PARSE] Got only metadata (81 04), no actual data (81 00). Need different request format!")
             }
         }
 
         // FALLBACK: Direct UTF-16LE string extraction (no record structure required)
         // This is more reliable when the record format doesn't match our expectations
         if debug {
-            print("[PARSE] Running fallback UTF-16LE string extraction...")
+            RadioLog.programmer.debug("[PARSE] Running fallback UTF-16LE string extraction...")
         }
 
-        offset = 0
-        while offset < data.count - 20 {
-            // Look for UTF-16LE strings directly: ASCII char (0x20-0x7E) followed by 0x00
-            if data[offset] >= 0x41 && data[offset] <= 0x7A && // A-z
-               offset + 1 < data.count && data[offset + 1] == 0x00 {
-                // Potential UTF-16LE string start
-                var str = ""
-                var j = offset
-                while j < data.count - 1 &&
-                      data[j] >= 0x20 && data[j] <= 0x7E &&
-                      data[j + 1] == 0x00 {
-                    str.append(Character(UnicodeScalar(data[j])))
+        // Pre-build O(1) lookup sets to avoid O(n) array scans inside the hot loop.
+        var foundNameSet = Set(channels.map { $0.name })
+        let foundZoneNameSet = Set(zones.map { $0.name })
+        let systemStrings: Set<String> = ["talkset", "scanlist", "contact", "group", "radio", "zone"]
+
+        data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+            guard let base = ptr.baseAddress else { return }
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            let count = ptr.count
+            var i = 0
+            // Reserve 2 bytes for the high byte check; reserve 1 more for the null terminator probe.
+            while i < count - 2 {
+                let b = bytes[i]
+                // Gate: must start with A-z (0x41-0x7A) and next byte 0x00 (UTF-16LE ASCII)
+                guard b >= 0x41 && b <= 0x7A && bytes[i + 1] == 0x00 else {
+                    i += 1
+                    continue
+                }
+
+                // Scan forward collecting the UTF-16LE run.
+                // Each code unit: low byte 0x20-0x7E, high byte 0x00.
+                var charBuf = [UInt8]()
+                charBuf.reserveCapacity(32)
+                var j = i
+                while j + 1 < count && bytes[j] >= 0x20 && bytes[j] <= 0x7E && bytes[j + 1] == 0x00 {
+                    charBuf.append(bytes[j])
                     j += 2
                 }
 
-                // Valid channel/zone name: 3-16 characters, starts with letter
-                // Filter out false positives: language codes, system strings, fragments, and known settings
-                if str.count >= 3 && str.count <= 16 && str.first?.isLetter == true {
-                    // Skip known non-channel strings
-                    let lowercased = str.lowercased()
+                let charCount = charBuf.count
+                // Valid channel/zone name: 3-16 characters, starts with letter (A-z already ensured)
+                if charCount >= 3 && charCount <= 16 {
+                    let str = String(bytes: charBuf, encoding: .ascii) ?? ""
+                    if !str.isEmpty {
+                        let lowercased = str.lowercased()
 
-                    // Check if this matches any excluded string (radio alias, zone names, etc.)
-                    let isExcluded = excludeLowercased.contains(lowercased) ||
-                                    excludeLowercased.contains { excluded in
-                                        lowercased.contains(excluded) || excluded.contains(lowercased)
+                        // Check exclusions (O(1) set lookups)
+                        let isExcluded = excludeLowercased.contains(lowercased) ||
+                                        excludeLowercased.contains { excluded in
+                                            lowercased.contains(excluded) || excluded.contains(lowercased)
+                                        }
+                        let isLanguageCode = lowercased.contains("-") && charCount <= 6
+                        let isSystemString = systemStrings.contains(lowercased)
+                        let isFragment = lowercased.hasPrefix("et ") || lowercased.hasPrefix("io") ||
+                                        lowercased.hasPrefix("dio") || lowercased.hasPrefix("set ") ||
+                                        lowercased.hasPrefix("kset")
+
+                        if !isExcluded && !isLanguageCode && !isSystemString && !isFragment {
+                            // O(1) duplicate check via set; O(n) overlap check only when needed.
+                            let isDuplicate = foundNameSet.contains(str) || foundZoneNameSet.contains(str)
+                            if !isDuplicate {
+                                // Substring/overlap check — still O(n) but only on non-duplicates
+                                let isSubstring = foundNameSet.contains { $0.contains(str) && $0 != str }
+                                let hasOverlap = !isSubstring && foundNameSet.contains { existing in
+                                    str.hasSuffix(existing) || existing.hasSuffix(str)
+                                }
+                                if !isSubstring && !hasOverlap {
+                                    var channel = ChannelData(zoneIndex: 0, channelIndex: channels.count)
+                                    channel.name = str
+                                    channels.append(channel)
+                                    foundNameSet.insert(str)
+                                    if debug && channels.count <= 10 {
+                                        RadioLog.programmer.debug("[PARSE] UTF-16LE channel found: '\(str, privacy: .public)' at offset \(i)")
                                     }
-
-                    let isLanguageCode = lowercased.contains("-") && str.count <= 6 // e.g., "en-us"
-                    let isSystemString = ["talkset", "scanlist", "contact", "group", "radio", "zone"]
-                        .contains { lowercased == $0 }
-                    let isFragment = lowercased.hasPrefix("et ") || lowercased.hasPrefix("io") ||
-                                    lowercased.hasPrefix("dio") || lowercased.hasPrefix("set ") ||
-                                    lowercased.hasPrefix("kset")
-
-                    if !isExcluded && !isLanguageCode && !isSystemString && !isFragment {
-                        // Check if already found or is a substring/suffix of an existing name
-                        let existingNames = channels.map { $0.name }
-                        let existingZoneNames = zones.map { $0.name }
-                        let isDuplicate = existingNames.contains(str) || existingZoneNames.contains(str)
-                        let isSubstring = existingNames.contains { $0.contains(str) && $0 != str }
-                        // Check if this is a longer version of an existing name (e.g., "dRyan's Radio" vs "Ryan's Radio")
-                        let hasOverlap = existingNames.contains { existing in
-                            str.hasSuffix(existing) || existing.hasSuffix(str)
-                        }
-
-                        if !isDuplicate && !isSubstring && !hasOverlap {
-                            var channel = ChannelData(zoneIndex: 0, channelIndex: channels.count)
-                            channel.name = str
-                            channels.append(channel)
-                            if debug && channels.count <= 10 {
-                                print("[PARSE] UTF-16LE channel found: '\(str)' at offset \(offset)")
+                                }
                             }
                         }
                     }
                 }
-                offset = j  // Skip past the string
-                continue
+                // If the run produced no characters (gate passed but inner loop didn't advance),
+                // ensure we make forward progress to avoid an infinite loop.
+                if j > i {
+                    i = j
+                } else {
+                    i += 1
+                }
             }
-            offset += 1
         }
+        _ = foundZoneNameSet  // suppress unused-variable warning
 
         // Also try the old 02 03 prefix pattern as another fallback
         offset = 0
@@ -1338,7 +1358,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                                 }
 
                                 if debug && channels.count < 10 {
-                                    print("[PARSE] Found channel name '\(name)' at offset \(offset)")
+                                    RadioLog.programmer.debug("[PARSE] Found channel name '\(name, privacy: .public)' at offset \(offset)")
                                 }
                                 channels.append(channel)
                             }
@@ -1357,7 +1377,7 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         }
 
         if debug {
-            print("[PARSE] Extracted \(zones.count) zones with \(channels.count) channels total")
+            RadioLog.programmer.debug("[PARSE] Extracted \(zones.count) zones with \(channels.count) channels total")
         }
 
         return (zones, channels)
@@ -1370,20 +1390,20 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
         var channel = ChannelData(zoneIndex: 0, channelIndex: channelIndex)
 
         // From CPS traffic analysis, channel name is at offset ~60 from data start
-        // Look for the 02 03 prefix before UTF-16LE channel name
-        for searchOffset in stride(from: dataStart + 50, to: min(dataStart + length, data.count - 20), by: 1) {
-            if data[searchOffset] == 0x02 && data[searchOffset + 1] == 0x03 {
-                let nameStart = searchOffset + 2
-                let maxLen = min(32, data.count - nameStart)
-                let nameData = Data(data[nameStart..<(nameStart + maxLen)])
-
+        // Look for the 02 03 prefix before UTF-16LE channel name.
+        // Use Data.range(of:) for O(n) marker search instead of O(n*m) stride decode.
+        let searchRange = (dataStart + 50)..<min(dataStart + length, data.count - 2)
+        if searchRange.lowerBound < searchRange.upperBound,
+           let markerRange = data.range(of: Data([0x02, 0x03]), in: searchRange) {
+            let nameStart = markerRange.upperBound
+            let maxLen = min(32, data.count - nameStart)
+            if maxLen >= 2 {
+                let nameData = data[nameStart..<(nameStart + maxLen)]
                 if let name = String(data: nameData, encoding: .utf16LittleEndian)?
                     .trimmingCharacters(in: .controlCharacters)
-                    .trimmingCharacters(in: CharacterSet(["\0"])) {
-                    if !name.isEmpty && name.count <= 16 {
-                        channel.name = name
-                        break
-                    }
+                    .trimmingCharacters(in: CharacterSet(["\0"])),
+                   !name.isEmpty && name.count <= 16 {
+                    channel.name = name
                 }
             }
         }
@@ -1403,24 +1423,54 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         var zone = ParsedZone(position: zoneIndex)
 
-        // Look for UTF-16LE zone name in the record
-        // Try different offsets for the name
-        for searchOffset in stride(from: dataStart, to: min(dataStart + length, data.count - 10), by: 1) {
-            // Look for printable UTF-16LE text
-            let nameData = Data(data[searchOffset..<min(searchOffset + 32, data.count)])
+        // Look for UTF-16LE zone name in the record.
+        // Optimized: scan byte-pairs with raw pointer arithmetic to find the first run of
+        // printable ASCII UTF-16LE code units (low byte 0x20-0x7E, high byte 0x00).
+        // This avoids allocating a Data slice and calling String(data:encoding:) at every offset.
+        let scanEnd = min(dataStart + length, data.count - 1)
+        var foundName: String? = nil
 
-            if let name = String(data: nameData, encoding: .utf16LittleEndian)?
-                .trimmingCharacters(in: .controlCharacters)
-                .trimmingCharacters(in: CharacterSet(["\0"])) {
-                if name.count >= 2 && name.count <= 16 && !name.contains("\u{FFFD}") && name.first?.isLetter == true {
-                    zone.name = name
-                    if debug { print("[PARSE] Zone name found: '\(name)' at offset \(searchOffset)") }
-                    return zone
+        data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+            guard let base = ptr.baseAddress else { return }
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            var i = dataStart
+            while i < scanEnd - 1 {
+                let lo = bytes[i]
+                let hi = bytes[i + 1]
+                // UTF-16LE ASCII code unit: high byte must be 0x00, low byte printable.
+                guard lo >= 0x20 && lo <= 0x7E && hi == 0x00 else {
+                    i += 1
+                    continue
                 }
+                // Must start with a letter (A-Z or a-z).
+                guard (lo >= 0x41 && lo <= 0x5A) || (lo >= 0x61 && lo <= 0x7A) else {
+                    i += 2  // Skip this non-letter code unit
+                    continue
+                }
+                // Collect the run.
+                var charBuf = [UInt8]()
+                charBuf.reserveCapacity(16)
+                var j = i
+                while j + 1 < scanEnd && bytes[j] >= 0x20 && bytes[j] <= 0x7E && bytes[j + 1] == 0x00 {
+                    charBuf.append(bytes[j])
+                    j += 2
+                }
+                let charCount = charBuf.count
+                if charCount >= 2 && charCount <= 16 {
+                    let candidate = String(bytes: charBuf, encoding: .ascii) ?? ""
+                    if !candidate.isEmpty && !candidate.contains("\u{FFFD}") {
+                        foundName = candidate
+                        return
+                    }
+                }
+                i = j > i ? j : i + 1
             }
         }
 
-        return nil
+        guard let name = foundName else { return nil }
+        zone.name = name
+        if debug { RadioLog.programmer.debug("[PARSE] Zone name found: '\(name, privacy: .public)'") }
+        return zone
     }
 
     /// Tries to extract TX/RX frequencies from data around a channel name.
@@ -1448,10 +1498,10 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
                 if (freqMHz >= 400 && freqMHz <= 520) || (freqMHz >= 136 && freqMHz <= 174) {
                     if result.rxFrequencyHz == 0 {
                         result.rxFrequencyHz = UInt32(freqLE) * 10
-                        if debug { print("[PARSE] Found RX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
+                        if debug { RadioLog.programmer.debug("[PARSE] Found RX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
                     } else if result.txFrequencyHz == 0 {
                         result.txFrequencyHz = UInt32(freqLE) * 10
-                        if debug { print("[PARSE] Found TX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
+                        if debug { RadioLog.programmer.debug("[PARSE] Found TX frequency: \(freqMHz) MHz at offset \(searchOffset)") }
                     }
                 }
             }
@@ -1473,13 +1523,45 @@ public enum MOTOTRBOError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .connectionFailed(let msg): return "Connection failed: \(msg)"
-        case .sendFailed(let msg): return "Send failed: \(msg)"
-        case .receiveFailed(let msg): return "Receive failed: \(msg)"
-        case .timeout: return "Communication timeout"
+        case .connectionFailed: return "Could not connect to radio"
+        case .sendFailed: return "Communication error"
+        case .receiveFailed: return "No response from radio"
+        case .timeout: return "Radio is not responding"
+        case .notImplemented: return "Feature not supported"
+        case .protocolError: return "Unexpected radio response"
+        case .authenticationFailed: return "Radio rejected connection"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .connectionFailed:
+            return "Try: Ensure the radio is powered on and USB cable is connected. Most MOTOTRBO radios appear at 192.168.10.1"
+        case .sendFailed:
+            return "Try: Check USB cable connection and retry"
+        case .receiveFailed:
+            return "Try: The radio may have disconnected. Check connection and retry"
+        case .timeout:
+            return "Try: Unplug and reconnect the USB cable, power cycle the radio, then retry"
+        case .notImplemented:
+            return "This feature is not yet supported for this radio model"
+        case .protocolError:
+            return "Try: Restart the radio and retry. If the issue persists, the radio firmware may be incompatible"
+        case .authenticationFailed:
+            return "Try: Restart the radio and retry the connection"
+        }
+    }
+
+    /// Technical details suitable for diagnostic disclosure.
+    public var technicalDescription: String {
+        switch self {
+        case .connectionFailed(let msg): return "XNL connection failed: \(msg)"
+        case .sendFailed(let msg): return "Send error: \(msg)"
+        case .receiveFailed(let msg): return "Receive error: \(msg)"
+        case .timeout: return "Radio communication timed out"
         case .notImplemented(let msg): return "Not implemented: \(msg)"
         case .protocolError(let msg): return "Protocol error: \(msg)"
-        case .authenticationFailed(let msg): return "Authentication failed: \(msg)"
+        case .authenticationFailed(let msg): return "XNL authentication failed: \(msg)"
         }
     }
 }

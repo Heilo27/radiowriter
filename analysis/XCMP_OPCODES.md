@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../docs/PROTOCOL_REFERENCE.md).
+> This file is the exhaustive op-code table extracted from `RcmpWrapper.dll` DLL analysis. The verified op-codes have been incorporated into the consolidated reference. This file is retained as the complete DLL-sourced op-code listing including unverified entries.
+
 # MOTOTRBO XCMP Command Opcodes
 
 Extracted from MOTOTRBO CPS DLL analysis (Common.Communication.RcmpWrapper.dll)

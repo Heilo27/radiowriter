@@ -53,6 +53,7 @@ struct RxGroupListsView: View {
             HStack {
                 Text("RX Group Lists")
                     .font(.headline)
+                    .help("RX Group Lists define which DMR talk groups a channel can receive. Assign a group list to a channel to hear multiple talk groups.")
                 Spacer()
                 Text("\(coordinator.parsedCodeplug?.rxGroupLists.count ?? 0)")
                     .font(.caption)
@@ -263,7 +264,7 @@ struct RxGroupListsView: View {
     private func addList(_ list: ParsedRxGroupList) {
         var lists = coordinator.parsedCodeplug?.rxGroupLists ?? []
         lists.append(list)
-        coordinator.parsedCodeplug?.rxGroupLists = lists
+        coordinator.updateRxGroupLists(lists, actionName: "Add RX Group List")
         selectedListIndex = lists.count - 1
     }
 
@@ -272,7 +273,7 @@ struct RxGroupListsView: View {
               let index = selectedListIndex,
               index >= 0 && index < lists.count else { return }
         lists[index] = list
-        coordinator.parsedCodeplug?.rxGroupLists = lists
+        coordinator.updateRxGroupLists(lists, actionName: "Rename RX Group List")
     }
 
     private func deleteSelectedList() {
@@ -280,7 +281,7 @@ struct RxGroupListsView: View {
               let index = selectedListIndex,
               index >= 0 && index < lists.count else { return }
         lists.remove(at: index)
-        coordinator.parsedCodeplug?.rxGroupLists = lists
+        coordinator.updateRxGroupLists(lists, actionName: "Delete RX Group List")
         if index >= lists.count {
             selectedListIndex = lists.isEmpty ? nil : lists.count - 1
         }
@@ -293,7 +294,7 @@ struct RxGroupListsView: View {
 
         if !lists[index].contactIndices.contains(contactIndex) {
             lists[index].contactIndices.append(contactIndex)
-            coordinator.parsedCodeplug?.rxGroupLists = lists
+            coordinator.updateRxGroupLists(lists, actionName: "Add Contact to RX Group")
         }
     }
 
@@ -303,7 +304,7 @@ struct RxGroupListsView: View {
               index >= 0 && index < lists.count else { return }
 
         lists[index].contactIndices.removeAll { $0 == contactIndex }
-        coordinator.parsedCodeplug?.rxGroupLists = lists
+        coordinator.updateRxGroupLists(lists, actionName: "Remove Contact from RX Group")
     }
 
     private func moveContactsInList(from source: IndexSet, to destination: Int) {
@@ -312,7 +313,7 @@ struct RxGroupListsView: View {
               index >= 0 && index < lists.count else { return }
 
         lists[index].contactIndices.move(fromOffsets: source, toOffset: destination)
-        coordinator.parsedCodeplug?.rxGroupLists = lists
+        coordinator.updateRxGroupLists(lists, actionName: "Reorder RX Group Contacts")
     }
 }
 

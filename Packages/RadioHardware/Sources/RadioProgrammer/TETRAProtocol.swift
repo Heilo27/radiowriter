@@ -414,18 +414,65 @@ public enum TETRAError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .connectionFailed: return "Could not connect to the radio"
+        case .authenticationFailed: return "The radio rejected the connection"
+        case .commandRejected: return "The radio refused the command"
+        case .checksumMismatch: return "Data integrity check failed"
+        case .unsupportedOpcode: return "This operation is not supported by the radio"
+        case .writeFailure: return "Write to radio memory failed"
+        case .readFailure: return "Read from radio memory failed"
+        case .timeout: return "The radio stopped responding"
+        case .invalidResponse: return "The radio returned unexpected data"
+        case .notImplemented: return "This feature is not yet supported for this radio model"
+        case .badBattery: return "Battery too low to program"
+        case .programmingModeRequired: return "Radio is not in programming mode"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .connectionFailed:
+            return "Make sure the programming cable is connected and the radio is powered on, then try again."
+        case .authenticationFailed:
+            return "The radio's programming password may be set. Check your radio's security settings or contact your system administrator."
+        case .commandRejected:
+            return "The radio may be locked or in an unexpected state. Power cycle the radio and try again."
+        case .checksumMismatch:
+            return "The data was corrupted in transit. Try a different USB cable or USB port, then retry the operation."
+        case .unsupportedOpcode:
+            return "This radio firmware version may not support this operation. Check that you have the correct radio model selected."
+        case .writeFailure:
+            return "The radio rejected the write. Make sure the radio is in programming mode and not locked, then try again."
+        case .readFailure:
+            return "The radio failed to return data. Power cycle the radio and retry the read operation."
+        case .timeout:
+            return "Reconnect the programming cable, power cycle the radio, then try again."
+        case .invalidResponse:
+            return "The radio returned an unexpected format. This may indicate a firmware incompatibility with this version of RadioWriter."
+        case .notImplemented:
+            return "TETRA programming support for this model will be added in a future update."
+        case .badBattery:
+            return "Charge the radio battery to at least 50% before programming. Alternatively, connect the radio to an external power supply."
+        case .programmingModeRequired:
+            return "Put the radio into programming mode before connecting. Check your radio's manual for the key combination (usually a menu option or button hold during power-on)."
+        }
+    }
+
+    /// Technical details suitable for diagnostic disclosure.
+    public var technicalDescription: String {
+        switch self {
         case .connectionFailed(let msg): return "TETRA connection failed: \(msg)"
         case .authenticationFailed(let msg): return "TETRA authentication failed: \(msg)"
-        case .commandRejected(let reason): return "TETRA command rejected: \(reason)"
-        case .checksumMismatch: return "TETRA checksum mismatch"
-        case .unsupportedOpcode: return "TETRA opcode not supported by radio"
-        case .writeFailure(let addr): return "TETRA write failed at address 0x\(String(format: "%08X", addr))"
-        case .readFailure(let addr): return "TETRA read failed at address 0x\(String(format: "%08X", addr))"
-        case .timeout: return "TETRA communication timeout"
-        case .invalidResponse: return "TETRA invalid response format"
-        case .notImplemented(let msg): return "TETRA not implemented: \(msg)"
-        case .badBattery: return "TETRA radio battery voltage too low for programming"
-        case .programmingModeRequired: return "TETRA radio must be in programming mode"
+        case .commandRejected(let reason): return "Command rejected: \(reason)"
+        case .checksumMismatch: return "Checksum mismatch in received data"
+        case .unsupportedOpcode: return "Opcode not supported by radio firmware"
+        case .writeFailure(let addr): return "Write failed at address 0x\(String(format: "%08X", addr))"
+        case .readFailure(let addr): return "Read failed at address 0x\(String(format: "%08X", addr))"
+        case .timeout: return "TETRA operation timed out"
+        case .invalidResponse: return "Invalid TETRA response format"
+        case .notImplemented(let msg): return "Not implemented: \(msg)"
+        case .badBattery: return "Battery voltage below programming threshold"
+        case .programmingModeRequired: return "Radio not in programming mode"
         }
     }
 }

@@ -21,7 +21,7 @@ struct XPRTest {
     static func main() async {
         // Flush stdout to ensure output is visible
         setbuf(stdout, nil)
-        print("[DEBUG] XPRTest starting...")
+        RadioLog.xprtest.debug("[DEBUG] XPRTest starting...")
         printBanner()
 
         // Parse arguments
@@ -58,24 +58,21 @@ struct XPRTest {
             return
         }
 
-        print("Target: \(host):8002")
-        print(String(repeating: "─", count: 60))
-        print()
+        RadioLog.xprtest.info("Target: \(host):8002")
+        RadioLog.xprtest.info("\(String(repeating: "─", count: 60))")
 
         await runTests(host: host)
     }
 
     static func printBanner() {
-        print()
-        print(String(repeating: "═", count: 60))
-        print("  XPR 3500e COMPREHENSIVE TEST TOOL")
-        print("  Motorola MOTOTRBO Protocol Tester")
-        print(String(repeating: "═", count: 60))
-        print()
+        RadioLog.xprtest.info("\(String(repeating: "═", count: 60))")
+        RadioLog.xprtest.info("  XPR 3500e COMPREHENSIVE TEST TOOL")
+        RadioLog.xprtest.info("  Motorola MOTOTRBO Protocol Tester")
+        RadioLog.xprtest.info("\(String(repeating: "═", count: 60))")
     }
 
     static func printUsage() {
-        print("""
+        RadioLog.xprtest.info("""
         Usage: XPRTest [options]
 
         Options:
@@ -95,30 +92,30 @@ struct XPRTest {
         var failed = 0
 
         // Test 1: Network Connectivity
-        print("[1/8] Testing Network Connectivity...")
+        RadioLog.xprtest.info("[1/8] Testing Network Connectivity...")
         if await testNetwork(host: host) {
             passed += 1
         } else {
             failed += 1
-            print("  └─ FATAL: Cannot reach radio. Aborting.")
+            RadioLog.xprtest.error("  └─ FATAL: Cannot reach radio. Aborting.")
             printSummary(passed: passed, failed: failed)
             return
         }
 
         // Test 2: XNL Connection
-        print("\n[2/8] Testing XNL Connection & Authentication...")
+        RadioLog.xprtest.info("[2/8] Testing XNL Connection & Authentication...")
         let connection = XNLConnection(host: host)
         if await testXNLConnection(connection) {
             passed += 1
         } else {
             failed += 1
-            print("  └─ FATAL: XNL authentication failed. Aborting.")
+            RadioLog.xprtest.error("  └─ FATAL: XNL authentication failed. Aborting.")
             printSummary(passed: passed, failed: failed)
             return
         }
 
         // Test 3: Radio Identification (VERIFIED CPS Protocol)
-        print("\n[3/8] Testing Radio Identification (CPS Protocol)...")
+        RadioLog.xprtest.info("[3/8] Testing Radio Identification (CPS Protocol)...")
         let programmer = MOTOTRBOProgrammer(host: host)
         if await testIdentificationCPS(host: host) {
             passed += 1
@@ -127,7 +124,7 @@ struct XPRTest {
         }
 
         // Test 4: CPS Device Info Queries
-        print("\n[4/8] Testing CPS Device Info Queries...")
+        RadioLog.xprtest.info("[4/8] Testing CPS Device Info Queries...")
         if await testIndividualQueries(programmer) {
             passed += 1
         } else {
@@ -135,7 +132,7 @@ struct XPRTest {
         }
 
         // Test 5: Zone/Channel Records
-        print("\n[5/8] Testing Zone/Channel Records (CPS)...")
+        RadioLog.xprtest.info("[5/8] Testing Zone/Channel Records (CPS)...")
         if await testZoneChannelRecords(host: host) {
             passed += 1
         } else {
@@ -143,7 +140,7 @@ struct XPRTest {
         }
 
         // Test 6: Extended Device Info (CPS Protocol)
-        print("\n[6/8] Testing Extended Device Info (CPS)...")
+        RadioLog.xprtest.info("[6/8] Testing Extended Device Info (CPS)...")
         if await testExtendedDeviceInfo(host: host) {
             passed += 1
         } else {
@@ -151,7 +148,7 @@ struct XPRTest {
         }
 
         // Test 7: Multi-Command Session
-        print("\n[7/8] Testing Multi-Command Session...")
+        RadioLog.xprtest.info("[7/8] Testing Multi-Command Session...")
         if await testMultiCommandSession(host: host) {
             passed += 1
         } else {
@@ -159,7 +156,7 @@ struct XPRTest {
         }
 
         // Test 8: Full Codeplug Read (CPS Protocol)
-        print("\n[8/8] Testing Full Codeplug Read (CPS)...")
+        RadioLog.xprtest.info("[8/8] Testing Full Codeplug Read (CPS)...")
         if await testCodeplugReadCPS(programmer) {
             passed += 1
         } else {
@@ -178,18 +175,18 @@ struct XPRTest {
 
         switch result {
         case .success:
-            print("  ✓ Network: Radio reachable at \(host)")
+            RadioLog.xprtest.info("  ✓ Network: Radio reachable at \(host)")
             await connection.disconnect()
             return true
         case .connectionError(let msg):
-            print("  ✗ Network: \(msg)")
+            RadioLog.xprtest.error("  ✗ Network: \(msg)")
             return false
         case .timeout:
-            print("  ✗ Network: Connection timeout")
+            RadioLog.xprtest.error("  ✗ Network: Connection timeout")
             return false
         case .authenticationFailed:
             // Connection worked, auth is a separate test
-            print("  ✓ Network: Radio reachable (auth pending)")
+            RadioLog.xprtest.info("  ✓ Network: Radio reachable (auth pending)")
             return true
         }
     }
@@ -199,17 +196,17 @@ struct XPRTest {
 
         switch result {
         case .success(let addr):
-            print("  ✓ XNL Auth: Success")
-            print("    └─ Assigned Address: 0x\(String(format: "%04X", addr))")
+            RadioLog.xprtest.info("  ✓ XNL Auth: Success")
+            RadioLog.xprtest.info("    └─ Assigned Address: 0x\(String(format: "%04X", addr))")
             return true
         case .authenticationFailed(let code):
-            print("  ✗ XNL Auth: Failed (code: 0x\(String(format: "%02X", code)))")
+            RadioLog.xprtest.error("  ✗ XNL Auth: Failed (code: 0x\(String(format: "%02X", code)))")
             return false
         case .connectionError(let msg):
-            print("  ✗ XNL Auth: \(msg)")
+            RadioLog.xprtest.error("  ✗ XNL Auth: \(msg)")
             return false
         case .timeout:
-            print("  ✗ XNL Auth: Timeout")
+            RadioLog.xprtest.error("  ✗ XNL Auth: Timeout")
             return false
         }
     }
@@ -217,15 +214,15 @@ struct XPRTest {
     static func testIdentification(_ programmer: MOTOTRBOProgrammer) async -> Bool {
         do {
             let info = try await programmer.identify()
-            print("  ✓ Identification: Success")
-            print("    ├─ Model:    \(info.modelNumber)")
-            print("    ├─ Serial:   \(info.serialNumber ?? "N/A")")
-            print("    ├─ Firmware: \(info.firmwareVersion ?? "N/A")")
-            print("    ├─ Radio ID: \(info.radioID.map { String($0) } ?? "N/A")")
-            print("    └─ Family:   \(info.radioFamily ?? "Unknown")")
+            RadioLog.xprtest.info("  ✓ Identification: Success")
+            RadioLog.xprtest.info("    ├─ Model:    \(info.modelNumber)")
+            RadioLog.xprtest.info("    ├─ Serial:   \(info.serialNumber ?? "N/A")")
+            RadioLog.xprtest.info("    ├─ Firmware: \(info.firmwareVersion ?? "N/A")")
+            RadioLog.xprtest.info("    ├─ Radio ID: \(info.radioID.map { String($0) } ?? "N/A")")
+            RadioLog.xprtest.info("    └─ Family:   \(info.radioFamily ?? "Unknown")")
             return true
         } catch {
-            print("  ✗ Identification: \(error.localizedDescription)")
+            RadioLog.xprtest.error("  ✗ Identification: \(error.localizedDescription)")
             return false
         }
     }
@@ -235,7 +232,7 @@ struct XPRTest {
     static func testIdentificationCPS(host: String) async -> Bool {
         let connection = XNLConnection(host: host)
         guard case .success = await connection.connect(debug: verbose) else {
-            print("  ✗ CPS Identify: Connection failed")
+            RadioLog.xprtest.error("  ✗ CPS Identify: Connection failed")
             return false
         }
 
@@ -245,121 +242,121 @@ struct XPRTest {
         let client = XCMPClient(xnlConnection: connection)
 
         // 1. Security Key (0x0012)
-        print("    1. Security Key (0x0012)...")
+        RadioLog.xprtest.info("    1. Security Key (0x0012)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x12]), timeout: 5.0, debug: verbose) {
             if response.count > 3, response[2] == 0x00 {
                 let keyData = Data(response[3...])
-                print("    ✓ Security Key: \(keyData.hex)")
+                RadioLog.xprtest.info("    ✓ Security Key: \(keyData.hex)")
             } else {
-                print("    ? Security Key: \(response.hex)")
+                RadioLog.xprtest.info("    ? Security Key: \(response.hex)")
             }
         } else {
-            print("    ✗ Security Key: timeout")
+            RadioLog.xprtest.error("    ✗ Security Key: timeout")
         }
 
         // 2. Model Number (0x0010)
-        print("    2. Model Number (0x0010)...")
+        RadioLog.xprtest.info("    2. Model Number (0x0010)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x10, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count > 3, response[2] == 0x00 {
                 let modelData = Data(response[3...])
                 if let model = String(data: modelData, encoding: .utf8)?
                     .trimmingCharacters(in: .controlCharacters)
                     .trimmingCharacters(in: CharacterSet(["\0"])) {
-                    print("    ✓ Model: \(model)")
+                    RadioLog.xprtest.info("    ✓ Model: \(model)")
                 } else {
-                    print("    ? Model: \(response.hex)")
+                    RadioLog.xprtest.info("    ? Model: \(response.hex)")
                 }
             } else {
-                print("    ? Model: \(response.hex)")
+                RadioLog.xprtest.info("    ? Model: \(response.hex)")
             }
         } else {
-            print("    ✗ Model: timeout")
+            RadioLog.xprtest.error("    ✗ Model: timeout")
         }
 
         // 3. Serial Number (0x0011)
-        print("    3. Serial Number (0x0011)...")
+        RadioLog.xprtest.info("    3. Serial Number (0x0011)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x11, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count > 3, response[2] == 0x00 {
                 let serialData = Data(response[3...])
                 if let serial = String(data: serialData, encoding: .utf8)?
                     .trimmingCharacters(in: .controlCharacters)
                     .trimmingCharacters(in: CharacterSet(["\0"])) {
-                    print("    ✓ Serial: \(serial)")
+                    RadioLog.xprtest.info("    ✓ Serial: \(serial)")
                 } else {
-                    print("    ? Serial: \(response.hex)")
+                    RadioLog.xprtest.info("    ? Serial: \(response.hex)")
                 }
             } else {
-                print("    ? Serial: \(response.hex)")
+                RadioLog.xprtest.info("    ? Serial: \(response.hex)")
             }
         } else {
-            print("    ✗ Serial: timeout")
+            RadioLog.xprtest.error("    ✗ Serial: timeout")
         }
 
         // 4. Firmware Version (0x000F)
-        print("    4. Firmware Version (0x000F)...")
+        RadioLog.xprtest.info("    4. Firmware Version (0x000F)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x0F, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count > 3, response[2] == 0x00 {
                 let fwData = Data(response[3...])
                 if let fw = String(data: fwData, encoding: .utf8)?
                     .trimmingCharacters(in: .controlCharacters)
                     .trimmingCharacters(in: CharacterSet(["\0"])) {
-                    print("    ✓ Firmware: \(fw)")
+                    RadioLog.xprtest.info("    ✓ Firmware: \(fw)")
                 } else {
-                    print("    ? Firmware: \(response.hex)")
+                    RadioLog.xprtest.info("    ? Firmware: \(response.hex)")
                 }
             } else {
-                print("    ? Firmware: \(response.hex)")
+                RadioLog.xprtest.info("    ? Firmware: \(response.hex)")
             }
         } else {
-            print("    ✗ Firmware: timeout")
+            RadioLog.xprtest.error("    ✗ Firmware: timeout")
         }
 
         // 5. Codeplug ID (0x001F)
-        print("    5. Codeplug ID (0x001F)...")
+        RadioLog.xprtest.info("    5. Codeplug ID (0x001F)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x1F, 0x00, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count > 3, response[2] == 0x00 {
                 let cpData = Data(response[3...])
                 if let cpid = String(data: cpData, encoding: .utf8)?
                     .trimmingCharacters(in: .controlCharacters)
                     .trimmingCharacters(in: CharacterSet(["\0"])) {
-                    print("    ✓ Codeplug ID: \(cpid)")
+                    RadioLog.xprtest.info("    ✓ Codeplug ID: \(cpid)")
                 } else {
-                    print("    ? Codeplug ID: \(response.hex)")
+                    RadioLog.xprtest.info("    ? Codeplug ID: \(response.hex)")
                 }
             } else {
-                print("    ? Codeplug ID: \(response.hex)")
+                RadioLog.xprtest.info("    ? Codeplug ID: \(response.hex)")
             }
         } else {
-            print("    ✗ Codeplug ID: timeout")
+            RadioLog.xprtest.error("    ✗ Codeplug ID: timeout")
         }
 
         await connection.disconnect()
 
         await connection.disconnect()
-        print("  ✓ CPS Protocol Identification Complete")
+        RadioLog.xprtest.info("  ✓ CPS Protocol Identification Complete")
         return true
     }
 
     /// Tests reading codeplug records using CPS protocol (0x002E).
     static func testIndividualQueries(_ programmer: MOTOTRBOProgrammer) async -> Bool {
-        print("    Testing CodeplugRead (0x002E)...")
+        RadioLog.xprtest.info("    Testing CodeplugRead (0x002E)...")
 
         // Read a few records using the CPS protocol
         do {
             let data = try await programmer.readCodeplugCPS(progress: { pct in
                 if verbose && Int(pct * 100) % 25 == 0 {
-                    print("      Progress: \(Int(pct * 100))%")
+                    RadioLog.xprtest.debug("      Progress: \(Int(pct * 100))%")
                 }
             }, debug: verbose)
 
-            print("  ✓ CodeplugRead: Got \(data.count) bytes")
+            RadioLog.xprtest.info("  ✓ CodeplugRead: Got \(data.count) bytes")
             if verbose && !data.isEmpty {
                 let preview = data.prefix(min(32, data.count))
-                print("    First bytes: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                RadioLog.xprtest.debug("    First bytes: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
             }
             return true
         } catch {
-            print("  ✗ CodeplugRead: \(error.localizedDescription)")
+            RadioLog.xprtest.error("  ✗ CodeplugRead: \(error.localizedDescription)")
             return false
         }
     }
@@ -369,7 +366,7 @@ struct XPRTest {
     static func testZoneChannelRecords(host: String) async -> Bool {
         let connection = XNLConnection(host: host)
         guard case .success = await connection.connect(debug: verbose) else {
-            print("  ✗ Zone/Channel: Connection failed")
+            RadioLog.xprtest.error("  ✗ Zone/Channel: Connection failed")
             return false
         }
 
@@ -379,13 +376,13 @@ struct XPRTest {
         // These record IDs are from the standard MOTOTRBO record set
         let zoneRecords: [UInt16] = [0x005E, 0x005F, 0x0060, 0x0061, 0x0062]
 
-        print("    Reading zone/channel records...")
+        RadioLog.xprtest.info("    Reading zone/channel records...")
         if let recordData = try? await client.readCodeplugRecords(zoneRecords, debug: verbose) {
             if recordData.count > 10 {
-                print("  ✓ Zone/Channel: Got \(recordData.count) bytes of configuration data")
+                RadioLog.xprtest.info("  ✓ Zone/Channel: Got \(recordData.count) bytes of configuration data")
                 if verbose {
                     let preview = recordData.prefix(min(32, recordData.count))
-                    print("    Preview: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                    RadioLog.xprtest.debug("    Preview: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
                 }
                 await connection.disconnect()
                 return true
@@ -393,7 +390,7 @@ struct XPRTest {
         }
 
         await connection.disconnect()
-        print("  ✗ Zone/Channel: Could not read records")
+        RadioLog.xprtest.error("  ✗ Zone/Channel: Could not read records")
         return false
     }
 
@@ -401,58 +398,58 @@ struct XPRTest {
     static func testExtendedDeviceInfo(host: String) async -> Bool {
         let connection = XNLConnection(host: host)
         guard case .success = await connection.connect(debug: verbose) else {
-            print("  ✗ Extended Info: Connection failed")
+            RadioLog.xprtest.error("  ✗ Extended Info: Connection failed")
             return false
         }
 
         var queriesSucceeded = 0
 
         // Query status flags (0x003D)
-        print("    1. Status Flags (0x003D)...")
+        RadioLog.xprtest.info("    1. Status Flags (0x003D)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x3D, 0x00, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count >= 3 {
-                print("    ✓ Status Flags: \(response.map { String(format: "%02X", $0) }.joined(separator: " "))")
+                RadioLog.xprtest.info("    ✓ Status Flags: \(response.map { String(format: "%02X", $0) }.joined(separator: " "))")
                 queriesSucceeded += 1
             } else {
-                print("    ? Status Flags: \(response.hex)")
+                RadioLog.xprtest.info("    ? Status Flags: \(response.hex)")
             }
         } else {
-            print("    ✗ Status Flags: timeout")
+            RadioLog.xprtest.error("    ✗ Status Flags: timeout")
         }
 
         // Query feature set (0x0037)
-        print("    2. Feature Set (0x0037)...")
+        RadioLog.xprtest.info("    2. Feature Set (0x0037)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x37, 0x01, 0x01, 0x00]), timeout: 5.0, debug: verbose) {
             if response.count >= 3 {
-                print("    ✓ Feature Set: \(response.count) bytes")
+                RadioLog.xprtest.info("    ✓ Feature Set: \(response.count) bytes")
                 queriesSucceeded += 1
             } else {
-                print("    ? Feature Set: \(response.hex)")
+                RadioLog.xprtest.info("    ? Feature Set: \(response.hex)")
             }
         } else {
-            print("    ✗ Feature Set: timeout")
+            RadioLog.xprtest.error("    ✗ Feature Set: timeout")
         }
 
         // Query language pack (0x002C)
-        print("    3. Language Pack (0x002C)...")
+        RadioLog.xprtest.info("    3. Language Pack (0x002C)...")
         if let response = try? await connection.sendXCMP(Data([0x00, 0x2C, 0x01]), timeout: 5.0, debug: verbose) {
             if response.count >= 3, response[2] == 0x00 || response.count > 10 {
-                print("    ✓ Language Pack: \(response.count) bytes")
+                RadioLog.xprtest.info("    ✓ Language Pack: \(response.count) bytes")
                 queriesSucceeded += 1
             } else {
-                print("    ? Language Pack: \(response.hex)")
+                RadioLog.xprtest.info("    ? Language Pack: \(response.hex)")
             }
         } else {
-            print("    ✗ Language Pack: timeout")
+            RadioLog.xprtest.error("    ✗ Language Pack: timeout")
         }
 
         await connection.disconnect()
 
         if queriesSucceeded >= 2 {
-            print("  ✓ Extended Info: \(queriesSucceeded)/3 queries succeeded")
+            RadioLog.xprtest.info("  ✓ Extended Info: \(queriesSucceeded)/3 queries succeeded")
             return true
         } else {
-            print("  ✗ Extended Info: Only \(queriesSucceeded)/3 queries succeeded")
+            RadioLog.xprtest.error("  ✗ Extended Info: Only \(queriesSucceeded)/3 queries succeeded")
             return false
         }
     }
@@ -462,7 +459,7 @@ struct XPRTest {
     static func testMultiCommandSession(host: String) async -> Bool {
         let connection = XNLConnection(host: host)
         guard case .success = await connection.connect(debug: verbose) else {
-            print("  ✗ Multi-Command: Connection failed")
+            RadioLog.xprtest.error("  ✗ Multi-Command: Connection failed")
             return false
         }
 
@@ -488,24 +485,24 @@ struct XPRTest {
                 if response.count >= 3 {
                     commandsSucceeded += 1
                     if verbose {
-                        print("    ✓ \(name): \(response.count) bytes")
+                        RadioLog.xprtest.debug("    ✓ \(name): \(response.count) bytes")
                     }
                 }
             } else {
-                print("    ✗ \(name): timeout")
+                RadioLog.xprtest.error("    ✗ \(name): timeout")
             }
         }
 
         await connection.disconnect()
 
         if commandsSucceeded == totalCommands {
-            print("  ✓ Multi-Command: All \(totalCommands) commands succeeded in single session")
+            RadioLog.xprtest.info("  ✓ Multi-Command: All \(totalCommands) commands succeeded in single session")
             return true
         } else if commandsSucceeded > totalCommands / 2 {
-            print("  ~ Multi-Command: \(commandsSucceeded)/\(totalCommands) commands succeeded")
+            RadioLog.xprtest.info("  ~ Multi-Command: \(commandsSucceeded)/\(totalCommands) commands succeeded")
             return true
         } else {
-            print("  ✗ Multi-Command: Only \(commandsSucceeded)/\(totalCommands) commands succeeded")
+            RadioLog.xprtest.error("  ✗ Multi-Command: Only \(commandsSucceeded)/\(totalCommands) commands succeeded")
             return false
         }
     }
@@ -517,32 +514,32 @@ struct XPRTest {
             let codeplug = try await programmer.readCodeplugCPS(progress: { progress in
                 let pct = Int(progress * 100)
                 if pct % 25 == 0 && pct != lastPct {
-                    print("    Progress: \(pct)%")
+                    RadioLog.xprtest.debug("    Progress: \(pct)%")
                     lastPct = pct
                 }
             }, debug: verbose)
 
-            print("  ✓ Codeplug Read (CPS): Success")
-            print("    └─ Size: \(codeplug.count) bytes")
+            RadioLog.xprtest.info("  ✓ Codeplug Read (CPS): Success")
+            RadioLog.xprtest.info("    └─ Size: \(codeplug.count) bytes")
 
             // Show hex dump of first 32 bytes
             if verbose && codeplug.count >= 32 {
-                print("    First 32 bytes:")
+                RadioLog.xprtest.debug("    First 32 bytes:")
                 let preview = codeplug.prefix(32)
                 for offset in stride(from: 0, to: 32, by: 16) {
                     let end = min(offset + 16, 32)
                     let bytes = preview[offset..<end]
                     let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
-                    print("      \(String(format: "%04X", offset)): \(hex)")
+                    RadioLog.xprtest.debug("      \(String(format: "%04X", offset)): \(hex)")
                 }
             }
 
             // Also test parsing by calling readZonesAndChannels
-            print("\n[9/9] Testing Zone/Channel Parsing...")
+            RadioLog.xprtest.info("[9/9] Testing Zone/Channel Parsing...")
 
             // First show what records we have in the raw data
             if verbose {
-                print("    Scanning raw codeplug data for patterns...")
+                RadioLog.xprtest.debug("    Scanning raw codeplug data for patterns...")
                 var dataRecords = 0
                 var metadataRecords = 0
                 for i in 0..<(codeplug.count - 2) {
@@ -552,7 +549,7 @@ struct XPRTest {
                         metadataRecords += 1
                     }
                 }
-                print("    Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
+                RadioLog.xprtest.debug("    Found \(dataRecords) data records (81 00) and \(metadataRecords) metadata records (81 04)")
 
                 // Look for UTF-16 strings (channel names)
                 var utf16Strings: [String] = []
@@ -572,34 +569,34 @@ struct XPRTest {
                 }
                 let uniqueStrings = Array(Set(utf16Strings))
                 if !uniqueStrings.isEmpty {
-                    print("    Found UTF-16LE strings: \(uniqueStrings.prefix(10).joined(separator: ", "))")
+                    RadioLog.xprtest.debug("    Found UTF-16LE strings: \(uniqueStrings.prefix(10).joined(separator: ", "))")
                 }
             }
 
             let parsedCodeplug = try await programmer.readZonesAndChannels(progress: { _ in }, debug: verbose)
 
             if parsedCodeplug.zones.isEmpty {
-                print("  ⚠ Parsing: No zones found in codeplug")
+                RadioLog.xprtest.info("  ⚠ Parsing: No zones found in codeplug")
                 // Still show any settings found
                 if !parsedCodeplug.radioAlias.isEmpty && parsedCodeplug.radioAlias != "Radio" {
-                    print("    └─ Radio Alias: \(parsedCodeplug.radioAlias)")
+                    RadioLog.xprtest.info("    └─ Radio Alias: \(parsedCodeplug.radioAlias)")
                 }
                 if !parsedCodeplug.modelNumber.isEmpty {
-                    print("    └─ Model: \(parsedCodeplug.modelNumber)")
+                    RadioLog.xprtest.info("    └─ Model: \(parsedCodeplug.modelNumber)")
                 }
             } else {
-                print("  ✓ Parsing: Found \(parsedCodeplug.zones.count) zones")
+                RadioLog.xprtest.info("  ✓ Parsing: Found \(parsedCodeplug.zones.count) zones")
                 for zone in parsedCodeplug.zones.prefix(5) {
-                    print("    └─ Zone: \(zone.name) (\(zone.channels.count) channels)")
+                    RadioLog.xprtest.info("    └─ Zone: \(zone.name) (\(zone.channels.count) channels)")
                     for channel in zone.channels.prefix(3) {
-                        print("       └─ Channel: \(channel.name)")
+                        RadioLog.xprtest.info("       └─ Channel: \(channel.name)")
                     }
                 }
             }
 
             return true
         } catch {
-            print("  ✗ Codeplug Read (CPS): \(error.localizedDescription)")
+            RadioLog.xprtest.error("  ✗ Codeplug Read (CPS): \(error.localizedDescription)")
             return false
         }
     }
@@ -607,30 +604,23 @@ struct XPRTest {
     // MARK: - Summary
 
     static func printSummary(passed: Int, failed: Int) {
-        print()
-        print(String(repeating: "═", count: 60))
-        print("  TEST RESULTS")
-        print(String(repeating: "─", count: 60))
-        print("  Passed: \(passed)")
-        print("  Failed: \(failed)")
-        print("  Total:  \(passed + failed)")
-        print(String(repeating: "═", count: 60))
+        RadioLog.xprtest.info("\(String(repeating: "═", count: 60))")
+        RadioLog.xprtest.info("  TEST RESULTS")
+        RadioLog.xprtest.info("\(String(repeating: "─", count: 60))")
+        RadioLog.xprtest.info("  Passed: \(passed)")
+        RadioLog.xprtest.info("  Failed: \(failed)")
+        RadioLog.xprtest.info("  Total:  \(passed + failed)")
+        RadioLog.xprtest.info("\(String(repeating: "═", count: 60))")
 
         if failed == 0 {
-            print()
-            print("  ALL TESTS PASSED!")
-            print("  The XPR 3500e is fully communicating with our protocol stack.")
-            print()
+            RadioLog.xprtest.info("  ALL TESTS PASSED!")
+            RadioLog.xprtest.info("  The XPR 3500e is fully communicating with our protocol stack.")
         } else if passed > failed {
-            print()
-            print("  PARTIAL SUCCESS")
-            print("  Basic communication works. Some advanced features need attention.")
-            print()
+            RadioLog.xprtest.info("  PARTIAL SUCCESS")
+            RadioLog.xprtest.info("  Basic communication works. Some advanced features need attention.")
         } else {
-            print()
-            print("  NEEDS INVESTIGATION")
-            print("  Check the radio connection and try with --verbose for details.")
-            print()
+            RadioLog.xprtest.info("  NEEDS INVESTIGATION")
+            RadioLog.xprtest.info("  Check the radio connection and try with --verbose for details.")
         }
     }
 }

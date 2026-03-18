@@ -101,12 +101,12 @@ public struct CodeplugSerializer: Sendable {
         offset = 4
 
         // Version
-        let version = readUInt16LE(from: data, at: offset)
+        let version = try readUInt16LE(from: data, at: offset)
         guard version <= Self.formatVersion else { throw SerializationError.unsupportedVersion(version) }
         offset += 2
 
         // Metadata
-        let metadataLength = Int(readUInt32LE(from: data, at: offset))
+        let metadataLength = Int(try readUInt32LE(from: data, at: offset))
         offset += 4
         guard offset + metadataLength <= data.count else { throw SerializationError.truncatedData }
         let metadataJSON = data[offset..<(offset + metadataLength)]
@@ -114,7 +114,7 @@ public struct CodeplugSerializer: Sendable {
         offset += metadataLength
 
         // Model identifier
-        let modelLength = Int(readUInt16LE(from: data, at: offset))
+        let modelLength = Int(try readUInt16LE(from: data, at: offset))
         offset += 2
         guard offset + modelLength <= data.count else { throw SerializationError.truncatedData }
         let modelData = data[offset..<(offset + modelLength)]
@@ -129,7 +129,7 @@ public struct CodeplugSerializer: Sendable {
         // For v2+ encrypted files, read salt
         let salt: Data?
         if isEncrypted && version >= 2 {
-            let saltLen = Int(readUInt16LE(from: data, at: offset))
+            let saltLen = Int(try readUInt16LE(from: data, at: offset))
             offset += 2
             guard offset + saltLen <= data.count else { throw SerializationError.truncatedData }
             salt = Data(data[offset..<(offset + saltLen)])
@@ -139,14 +139,14 @@ public struct CodeplugSerializer: Sendable {
         }
 
         // Payload
-        let payloadLength = Int(readUInt32LE(from: data, at: offset))
+        let payloadLength = Int(try readUInt32LE(from: data, at: offset))
         offset += 4
         guard offset + payloadLength <= data.count else { throw SerializationError.truncatedData }
         let payload = Data(data[offset..<(offset + payloadLength)])
         offset += payloadLength
 
         // Original length
-        let originalLength = Int(readUInt32LE(from: data, at: offset))
+        let originalLength = Int(try readUInt32LE(from: data, at: offset))
 
         // Decrypt if needed
         let compressed: Data
@@ -165,13 +165,15 @@ public struct CodeplugSerializer: Sendable {
 
     // MARK: - Safe Byte Reading
 
-    private func readUInt16LE(from data: Data, at offset: Int) -> UInt16 {
+    private func readUInt16LE(from data: Data, at offset: Int) throws -> UInt16 {
+        guard offset + 1 < data.count else { throw SerializationError.truncatedData }
         let low = UInt16(data[offset])
         let high = UInt16(data[offset + 1])
         return (high << 8) | low
     }
 
-    private func readUInt32LE(from data: Data, at offset: Int) -> UInt32 {
+    private func readUInt32LE(from data: Data, at offset: Int) throws -> UInt32 {
+        guard offset + 3 < data.count else { throw SerializationError.truncatedData }
         let b0 = UInt32(data[offset])
         let b1 = UInt32(data[offset + 1])
         let b2 = UInt32(data[offset + 2])
@@ -183,15 +185,19 @@ public struct CodeplugSerializer: Sendable {
 
     private func compress(_ data: Data) throws -> Data {
         let sourceSize = data.count
-        let destinationSize = sourceSize + 64 // overhead buffer
+        let destinationSize = max(sourceSize + sourceSize / 16 + 64, 1024)
         var destination = Data(count: destinationSize)
 
-        let compressedSize = destination.withUnsafeMutableBytes { destBuf in
-            data.withUnsafeBytes { srcBuf in
-                compression_encode_buffer(
-                    destBuf.bindMemory(to: UInt8.self).baseAddress!,
+        let compressedSize = try destination.withUnsafeMutableBytes { destBuf in
+            try data.withUnsafeBytes { srcBuf in
+                guard let destBase = destBuf.bindMemory(to: UInt8.self).baseAddress,
+                      let srcBase = srcBuf.bindMemory(to: UInt8.self).baseAddress else {
+                    throw SerializationError.compressionFailed
+                }
+                return compression_encode_buffer(
+                    destBase,
                     destinationSize,
-                    srcBuf.bindMemory(to: UInt8.self).baseAddress!,
+                    srcBase,
                     sourceSize,
                     nil,
                     COMPRESSION_LZFSE
@@ -207,12 +213,16 @@ public struct CodeplugSerializer: Sendable {
     private func decompress(_ data: Data, originalSize: Int) throws -> Data {
         var destination = Data(count: originalSize)
 
-        let decompressedSize = destination.withUnsafeMutableBytes { destBuf in
-            data.withUnsafeBytes { srcBuf in
-                compression_decode_buffer(
-                    destBuf.bindMemory(to: UInt8.self).baseAddress!,
+        let decompressedSize = try destination.withUnsafeMutableBytes { destBuf in
+            try data.withUnsafeBytes { srcBuf in
+                guard let destBase = destBuf.bindMemory(to: UInt8.self).baseAddress,
+                      let srcBase = srcBuf.bindMemory(to: UInt8.self).baseAddress else {
+                    throw SerializationError.decompressionFailed
+                }
+                return compression_decode_buffer(
+                    destBase,
                     originalSize,
-                    srcBuf.bindMemory(to: UInt8.self).baseAddress!,
+                    srcBase,
                     data.count,
                     nil,
                     COMPRESSION_LZFSE
@@ -230,8 +240,8 @@ public struct CodeplugSerializer: Sendable {
     private func generateSalt() -> Data {
         var salt = Data(count: Self.saltLength)
         salt.withUnsafeMutableBytes { buffer in
-            // Use SecRandomCopyBytes for cryptographic randomness
-            _ = SecRandomCopyBytes(kSecRandomDefault, Self.saltLength, buffer.baseAddress!)
+            guard let base = buffer.baseAddress else { return }
+            _ = SecRandomCopyBytes(kSecRandomDefault, Self.saltLength, base)
         }
         return salt
     }
@@ -261,7 +271,7 @@ public struct CodeplugSerializer: Sendable {
         derivedKeyData.withUnsafeMutableBytes { derivedKeyBytes in
             passwordData.withUnsafeBytes { passwordBytes in
                 salt.withUnsafeBytes { saltBytes in
-                    CCKeyDerivationPBKDF(
+                    _ = CCKeyDerivationPBKDF(
                         CCPBKDFAlgorithm(kCCPBKDF2),
                         passwordBytes.baseAddress?.assumingMemoryBound(to: Int8.self),
                         passwordData.count,
@@ -322,14 +332,35 @@ public enum SerializationError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidFormat: return "Not a valid CPSX file"
-        case .unsupportedVersion(let version): return "Unsupported format version: \(version)"
-        case .truncatedData: return "File appears to be truncated"
-        case .passwordRequired: return "This file is encrypted. A password is required."
-        case .compressionFailed: return "Failed to compress data"
-        case .decompressionFailed: return "Failed to decompress data"
-        case .encryptionFailed: return "Failed to encrypt data"
-        case .decryptionFailed: return "Failed to decrypt data"
+        case .invalidFormat: return "This file is not a valid RadioWriter codeplug"
+        case .unsupportedVersion(let version): return "This codeplug was saved with a newer version of RadioWriter (format version \(version))"
+        case .truncatedData: return "The file is incomplete or corrupted"
+        case .passwordRequired: return "This codeplug is password-protected"
+        case .compressionFailed: return "Could not save the codeplug"
+        case .decompressionFailed: return "Could not open the codeplug"
+        case .encryptionFailed: return "Could not encrypt the codeplug"
+        case .decryptionFailed: return "Wrong password"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .invalidFormat:
+            return "Make sure you are opening a .cpsx file saved by RadioWriter. Files from Motorola CPS software use a different format."
+        case .unsupportedVersion:
+            return "Update RadioWriter to the latest version to open this file."
+        case .truncatedData:
+            return "The file may have been cut short during a save or transfer. Try restoring from a backup if available."
+        case .passwordRequired:
+            return "Enter the password that was set when this codeplug was saved."
+        case .compressionFailed:
+            return "Check that there is sufficient disk space available and try saving again."
+        case .decompressionFailed:
+            return "The file may be corrupted. Try restoring from a backup if available."
+        case .encryptionFailed:
+            return "There was a problem encrypting the file. Try saving to a different location."
+        case .decryptionFailed:
+            return "The password you entered is incorrect. Check the password and try again."
         }
     }
 }

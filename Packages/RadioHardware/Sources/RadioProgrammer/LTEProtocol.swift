@@ -452,19 +452,69 @@ public enum LTEError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .connectionFailed: return "Could not connect to the radio"
+        case .authenticationFailed: return "Wrong password"
+        case .unauthorized: return "Authentication required"
+        case .notFound: return "Feature not available on this radio"
+        case .badRequest: return "The radio rejected the request"
+        case .serverError: return "The radio reported an internal error"
+        case .serviceUnavailable: return "The radio is busy"
+        case .timeout: return "The radio stopped responding"
+        case .invalidResponse: return "The radio returned unexpected data"
+        case .jobFailed: return "The programming operation failed on the radio"
+        case .notImplemented: return "This feature is not yet supported for this radio model"
+        case .networkError: return "Network error communicating with the radio"
+        case .decodingError: return "Could not parse the radio's response"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .connectionFailed:
+            return "Make sure the radio is powered on and connected to the same network. Most LEX/SLR radios are reachable at 192.168.10.1."
+        case .authenticationFailed:
+            return "Enter the radio's programming password. The default is usually blank — check the radio's configuration or contact your system administrator."
+        case .unauthorized:
+            return "Authenticate with the radio's programming password before performing this operation."
+        case .notFound:
+            return "This radio model or firmware version may not support this feature. Check that you have the correct radio model selected."
+        case .badRequest:
+            return "Try restarting the programming session. If this persists, the radio firmware may be incompatible."
+        case .serverError:
+            return "Power cycle the radio and try again. If the problem persists, the radio may need a firmware update."
+        case .serviceUnavailable:
+            return "Wait a few seconds and try again. Another device may be programming the radio, or a previous session did not close cleanly."
+        case .timeout:
+            return "Unplug and reconnect the radio, then power cycle it and try again."
+        case .invalidResponse:
+            return "The radio firmware may be incompatible with this version of RadioWriter. Try restarting the radio."
+        case .jobFailed:
+            return "Try reading the codeplug from the radio first to confirm the connection, then attempt the write again."
+        case .notImplemented:
+            return "This feature will be added in a future update."
+        case .networkError:
+            return "Check that the radio is still connected to the network and try again."
+        case .decodingError:
+            return "The radio returned an unexpected format. This may indicate a firmware incompatibility."
+        }
+    }
+
+    /// Technical details suitable for diagnostic disclosure.
+    public var technicalDescription: String {
+        switch self {
         case .connectionFailed(let msg): return "LTE connection failed: \(msg)"
-        case .authenticationFailed: return "LTE authentication failed - invalid password"
-        case .unauthorized: return "LTE unauthorized - authentication required"
-        case .notFound(let endpoint): return "LTE endpoint not found: \(endpoint)"
-        case .badRequest(let msg): return "LTE bad request: \(msg)"
-        case .serverError(let msg): return "LTE server error: \(msg)"
-        case .serviceUnavailable: return "LTE device busy or not ready"
-        case .timeout: return "LTE communication timeout"
+        case .authenticationFailed: return "HTTP 401: Authentication failed"
+        case .unauthorized: return "HTTP 403: Unauthorized"
+        case .notFound(let endpoint): return "HTTP 404: \(endpoint)"
+        case .badRequest(let msg): return "HTTP 400: \(msg)"
+        case .serverError(let msg): return "HTTP 500: \(msg)"
+        case .serviceUnavailable: return "HTTP 503: Service unavailable"
+        case .timeout: return "LTE request timed out"
         case .invalidResponse: return "LTE invalid response format"
         case .jobFailed(let msg): return "LTE background job failed: \(msg)"
-        case .notImplemented(let msg): return "LTE not implemented: \(msg)"
-        case .networkError(let error): return "LTE network error: \(error.localizedDescription)"
-        case .decodingError(let msg): return "LTE JSON decoding error: \(msg)"
+        case .notImplemented(let msg): return "Not implemented: \(msg)"
+        case .networkError(let error): return "Network: \(error.localizedDescription)"
+        case .decodingError(let msg): return "JSON decode error: \(msg)"
         }
     }
 

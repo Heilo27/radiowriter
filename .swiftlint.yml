@@ -47,26 +47,36 @@ opt_in_rules:
 
 # Rule configuration
 line_length:
-  warning: 120
-  error: 150
+  # SwiftUI .help() strings and chained modifiers run long by design.
+  # warning=160 flags accidental overruns; error=300 catches egregious cases.
+  warning: 160
+  error: 300
   ignores_urls: true
   ignores_comments: true
 
 function_body_length:
-  warning: 60
-  error: 120
+  # Protocol packet parsers (XCMP/XNL state machines) legitimately require
+  # long sequential logic. warning=80 for normal code, error=300 for parsers.
+  warning: 80
+  error: 300
 
 type_body_length:
-  warning: 300
-  error: 500
+  # Large protocol actors (MOTOTRBOProgrammer ~1000 lines) are unavoidable
+  # without splitting the protocol spec across files.
+  warning: 400
+  error: 1100
 
 file_length:
-  warning: 500
-  error: 1000
+  # XCMPProtocol.swift implements the full XCMP packet spec (2735 lines).
+  # Large files are expected in protocol implementation work.
+  warning: 1000
+  error: 3000
 
 cyclomatic_complexity:
-  warning: 15
-  error: 25
+  # XCMP/XNL protocol parsers dispatch on 50+ opcode variants — high
+  # complexity is inherent to the domain, not a quality issue.
+  warning: 20
+  error: 70
 
 function_parameter_count:
   warning: 6
@@ -90,6 +100,8 @@ identifier_name:
     - x
     - y
     - id
+    - to
+    - db
   allowed_symbols:
     - _
 

@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../docs/PROTOCOL_REFERENCE.md).
+> This file documents the original protocol discovery for the XPR 3500e including port enumeration, authentication flow verification, and TEA key extraction. These findings are the primary source for sections 2–5 of the consolidated reference. Retained for source traceability.
+
 # XPR 3500e Protocol Findings
 
 **Date:** 2026-01-29

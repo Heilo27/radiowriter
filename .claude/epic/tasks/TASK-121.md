@@ -1,16 +1,22 @@
 # TASK-121: Add tooltips for radio terminology across all views
 
-**Status:** Pending
-**Priority:** High
-**Assignee:** Echo
+**Status:** Done
+**Priority:** Critical
+**Assignee:** Zeus
 **Created:** 2026-02-06
-**Updated:** 2026-02-06
+**Updated:** 2026-02-19
 
 ---
 
 ## Description
 
 No tooltips or help text for radio terms. Add .help() modifiers for: Color Code, Time Slot, CTCSS, DCS, RX Group List, Talkaround, Man Down, Lone Worker, TOT, VOX, DCDM, Timing Leader, ERDM. See TASK-112 T-01 through T-05.
+
+---
+
+---
+
+---
 
 ---
 
@@ -35,7 +41,7 @@ No tooltips or help text for radio terms. Add .help() modifiers for: Color Code,
 
 | Time | Agent | Action |
 |------|-------|--------|
-| 2026-02-06 | System | Created task |
+| 2026-02-19 | System | Created task |
 
 ---
 

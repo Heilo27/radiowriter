@@ -1,6 +1,6 @@
 # TASK-122: Improve onboarding copy - warmer tagline, remove jargon
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Medium
 **Assignee:** Echo
 **Created:** 2026-02-06

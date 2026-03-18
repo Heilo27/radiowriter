@@ -165,8 +165,21 @@ final class CSVService {
         let requiredColumns = ["Channel Name", "RX Frequency (MHz)"]
         for required in requiredColumns {
             if columnMap[required] == nil {
-                errors.append(ImportError(row: 1, field: required, message: "Required column '\(required)' not found"))
+                // Check for close matches to help the user fix the header
+                let suggestion = findClosestHeader(required, in: headers)
+                let suggestionText = suggestion != nil ? " (did you mean '\(suggestion!)'?)" : ""
+                errors.append(ImportError(row: 1, field: required, message: "Required column '\(required)' not found in your CSV headers\(suggestionText). Make sure your first row contains column headers."))
             }
+        }
+
+        // Report unrecognized columns as warnings so users know which columns are being ignored
+        let knownColumns = Set(channelHeaders.map { $0.lowercased() })
+        let unrecognized = headers.filter { header in
+            let normalized = header.trimmingCharacters(in: .whitespaces).lowercased()
+            return !normalized.isEmpty && !knownColumns.contains(normalized)
+        }
+        if !unrecognized.isEmpty {
+            warnings.append("Unrecognized columns (will be ignored): \(unrecognized.joined(separator: ", ")). Use Tools > Export > Download Channel Template for the expected format.")
         }
 
         guard errors.isEmpty else {
@@ -203,18 +216,40 @@ final class CSVService {
             }
 
             // RX Frequency (required)
-            if let rxStr = getField(fields, columnMap, "RX Frequency (MHz)"),
-               let rxMHz = Double(rxStr) {
-                channel.rxFrequencyHz = UInt32(rxMHz * 1_000_000)
+            if let rxStr = getField(fields, columnMap, "RX Frequency (MHz)") {
+                if let rxMHz = Double(rxStr) {
+                    if rxMHz <= 0 || rxMHz > 1300 {
+                        errors.append(ImportError(row: rowNum, field: "RX Frequency",
+                            message: "Frequency \(String(format: "%.4f", rxMHz)) MHz is out of range — must be between 30.0000 and 1300.0000 MHz"))
+                        continue
+                    }
+                    channel.rxFrequencyHz = UInt32(rxMHz * 1_000_000)
+                    // Warn if outside typical radio bands
+                    let inVHF = rxMHz >= 136 && rxMHz <= 174
+                    let inUHF = rxMHz >= 380 && rxMHz <= 512
+                    let in700 = rxMHz >= 764 && rxMHz <= 870
+                    if !inVHF && !inUHF && !in700 {
+                        warnings.append("Row \(rowNum): Frequency \(String(format: "%.4f", rxMHz)) MHz is outside typical radio bands (VHF: 136–174 MHz, UHF: 380–512 MHz, 700/800: 764–870 MHz)")
+                    }
+                } else {
+                    errors.append(ImportError(row: rowNum, field: "RX Frequency",
+                        message: "'\(rxStr)' is not a valid frequency — enter a value in MHz (e.g., 146.5200)"))
+                    continue
+                }
             } else {
-                errors.append(ImportError(row: rowNum, field: "RX Frequency", message: "Invalid or missing RX frequency"))
+                errors.append(ImportError(row: rowNum, field: "RX Frequency",
+                    message: "Required column 'RX Frequency (MHz)' is missing a value"))
                 continue
             }
 
             // TX Frequency (defaults to RX if not specified)
-            if let txStr = getField(fields, columnMap, "TX Frequency (MHz)"),
-               let txMHz = Double(txStr) {
-                channel.txFrequencyHz = UInt32(txMHz * 1_000_000)
+            if let txStr = getField(fields, columnMap, "TX Frequency (MHz)") {
+                if let txMHz = Double(txStr), txMHz > 0 && txMHz <= 1300 {
+                    channel.txFrequencyHz = UInt32(txMHz * 1_000_000)
+                } else {
+                    warnings.append("Row \(rowNum): TX Frequency '\(txStr)' is invalid — using RX frequency (simplex)")
+                    channel.txFrequencyHz = channel.rxFrequencyHz
+                }
             } else {
                 channel.txFrequencyHz = channel.rxFrequencyHz  // Simplex
             }
@@ -342,10 +377,24 @@ final class CSVService {
 
         // Validate required columns
         if columnMap["Contact Name"] == nil && columnMap["Name"] == nil {
-            errors.append(ImportError(row: 1, field: "Name", message: "Required column 'Contact Name' or 'Name' not found"))
+            let suggestion = findClosestHeader("Contact Name", in: headers)
+            let suggestionText = suggestion != nil ? " (did you mean '\(suggestion!)'?)" : ""
+            errors.append(ImportError(row: 1, field: "Name", message: "Required column 'Contact Name' or 'Name' not found\(suggestionText). Make sure your first row contains column headers."))
         }
         if columnMap["DMR ID"] == nil && columnMap["Radio ID"] == nil {
-            errors.append(ImportError(row: 1, field: "DMR ID", message: "Required column 'DMR ID' or 'Radio ID' not found"))
+            let suggestion = findClosestHeader("DMR ID", in: headers)
+            let suggestionText = suggestion != nil ? " (did you mean '\(suggestion!)'?)" : ""
+            errors.append(ImportError(row: 1, field: "DMR ID", message: "Required column 'DMR ID' or 'Radio ID' not found\(suggestionText). Make sure your first row contains column headers."))
+        }
+
+        // Report unrecognized columns
+        let knownContactColumns = Set(contactHeaders.map { $0.lowercased() } + ["name", "radio id", "type"])
+        let unrecognized = headers.filter { header in
+            let normalized = header.trimmingCharacters(in: .whitespaces).lowercased()
+            return !normalized.isEmpty && !knownContactColumns.contains(normalized)
+        }
+        if !unrecognized.isEmpty {
+            warnings.append("Unrecognized columns (will be ignored): \(unrecognized.joined(separator: ", ")). Use Tools > Export > Download Contact Template for the expected format.")
         }
 
         guard errors.isEmpty else {
@@ -401,6 +450,27 @@ final class CSVService {
         }
 
         return ContactImportResult(contacts: contacts, errors: errors, warnings: warnings)
+    }
+
+    // MARK: - CSV Templates
+
+    /// Generates a channel CSV template with headers and example rows.
+    /// Useful for users to understand the expected format before importing.
+    static func channelTemplateCSV() -> String {
+        let header = channelHeaders.joined(separator: ",")
+        // Example analog simplex channel with CTCSS
+        let analogRow = "Zone 1,1,VHF Simplex,146.520000,146.520000,Analog,,,,,High,12.5,,,90,100.0,100.0,,,CTCSS/DCS,None,"
+        // Example DMR digital channel
+        let digitalRow = "Zone 1,2,DMR Talk,446.500000,441.500000,Digital,1,1,99,Group,High,12.5,,,90,,,,Carrier,None,"
+        return [header, analogRow, digitalRow].joined(separator: "\n")
+    }
+
+    /// Generates a contact CSV template with headers and example rows.
+    static func contactTemplateCSV() -> String {
+        let header = contactHeaders.joined(separator: ",")
+        let groupRow = "Local Talkgroup,3161,Group,No,No"
+        let privateRow = "My Radio,1234567,Private,Yes,No"
+        return [header, groupRow, privateRow].joined(separator: "\n")
     }
 
     // MARK: - Helper Functions
@@ -512,6 +582,40 @@ final class CSVService {
         if lower.contains("enhanced") { return 2 }
         if lower.contains("aes") { return 3 }
         return 0
+    }
+
+    /// Finds the closest matching header from the CSV to suggest corrections.
+    private static func findClosestHeader(_ target: String, in headers: [String]) -> String? {
+        let targetLower = target.lowercased()
+        // Look for headers that contain significant words from the target
+        let targetWords = targetLower.split(separator: " ").map(String.init)
+        var bestMatch: (header: String, score: Int)?
+
+        for header in headers {
+            let headerLower = header.trimmingCharacters(in: .whitespaces).lowercased()
+            guard !headerLower.isEmpty else { continue }
+
+            var score = 0
+            for word in targetWords {
+                if headerLower.contains(word) {
+                    score += 1
+                }
+            }
+            // Also check if target contains header words
+            let headerWords = headerLower.split(separator: " ").map(String.init)
+            for word in headerWords {
+                if targetLower.contains(word) {
+                    score += 1
+                }
+            }
+
+            if score > 0, bestMatch == nil || score > bestMatch!.score {
+                bestMatch = (header: header.trimmingCharacters(in: .whitespaces), score: score)
+            }
+        }
+
+        // Only suggest if there's a reasonable match (at least one word overlap)
+        return bestMatch?.header
     }
 
     /// Parses a DCS code string like "D023N" or "D023I" into the code value.

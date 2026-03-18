@@ -24,22 +24,14 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             sidebar
-        } content: {
-            contentArea
         } detail: {
-            if showInspector {
-                inspectorPanel
-            }
+            contentArea
         }
-        // Prevent layout recursion by disabling animations on external state changes
-        .transaction { transaction in
-            transaction.disablesAnimations = true
+        .inspector(isPresented: $showInspector) {
+            inspectorPanel
         }
         .navigationTitle(windowTitle)
-        .toolbar {
-            toolbarContent
-        }
-        .searchable(text: $searchText, prompt: "Search settings")
+        .toolbar { toolbarContent }
     }
 
     // MARK: - Sidebar
@@ -64,6 +56,7 @@ struct ContentView: View {
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
         .accessibilityIdentifier("categorySidebar")
+        .accessibilityLabel("Category sidebar")
     }
 
     // MARK: - Content Area
@@ -169,6 +162,8 @@ struct ContentView: View {
             .disabled(!coordinator.connectionState.isDisconnected || coordinator.detectedDevices.isEmpty)
             .keyboardShortcut("r", modifiers: [.command])
             .accessibilityIdentifier("toolbar.read")
+            .accessibilityLabel("Read from radio")
+            .help("Read codeplug from connected radio (Cmd+R)")
 
             Button("Write", systemImage: "arrow.up.to.line") {
                 coordinator.writeToRadioWithBackupPrompt()
@@ -176,6 +171,8 @@ struct ContentView: View {
             .disabled(document?.codeplug == nil || coordinator.detectedDevices.isEmpty)
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .accessibilityIdentifier("toolbar.write")
+            .accessibilityLabel("Write to radio")
+            .help("Write codeplug to connected radio (Cmd+Shift+W)")
 
             Menu {
                 Button("Clone Codeplug for Fleet") {
@@ -194,6 +191,8 @@ struct ContentView: View {
             Toggle(isOn: $showInspector) {
                 Label("Inspector", systemImage: "sidebar.trailing")
             }
+            .accessibilityLabel("Toggle inspector panel")
+            .help("Show or hide the inspector panel")
         }
     }
 
@@ -347,20 +346,24 @@ struct ParsedCodeplugCategoryView: View {
             // Audio Settings
             GroupBox("Audio Settings") {
                 LabeledContent("VOX", value: codeplug.voxEnabled ? "Enabled" : "Disabled")
+                    .help("VOX (Voice Operated Exchange) keys the transmitter automatically when it detects your voice")
                 if codeplug.voxEnabled {
                     LabeledContent("VOX Sensitivity", value: "\(codeplug.voxSensitivity)")
                     LabeledContent("VOX Delay", value: "\(codeplug.voxDelay) ms")
                 }
-                LabeledContent("Keypad Tones", value: codeplug.keypadTones ? "On" : "Off")
-                LabeledContent("Call Alert Tone", value: codeplug.callAlertTone ? "On" : "Off")
-                LabeledContent("Power Up Tone", value: codeplug.powerUpTone ? "On" : "Off")
+                LabeledContent("Keypad Tones", value: codeplug.keypadTones ? "Enabled" : "Disabled")
+                LabeledContent("Call Alert Tone", value: codeplug.callAlertTone ? "Enabled" : "Disabled")
+                LabeledContent("Power Up Tone", value: codeplug.powerUpTone ? "Enabled" : "Disabled")
             }
 
             // Timing Settings
             GroupBox("Timing Settings") {
                 LabeledContent("TOT (Timeout Timer)", value: codeplug.totTime == 0 ? "Infinite" : "\(codeplug.totTime) sec")
+                    .help("TOT limits continuous transmission time to prevent accidental channel blockage")
                 LabeledContent("Group Call Hang Time", value: "\(codeplug.groupCallHangTime) ms")
+                    .help("How long the channel stays assigned to a group call after the last transmission ends")
                 LabeledContent("Private Call Hang Time", value: "\(codeplug.privateCallHangTime) ms")
+                    .help("How long the channel stays in private call mode after transmission ends")
             }
 
             // Display Settings
@@ -372,14 +375,19 @@ struct ParsedCodeplugCategoryView: View {
             // Signaling Settings
             GroupBox("Signaling") {
                 LabeledContent("Radio Check", value: codeplug.radioCheckEnabled ? "Enabled" : "Disabled")
+                    .help("Radio Check lets dispatchers silently verify that your radio is active and reachable")
                 LabeledContent("Remote Monitor", value: codeplug.remoteMonitorEnabled ? "Enabled" : "Disabled")
+                    .help("Remote Monitor allows a controller to remotely activate this radio's microphone")
                 LabeledContent("Call Confirmation", value: codeplug.callConfirmation ? "Enabled" : "Disabled")
+                    .help("Sends an acknowledgement to confirm each call was received")
             }
 
             // GPS Settings
             GroupBox("GPS/GNSS") {
                 LabeledContent("GPS", value: codeplug.gpsEnabled ? "Enabled" : "Disabled")
+                    .help("Enables the radio's GPS receiver for location reporting")
                 LabeledContent("Enhanced GNSS", value: codeplug.enhancedGNSSEnabled ? "Enabled" : "Disabled")
+                    .help("Enhanced GNSS uses multiple satellite systems (GPS, GLONASS, Galileo, BeiDou) for better accuracy")
             }
 
             // Safety Settings
@@ -409,7 +417,7 @@ struct ParsedCodeplugCategoryView: View {
         ContentUnavailableView {
             Label("Contacts", systemImage: "person.2")
         } description: {
-            Text("Contact list parsing not yet implemented")
+            Text("Contacts aren't available for this codeplug format yet.")
         }
     }
 
@@ -417,7 +425,7 @@ struct ParsedCodeplugCategoryView: View {
         ContentUnavailableView {
             Label("Scan Lists", systemImage: "magnifyingglass")
         } description: {
-            Text("Scan list parsing not yet implemented")
+            Text("Scan lists aren't available for this codeplug format yet.")
         }
     }
 
@@ -425,7 +433,7 @@ struct ParsedCodeplugCategoryView: View {
         ContentUnavailableView {
             Label(category.rawValue, systemImage: "questionmark.circle")
         } description: {
-            Text("This category is not yet available for parsed codeplugs")
+            Text("This section isn't available for this codeplug format.")
         }
     }
 }

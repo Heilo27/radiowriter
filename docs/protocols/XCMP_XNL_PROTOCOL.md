@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../PROTOCOL_REFERENCE.md).
+> This file contains the original Moto.Net / xcmp-xnl-dissector-sourced documentation. The packet structure detail, authentication sequence step-by-step, and XCMP layer overview from this file are incorporated into the consolidated reference. Retained for original source context.
+
 # XCMP/XNL Protocol Documentation
 
 **Source Analysis:** Moto.Net C# implementation and xcmp-xnl-dissector Wireshark dissector

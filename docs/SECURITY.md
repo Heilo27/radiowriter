@@ -1,7 +1,7 @@
 # Security Model Documentation
 
-**Document Version:** 1.0
-**Date:** 2026-02-02
+**Document Version:** 1.1
+**Date:** 2026-02-20
 
 ---
 
@@ -44,16 +44,54 @@ The XNL protocol includes a challenge-response authentication mechanism:
 
 **Note:** The authentication keys and encryption algorithms are documented in `docs/protocols/ENCRYPTION_DETAILS.md`. These are required for protocol interoperability, not application secrets.
 
+### Encryption Key Storage
+
+XNL/XCMP authentication requires static keys that are embedded in the application source code. This is intentional and expected for the following reasons:
+
+1. **Protocol design:** The MOTOTRBO XNL protocol uses shared, device-class keys for authentication — not per-user or per-installation secrets. These keys are part of the protocol specification, not application credentials.
+
+2. **Interoperability requirement:** Any software implementing the XNL protocol must use these keys. They are equivalent to a public standard, not a private secret.
+
+3. **No privilege escalation risk:** Possession of these keys only allows programming radios that are physically connected via USB. They do not grant access to any network service, user data, or external system.
+
+4. **Open source acknowledgment:** Because this project is open source, embedding these keys in source is transparent by design. They are not secrets that need protecting from the application's own users.
+
+These keys are **not** used to protect user data. They are protocol-level authentication artifacts required for radio communication.
+
 ---
 
 ## Data Handling
 
-### Codeplug Data
+### Data at Rest (Codeplug Files)
 
-- Codeplugs may contain sensitive information (radio IDs, frequencies, encryption keys)
-- Codeplug files are stored locally in user-specified locations
-- No codeplug data is transmitted to external servers
-- Users are responsible for securing codeplug files
+Codeplug files stored on disk may contain sensitive operational information:
+
+| Data Type | Sensitivity | Notes |
+|-----------|-------------|-------|
+| Radio IDs (DMR/MDC) | Medium | Identifies specific radios/users |
+| Programmed frequencies | Medium–High | Operational channels for public safety/commercial |
+| Radio encryption keys (if present) | High | AES/DES keys for over-the-air encryption |
+| CTCSS/DCS tones | Low | Squelch access tones |
+| Talk groups | Low–Medium | Operational group assignments |
+
+**Mitigations:**
+- The application stores no codeplug data in its own data directory — files are written only to user-specified paths.
+- No codeplug data is transmitted to external services.
+- Users are responsible for securing codeplug files at rest. FileVault or equivalent disk encryption is recommended for deployments with high-sensitivity configurations.
+
+### Data in Transit (XNL/XCMP Protocol)
+
+Radio programming sessions transmit the full codeplug over the USB-Ethernet link. This data is in plaintext at the transport layer. The threat surface is intentionally narrow:
+
+| Property | Value |
+|----------|-------|
+| Transport | UDP/TCP over USB-Ethernet (CDC ECM) |
+| Network scope | Link-local only (192.168.10.1) — not routable |
+| Authentication | XNL challenge-response per session |
+| Encryption | None at transport layer (protocol constraint) |
+| Exposure window | Duration of programming session only |
+
+**Risk assessment:** Because the link is local-only and requires physical USB access, the practical risk of in-transit interception is low. An attacker capable of sniffing this traffic already has physical access to the machine, which represents a larger compromise.
 
 ### No Cloud Connectivity
 
@@ -67,13 +105,24 @@ This application:
 
 ## Threat Model
 
-### In Scope
+### Codeplug Data Threats
+
+Codeplug files warrant specific threat modeling due to potentially sensitive content:
+
+| Threat | Impact | Mitigation |
+|--------|--------|------------|
+| Unauthorized access to codeplug file on disk | High (if file contains encryption keys or sensitive frequencies) | User-controlled file permissions; FileVault recommended |
+| Codeplug exfiltration via application | None | Application never transmits codeplug data externally |
+| Codeplug tampering before write | Medium (misconfigured radio) | CRC validation; user review before programming |
+| Accidental overwrite of radio config | Medium | Backup prompts; read-before-write workflow |
+
+### Protocol-Level Threats
 
 | Threat | Mitigation |
 |--------|------------|
-| Local network sniffing of USB-Ethernet traffic | Physical access control; local-only network |
+| Local network sniffing of USB-Ethernet traffic | Physical access control; local-only link-layer network |
 | Malformed radio responses | Input validation on all protocol messages |
-| Codeplug file tampering | CRC validation on codeplug records |
+| Replay attack on XNL session | Per-session challenge-response prevents replay |
 | Memory corruption from radio data | Bounds checking on all binary parsing |
 
 ### Out of Scope
@@ -83,6 +132,7 @@ This application:
 | Man-in-the-middle on LAN | Radio uses direct USB connection, not LAN |
 | Remote network attacks | No routable network exposure |
 | Radio firmware exploits | Out of scope for CPS application |
+| Theft of protocol authentication keys | Keys are public protocol artifacts, not secrets |
 
 ---
 
@@ -106,7 +156,7 @@ This application:
 - Stores no data outside user-specified locations
 - Requires no account or registration
 
-See also: Future privacy policy in preparation for distribution.
+See also: [Privacy Policy](PRIVACY_POLICY.md) for the full privacy commitments and data handling disclosures.
 
 ---
 
@@ -114,4 +164,5 @@ See also: Future privacy policy in preparation for distribution.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | 2026-02-20 | Link to PRIVACY_POLICY.md; add encryption key storage rationale; document data at rest and in transit; expand threat model with codeplug data section |
 | 1.0 | 2026-02-02 | Initial security documentation |

@@ -34,13 +34,32 @@ public enum USBError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .notConnected: return "Not connected to radio"
-        case .connectionFailed(let msg): return "Connection failed: \(msg)"
-        case .timeout: return "Communication timed out"
-        case .readError(let msg): return "Read error: \(msg)"
-        case .writeError(let msg): return "Write error: \(msg)"
-        case .deviceNotFound: return "Radio not found"
-        case .permissionDenied: return "Permission denied. Check System Preferences > Security."
+        case .notConnected: return "Radio is not connected"
+        case .connectionFailed: return "Could not open the connection to the radio"
+        case .timeout: return "The radio stopped responding"
+        case .readError: return "Could not read data from the radio"
+        case .writeError: return "Could not send data to the radio"
+        case .deviceNotFound: return "No radio found on this port"
+        case .permissionDenied: return "Permission denied to access the radio port"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .notConnected:
+            return "Connect the USB cable and make sure the radio is powered on, then try again."
+        case .connectionFailed:
+            return "Unplug and reconnect the USB cable. If this is a serial radio, confirm the port path is correct in System Settings > Privacy & Security > Files and Folders."
+        case .timeout:
+            return "The radio may have gone to sleep or disconnected. Reconnect the USB cable and power cycle the radio, then try again."
+        case .readError:
+            return "Try a different USB cable or USB port. If the problem persists, restart the radio."
+        case .writeError:
+            return "Try a different USB cable or USB port. Make sure the radio is in programming mode and not locked."
+        case .deviceNotFound:
+            return "Connect the Motorola programming cable and make sure the radio is powered on. The cable's driver (FTDI) must be installed — visit ftdichip.com if needed."
+        case .permissionDenied:
+            return "Open System Settings > Privacy & Security > Files and Folders and grant RadioWriter access to the serial port, then try again."
         }
     }
 }

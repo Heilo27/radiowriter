@@ -1,6 +1,6 @@
 # TASK-124: Standardize toggle display text (Enabled/Disabled vs On/Off)
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Low
 **Assignee:** Echo
 **Created:** 2026-02-06

@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](PROTOCOL_REFERENCE.md).
+> This white paper was the primary synthesis document before the consolidated reference was created. It covers the same protocol stack and is the source for implementation notes, common pitfalls, and the IshSessionStart vs programming mode distinction. Retained as the authoritative narrative deep-dive.
+
 # XNL/XCMP Protocol White Paper
 ## Motorola MOTOTRBO Radio Communication Protocol
 

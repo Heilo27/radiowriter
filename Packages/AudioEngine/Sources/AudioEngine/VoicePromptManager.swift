@@ -2,8 +2,9 @@ import Foundation
 import RadioCore
 
 /// Manages voice prompts for radios that support custom audio prompts.
+@MainActor
 @Observable
-public final class VoicePromptManager: @unchecked Sendable {
+public final class VoicePromptManager {
     public private(set) var prompts: [VoicePrompt] = []
 
     public init() {}
@@ -16,7 +17,7 @@ public final class VoicePromptManager: @unchecked Sendable {
 
     /// Adds a voice prompt from an audio file.
     public func addPrompt(from url: URL, name: String) async throws -> VoicePrompt {
-        let data = try Data(contentsOf: url)
+        let (data, _) = try await URLSession.shared.data(from: url)
         let prompt = VoicePrompt(id: UUID(), name: name, duration: 0, rawData: data)
         prompts.append(prompt)
         return prompt

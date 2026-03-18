@@ -1,10 +1,10 @@
 # TASK-086: [MEDIUM] Update Privacy Policy with contact information
 
-**Status:** Pending
-**Priority:** Medium
-**Assignee:** Unassigned
+**Status:** Done
+**Priority:** Critical
+**Assignee:** Odo
 **Created:** 2026-02-05
-**Updated:** 2026-02-05
+**Updated:** 2026-02-18
 
 ---
 
@@ -40,6 +40,10 @@
 
 ---
 
+---
+
+---
+
 ## Acceptance Criteria
 
 - [ ] Repository URL added to Contact section
@@ -53,7 +57,11 @@
 ## Context
 
 **Why this matters:**
-Privacy policies should provide clear contact mechanisms for users with privacy questions. Even though this app collects no data, users should be able to reach out with questions.
+[Business/user context]
+
+**Related:**
+- [Link to FRD if applicable]
+- [Link to related tasks]
 
 ---
 
@@ -61,7 +69,13 @@ Privacy policies should provide clear contact mechanisms for users with privacy 
 
 | Time | Agent | Action |
 |------|-------|--------|
-| 2026-02-05 | Themis | Created task from compliance review |
+| 2026-02-18 | System | Created task |
+
+---
+
+## Agent Notes
+
+*Add notes as work progresses*
 
 ---
 
@@ -75,7 +89,7 @@ Privacy policies should provide clear contact mechanisms for users with privacy 
 
 **Completed by:** —
 **Completed at:** —
-**Sign-off:** Themis (required)
+**Sign-off:** —
 
 ---
 

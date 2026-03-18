@@ -98,3 +98,9 @@ pantheon-kb search "motorola codeplug"
 # Store a new finding
 # Document in docs/findings/ and notify Athena
 ```
+
+## Ticketmaster
+
+**Project ID:** `radiowriter`
+
+All work on this project is tracked in Ticketmaster. Every task gets a ticket before work starts. Use `mcp__ticketmaster__list_tasks("radiowriter")` to see open work.

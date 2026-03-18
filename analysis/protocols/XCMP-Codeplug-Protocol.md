@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../../docs/PROTOCOL_REFERENCE.md).
+> This file contains the original DLL analysis detail (codeplug read/write sequence, PsdtAccess, ComponentSession) that informed that reference. It is retained for source traceability.
+
 # XCMP Codeplug Read/Write Protocol Analysis
 
 **Source:** MOTOTRBO CPS DLLs

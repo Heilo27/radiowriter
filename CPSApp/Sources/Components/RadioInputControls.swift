@@ -121,6 +121,7 @@ struct CTCSSPicker: View {
                 Text(String(format: "%.1f Hz", tone)).tag(tone)
             }
         }
+        .help("CTCSS (Continuous Tone-Coded Squelch System) is a subaudible tone transmitted with your voice that opens the squelch on receiving radios programmed to the same tone. Also called PL tone or Private Line.")
     }
 }
 
@@ -148,6 +149,7 @@ struct DCSPicker: View {
                     Text(String(format: "D%03o", dcsCode)).tag(UInt16(dcsCode))
                 }
             }
+            .help("DCS (Digital-Coded Squelch) uses a digital data stream transmitted below the voice to selectively open squelch. Polarity N (Normal) or I (Inverted) must match the repeater or other radio. Also called DPL (Digital Private Line).")
 
             if code > 0 {
                 Picker("Polarity", selection: $inverted) {
@@ -177,17 +179,13 @@ struct ColorCodePicker: View {
     var body: some View {
         Picker(label, selection: Binding(
             get: { colorCode },
-            set: { newValue in
-                // Clamp to valid range 0-15
-                colorCode = max(0, min(15, newValue))
-            }
+            set: { colorCode = max(0, min(15, $0)) }
         )) {
-            ForEach(RadioConstants.colorCodes, id: \.self) { cc in
-                Text("CC \(cc)")
-                    .accessibilityLabel("Color Code \(cc)")
-                    .tag(cc)
+            ForEach(0...15, id: \.self) { code in
+                Text("\(code)").tag(code)
             }
         }
+        .help("Color Code is a DMR network identifier (0–15) that separates radios on the same frequency. All radios in the same system must use the same Color Code. Think of it as a digital CTCSS tone — without a match, your radio won't hear or join calls on that system.")
     }
 }
 
@@ -219,6 +217,7 @@ struct TimeslotPicker: View {
             .labelsHidden()
             .accessibilityLabel(label)
         }
+        .help("Time Slot (TS1 or TS2) is one of two logical channels DMR creates on a single frequency by alternating in time. This doubles capacity. A repeater may dedicate each slot to different purposes — check your repeater's plan before choosing.")
     }
 }
 
@@ -244,6 +243,7 @@ struct PowerPicker: View {
             .labelsHidden()
             .accessibilityLabel(label)
         }
+        .help("TX Power controls transmit strength. High increases range but drains the battery faster and may cause interference to nearby radios. Low power is sufficient for short-range or indoor use and extends battery life significantly.")
     }
 }
 
@@ -256,19 +256,19 @@ struct BandwidthPicker: View {
 
     var body: some View {
         LabeledContent(label) {
-            Picker(label, selection: $wideband) {
-                Text("12.5 kHz")
-                    .accessibilityLabel("12.5 kilohertz narrowband")
-                    .tag(false)
-                Text("25 kHz")
-                    .accessibilityLabel("25 kilohertz wideband")
-                    .tag(true)
+            Picker(label, selection: Binding(
+                get: { wideband },
+                set: { wideband = $0 }
+            )) {
+                Text("12.5 kHz").tag(false)
+                Text("25 kHz").tag(true)
             }
             .pickerStyle(.segmented)
             .frame(width: 140)
             .labelsHidden()
             .accessibilityLabel(label)
         }
+        .help("Bandwidth sets the channel spacing. 12.5 kHz (Narrow) has been FCC-mandated for Part 90 land mobile radios since 2013, and is correct for most systems. Only use 25 kHz (Wide) if your repeater or system explicitly requires it.")
     }
 }
 
@@ -281,19 +281,19 @@ struct ChannelModePicker: View {
 
     var body: some View {
         LabeledContent(label) {
-            Picker(label, selection: $isDigital) {
-                Text("Analog")
-                    .accessibilityLabel("Analog FM mode")
-                    .tag(false)
-                Text("Digital")
-                    .accessibilityLabel("Digital DMR mode")
-                    .tag(true)
+            Picker(label, selection: Binding(
+                get: { isDigital },
+                set: { isDigital = $0 }
+            )) {
+                Text("Analog").tag(false)
+                Text("Digital").tag(true)
             }
             .pickerStyle(.segmented)
             .frame(width: 140)
             .labelsHidden()
             .accessibilityLabel(label)
         }
+        .help("Mode selects between Analog FM (conventional) and Digital DMR. Use Analog for traditional FM repeaters and simplex channels. Use Digital for DMR repeaters on networks like BrandMeister or DMR-MARC.")
     }
 }
 
@@ -316,6 +316,7 @@ struct SquelchTypePicker: View {
                 Text(type.displayName).tag(type.rawValue)
             }
         }
+        .help("Squelch suppresses background noise when no signal is present. Carrier (CSQ) opens on any signal. CTCSS opens only when the correct subaudible tone is received. DCS opens on a digital code. Tone squelch lets you share a frequency without hearing every other user.")
     }
 }
 
@@ -338,6 +339,7 @@ struct PrivacyTypePicker: View {
                 Text(type.displayName).tag(type.rawValue)
             }
         }
+        .help("Privacy scrambles transmissions so radios without the same key cannot decode them. Basic Privacy is obfuscation only — not true encryption. Enhanced Privacy (AES) provides stronger protection. Confirm your repeater and all radios support the same privacy type.")
     }
 }
 
@@ -351,15 +353,13 @@ struct ContactTypePicker: View {
     var body: some View {
         Picker(label, selection: Binding(
             get: { contactType },
-            set: { newValue in
-                // Clamp to valid range
-                contactType = max(0, min(2, newValue))
-            }
+            set: { contactType = max(0, min(2, $0)) }
         )) {
-            ForEach(RadioConstants.ContactType.allCases, id: \.rawValue) { type in
-                Text(type.displayName).tag(type.rawValue)
-            }
+            Text("Private Call").tag(0)
+            Text("Group Call").tag(1)
+            Text("All Call").tag(2)
         }
+        .help("Call type determines how a transmission is addressed. Private Call goes to one specific radio by DMR ID. Group Call broadcasts to all radios in a talkgroup. All Call reaches every radio on the channel — use sparingly as it interrupts all users.")
     }
 }
 
@@ -382,6 +382,7 @@ struct TimingLeaderPicker: View {
                 Text(type.displayName).tag(type.rawValue)
             }
         }
+        .help("Timing Leader controls which radio establishes the timing reference in a direct (simplex) DMR call. Set to Leader if this radio should drive timing, or Follower if it should sync to another radio. Used in DCDM and ERDM configurations.")
     }
 }
 

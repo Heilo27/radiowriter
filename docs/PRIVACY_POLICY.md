@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **Effective Date:** 2026-02-02
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-25
 
 ---
 
@@ -103,12 +103,31 @@ RadioWriter is free and open source software, licensed under the [MIT License](.
 
 ---
 
+## Optional Network Feature: DMR ID Lookup
+
+The Application includes an optional DMR ID lookup feature that queries the public [RadioID.net](https://radioid.net) API. This feature:
+
+- Is **user-initiated only** — no automatic or background requests
+- Sends only the DMR ID you explicitly enter (a numeric radio identifier, not personal data)
+- Uses HTTPS
+- Is not required for core functionality — the Application works fully offline without it
+
+No account, authentication, or personal information is required to use this feature.
+
+---
+
 ## Contact
 
 For questions about this privacy policy or the Application:
 
-- Review the source code
-- Submit issues via the project repository
+- **Email:** privacy@heiloprojects.com
+- **GitHub Repository:** [https://github.com/Heilo27/radiowriter](https://github.com/Heilo27/radiowriter)
+- **Issues:** [https://github.com/Heilo27/radiowriter/issues](https://github.com/Heilo27/radiowriter/issues)
+- **Source Code:** Available at the repository above for independent verification of privacy claims
+
+### GDPR Notice
+
+RadioWriter collects no personal data and does not process information about EU residents. As such, formal GDPR obligations (Data Protection Officer designation, supervisory authority notification) are not applicable. If you have concerns about data handling, contact privacy@heiloprojects.com or open an issue at the repository above.
 
 ---
 

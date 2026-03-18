@@ -37,7 +37,7 @@ struct WelcomeView: View {
                 .foregroundStyle(.tint)
             Text("RadioWriter")
                 .font(.title.bold())
-            Text("Radio Programming Software")
+            Text("Read, edit, and write codeplugs for Motorola radios")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -238,14 +238,14 @@ struct WelcomeView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Label("Power on the radio (not just charging)", systemImage: "power")
-                    Label("Connect USB data cable", systemImage: "cable.connector")
-                    Label("Wait 5-10 seconds for network to initialize", systemImage: "clock")
+                    Label("Connect the USB programming cable", systemImage: "cable.connector")
+                    Label("Wait a few seconds for the connection to establish", systemImage: "clock")
                 }
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.leading, 8)
 
-                Text("The radio uses CDC-ECM which macOS supports natively.")
+                Text("No drivers needed -- macOS recognizes the radio automatically over USB.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.top, 2)
@@ -298,7 +298,7 @@ struct ManualIPSheet: View {
             Text("Manual Radio Connection")
                 .font(.headline)
 
-            Text("Enter the radio's IP address. Most MOTOTRBO radios use 192.168.10.1 (your Mac will be .2)")
+            Text("Enter the IP address of your radio. Most Motorola radios default to 192.168.10.1 when connected via USB.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -337,8 +337,11 @@ struct ManualIPSheet: View {
                     }
                 } label: {
                     if isChecking {
-                        ProgressView()
-                            .scaleEffect(0.7)
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Checking...")
+                        }
                     } else {
                         Text("Connect")
                     }
@@ -430,8 +433,11 @@ struct ScanLogSheet: View {
                     }
                 } label: {
                     if isScanning {
-                        ProgressView()
-                            .scaleEffect(0.7)
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Scanning...")
+                        }
                     } else {
                         Label("Scan Again", systemImage: "arrow.clockwise")
                     }
@@ -464,6 +470,18 @@ struct RadioModelCard: View {
     let isSelected: Bool
     var isRecommended: Bool = false
 
+    private var backgroundColor: Color {
+        if isSelected { return Color.accentColor.opacity(0.1) }
+        if isRecommended { return Color.yellow.opacity(0.05) }
+        return Color.clear
+    }
+
+    private var borderColor: Color {
+        if isSelected { return Color.accentColor }
+        if isRecommended { return Color.yellow.opacity(0.5) }
+        return Color.secondary.opacity(0.3)
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             ZStack(alignment: .topTrailing) {
@@ -490,14 +508,11 @@ struct RadioModelCard: View {
             capabilityBadges
         }
         .frame(width: 120, height: 118)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : (isRecommended ? Color.yellow.opacity(0.05) : Color.clear))
+        .background(backgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(
-                    isSelected ? Color.accentColor : (isRecommended ? Color.yellow.opacity(0.5) : Color.secondary.opacity(0.3)),
-                    lineWidth: isSelected ? 2 : 1
-                )
+                .stroke(borderColor, lineWidth: isSelected ? 2 : 1)
         )
         .accessibilityIdentifier("radioModel.\(model.id)")
         .accessibilityLabel(

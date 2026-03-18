@@ -1,6 +1,6 @@
 # TASK-117: Add DocC documentation catalogs for RadioCore, RadioModels, and RadioHardware packages
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Medium
 **Assignee:** Clio
 **Created:** 2026-02-06

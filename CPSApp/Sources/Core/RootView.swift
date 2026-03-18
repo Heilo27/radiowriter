@@ -36,6 +36,9 @@ struct RootView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
     @State private var csvExportContent: String = ""
+    @State private var csvOperationInProgress = false
+    @State private var csvOperationDescription = ""
+    @State private var currentCSVTask: Task<Void, Never>?
 
     var body: some View {
         @Bindable var coordinator = coordinator
@@ -64,12 +67,12 @@ struct RootView: View {
                     do {
                         try await coordinator.openDocument(url)
                     } catch {
-                        errorMessage = "Failed to open file: \(error.localizedDescription)"
+                        errorMessage = "The file couldn't be opened. Make sure you have permission to access it."
                         showingError = true
                     }
                 }
-            case .failure(let error):
-                errorMessage = "Could not access file: \(error.localizedDescription)"
+            case .failure:
+                errorMessage = "The file couldn't be accessed. Make sure you have permission to read it."
                 showingError = true
             }
         }
@@ -82,8 +85,8 @@ struct RootView: View {
             switch result {
             case .success(let url):
                 coordinator.documentURL = url
-            case .failure(let error):
-                errorMessage = "Failed to save file: \(error.localizedDescription)"
+            case .failure:
+                errorMessage = "The file couldn't be saved. Make sure you have permission to write to this location."
                 showingError = true
             }
         }
@@ -156,16 +159,35 @@ struct RootView: View {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 let accessing = url.startAccessingSecurityScopedResource()
-                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let content = try String(contentsOf: url, encoding: .utf8)
-                    coordinator.importChannelsFromCSV(content)
-                } catch {
-                    errorMessage = "Failed to read CSV file: \(error.localizedDescription)"
-                    showingError = true
+                csvOperationInProgress = true
+                csvOperationDescription = "Reading CSV file..."
+                currentCSVTask = Task {
+                    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                    do {
+                        let content = try await Task.detached(priority: .userInitiated) {
+                            try String(contentsOf: url, encoding: .utf8)
+                        }.value
+                        guard !Task.isCancelled else {
+                            csvOperationInProgress = false
+                            return
+                        }
+                        csvOperationDescription = "Parsing channels..."
+                        let importResult = await Task.detached(priority: .userInitiated) {
+                            CSVService.importChannels(from: content)
+                        }.value
+                        coordinator.channelImportResult = importResult
+                        coordinator.showingChannelImportSheet = true
+                        csvOperationInProgress = false
+                        csvOperationDescription = ""
+                    } catch {
+                        csvOperationInProgress = false
+                        csvOperationDescription = ""
+                        errorMessage = "The CSV file couldn't be read. Make sure it's a valid CSV file and try again."
+                        showingError = true
+                    }
                 }
-            case .failure(let error):
-                errorMessage = "Could not access file: \(error.localizedDescription)"
+            case .failure:
+                errorMessage = "The file couldn't be accessed. Make sure you have permission to read it."
                 showingError = true
             }
         }
@@ -178,16 +200,58 @@ struct RootView: View {
             case .success(let urls):
                 guard let url = urls.first else { return }
                 let accessing = url.startAccessingSecurityScopedResource()
-                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let content = try String(contentsOf: url, encoding: .utf8)
-                    coordinator.importContactsFromCSV(content)
-                } catch {
-                    errorMessage = "Failed to read CSV file: \(error.localizedDescription)"
-                    showingError = true
+                csvOperationInProgress = true
+                csvOperationDescription = "Reading CSV file..."
+                currentCSVTask = Task {
+                    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                    do {
+                        let content = try await Task.detached(priority: .userInitiated) {
+                            try String(contentsOf: url, encoding: .utf8)
+                        }.value
+                        guard !Task.isCancelled else {
+                            csvOperationInProgress = false
+                            return
+                        }
+                        csvOperationDescription = "Parsing contacts..."
+                        let importResult = await Task.detached(priority: .userInitiated) {
+                            CSVService.importContacts(from: content)
+                        }.value
+                        coordinator.contactImportResult = importResult
+                        coordinator.showingContactImportSheet = true
+                        csvOperationInProgress = false
+                        csvOperationDescription = ""
+                    } catch {
+                        csvOperationInProgress = false
+                        csvOperationDescription = ""
+                        errorMessage = "The CSV file couldn't be read. Make sure it's a valid CSV file and try again."
+                        showingError = true
+                    }
                 }
-            case .failure(let error):
-                errorMessage = "Could not access file: \(error.localizedDescription)"
+            case .failure:
+                errorMessage = "The file couldn't be accessed. Make sure you have permission to read it."
+                showingError = true
+            }
+        }
+        // CSV Template downloads
+        .fileExporter(
+            isPresented: $coordinator.showingExportChannelTemplateDialog,
+            document: CSVDocument(content: CSVService.channelTemplateCSV()),
+            contentType: .commaSeparatedText,
+            defaultFilename: "channel-template"
+        ) { result in
+            if case .failure = result {
+                errorMessage = "The template couldn't be saved. Make sure you have permission to write to the selected location."
+                showingError = true
+            }
+        }
+        .fileExporter(
+            isPresented: $coordinator.showingExportContactTemplateDialog,
+            document: CSVDocument(content: CSVService.contactTemplateCSV()),
+            contentType: .commaSeparatedText,
+            defaultFilename: "contact-template"
+        ) { result in
+            if case .failure = result {
+                errorMessage = "The template couldn't be saved. Make sure you have permission to write to the selected location."
                 showingError = true
             }
         }
@@ -198,8 +262,8 @@ struct RootView: View {
             contentType: .commaSeparatedText,
             defaultFilename: "channels"
         ) { result in
-            if case .failure(let error) = result {
-                errorMessage = "Failed to export CSV: \(error.localizedDescription)"
+            if case .failure = result {
+                errorMessage = "The channels couldn't be exported. Make sure you have permission to write to the selected location."
                 showingError = true
             }
         }
@@ -209,8 +273,8 @@ struct RootView: View {
             contentType: .commaSeparatedText,
             defaultFilename: "contacts"
         ) { result in
-            if case .failure(let error) = result {
-                errorMessage = "Failed to export CSV: \(error.localizedDescription)"
+            if case .failure = result {
+                errorMessage = "The contacts couldn't be exported. Make sure you have permission to write to the selected location."
                 showingError = true
             }
         }
@@ -232,6 +296,66 @@ struct RootView: View {
         // DMR ID Lookup sheet
         .sheet(isPresented: $coordinator.showingDMRIDLookup) {
             DMRIDLookupView()
+        }
+        .overlay {
+            if csvOperationInProgress {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView(csvOperationDescription)
+                            .controlSize(.regular)
+                        Button("Cancel") {
+                            currentCSVTask?.cancel()
+                            csvOperationInProgress = false
+                            csvOperationDescription = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .overlay {
+            if coordinator.fileOperationInProgress {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView(coordinator.fileOperationStatus)
+                            .controlSize(.regular)
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        // FCC Warning Dialog
+        .sheet(isPresented: $coordinator.showingFCCWarning) {
+            FCCWarningDialog(
+                warningManager: coordinator.regulatoryWarningManager,
+                onAcknowledge: {
+                    coordinator.regulatoryWarningManager.fccWarningAcknowledged = true
+                }
+            )
+        }
+        // Pre-Write Confirmation Dialog
+        .sheet(isPresented: $coordinator.showingPreWriteConfirmation) {
+            PreWriteConfirmationDialog(
+                warningManager: coordinator.regulatoryWarningManager,
+                onContinue: {
+                    Task {
+                        await coordinator.pendingWriteAction?()
+                        coordinator.pendingWriteAction = nil
+                    }
+                }
+            )
+        }
+        // About Window
+        .sheet(isPresented: $coordinator.showingAboutWindow) {
+            AboutView()
         }
         .focusedValue(\.appCoordinator, coordinator)
     }

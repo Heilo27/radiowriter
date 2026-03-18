@@ -41,5 +41,14 @@ let package = Package(
             dependencies: ["USBTransport", "RadioProgrammer", "Discovery"],
             path: "Tests/RadioHardwareTests"
         ),
+        .testTarget(
+            name: "IntegrationTests",
+            dependencies: [
+                "USBTransport",
+                "RadioProgrammer",
+                .product(name: "RadioCore", package: "RadioCore"),
+            ],
+            path: "Tests/IntegrationTests"
+        ),
     ]
 )

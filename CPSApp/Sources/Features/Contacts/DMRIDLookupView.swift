@@ -6,11 +6,12 @@ import RadioModelCore
 struct DMRIDLookupView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppCoordinator.self) private var coordinator
-    @StateObject private var dmrService = DMRIDService.shared
+    @ObservedObject private var dmrService = DMRIDService.shared
 
     @State private var searchText = ""
     @State private var searchResults: [DMRIDService.DMRRecord] = []
     @State private var selectedRecord: DMRIDService.DMRRecord?
+    @State private var searchTask: Task<Void, Never>?
 
     let onSelect: ((DMRIDService.DMRRecord) -> Void)?
 
@@ -21,17 +22,15 @@ struct DMRIDLookupView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search bar
                 searchBar
+                    .disabled(isLoading)
 
                 Divider()
 
-                // Status bar
                 statusBar
 
                 Divider()
 
-                // Results
                 if searchResults.isEmpty && !searchText.isEmpty {
                     noResultsView
                 } else if searchResults.isEmpty {
@@ -41,29 +40,10 @@ struct DMRIDLookupView: View {
                 }
             }
             .navigationTitle("DMR ID Lookup")
+            .frame(minWidth: 500, minHeight: 400)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Refresh Database") {
-                        Task {
-                            await dmrService.downloadDatabase(forceRefresh: true)
-                        }
-                    }
-                    .disabled(isLoading)
-                }
-            }
-            .frame(minWidth: 500, minHeight: 400)
-        }
-        .onAppear {
-            // Auto-download if no database
-            if dmrService.recordCount == 0 {
-                Task {
-                    await dmrService.downloadDatabase()
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -80,8 +60,13 @@ struct DMRIDLookupView: View {
                     performSearch()
                 }
                 .onChange(of: searchText) { _, newValue in
+                    searchTask?.cancel()
                     if newValue.count >= 2 {
-                        performSearch()
+                        searchTask = Task {
+                            try? await Task.sleep(for: .milliseconds(300))
+                            guard !Task.isCancelled else { return }
+                            performSearch()
+                        }
                     } else {
                         searchResults = []
                     }
@@ -105,13 +90,13 @@ struct DMRIDLookupView: View {
         HStack {
             switch dmrService.state {
             case .idle:
-                Text("Database not loaded")
+                Text("Ready to search")
                     .foregroundStyle(.secondary)
             case .loading(let progress):
                 ProgressView(value: progress)
                     .progressViewStyle(.linear)
                     .frame(width: 100)
-                Text("Loading database...")
+                Text(dmrService.progressDescription.isEmpty ? "Loading database..." : dmrService.progressDescription)
                     .foregroundStyle(.secondary)
             case .loaded(let count):
                 Image(systemName: "checkmark.circle.fill")
@@ -253,10 +238,11 @@ struct DMRIDAutocompleteField: View {
     @Binding var dmrID: UInt32
     @Binding var contactName: String
 
-    @StateObject private var dmrService = DMRIDService.shared
+    @ObservedObject private var dmrService = DMRIDService.shared
     @State private var searchText = ""
     @State private var suggestions: [DMRIDService.DMRRecord] = []
     @State private var showingSuggestions = false
+    @State private var suggestTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -266,7 +252,17 @@ struct DMRIDAutocompleteField: View {
                     .textFieldStyle(.roundedBorder)
                     .focused($isFocused)
                     .onChange(of: searchText) { _, newValue in
-                        updateSuggestions(newValue)
+                        suggestTask?.cancel()
+                        if newValue.count >= 2 {
+                            suggestTask = Task {
+                                try? await Task.sleep(for: .milliseconds(300))
+                                guard !Task.isCancelled else { return }
+                                updateSuggestions(newValue)
+                            }
+                        } else {
+                            suggestions = []
+                            showingSuggestions = false
+                        }
                     }
                     .onSubmit {
                         applyFirstSuggestion()

@@ -2,6 +2,169 @@ import SwiftUI
 import RadioProgrammer
 import RadioModelCore
 
+// MARK: - CSV Format Spec Sheet
+
+/// Full format specification sheet shown when user taps "View Format Specification".
+private struct ChannelFormatSpecView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Channel CSV columns are matched by header name — column order does not matter.")
+                        .foregroundStyle(.secondary)
+
+                    Group {
+                        specSection("Required Columns") {
+                            specRow("Channel Name (or Name)", "Display name for the channel (e.g., VHF Simplex)")
+                            specRow("RX Frequency (MHz)", "Receive frequency in MHz (e.g., 146.520000)")
+                        }
+
+                        specSection("Optional Columns") {
+                            specRow("Zone Name", "Zone the channel belongs to. Creates zone if missing.")
+                            specRow("TX Frequency (MHz)", "Transmit frequency in MHz. Defaults to RX if omitted.")
+                            specRow("Mode", "\"Analog\" or \"Digital\". Default: Analog")
+                            specRow("Color Code", "DMR color code 0–15. Required for Digital channels.")
+                            specRow("Time Slot", "DMR time slot 1 or 2. Default: 1")
+                            specRow("TX Power", "\"High\" or \"Low\". Default: High")
+                            specRow("Bandwidth (kHz)", "Channel bandwidth: 12.5 or 25. Default: 12.5")
+                            specRow("Squelch", "Squelch level 0–9. Default: 5")
+                            specRow("RX CTCSS/DCS", "Receive tone/code (e.g., 100.0, D023N)")
+                            specRow("TX CTCSS/DCS", "Transmit tone/code (e.g., 100.0, D023N)")
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Example Row (Analog)").font(.headline)
+                        Text("Zone 1,1,VHF Simplex,146.520000,146.520000,Analog,,,,,High,12.5,,,90,100.0,100.0,,,CTCSS/DCS,None,")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Example Row (Digital)").font(.headline)
+                        Text("Zone 1,2,DMR Talk,446.500000,441.500000,Digital,1,1,99,Group,High,12.5,,,90,,,,Carrier,None,")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    Text("Download a pre-filled template via Tools → Export → Download Channel Template.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+            }
+            .navigationTitle("Channel CSV Format")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 500, minHeight: 550)
+    }
+
+    private func specSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            content()
+        }
+    }
+
+    private func specRow(_ column: String, _ description: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(column)
+                .font(.caption.monospaced())
+                .foregroundStyle(.primary)
+                .frame(width: 160, alignment: .leading)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.leading, 8)
+    }
+}
+
+/// Full format specification for contacts CSV.
+private struct ContactFormatSpecView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Contact CSV columns are matched by header name — column order does not matter.")
+                        .foregroundStyle(.secondary)
+
+                    Group {
+                        specSection("Required Columns") {
+                            specRow("Contact Name (or Name)", "Contact display name (e.g., Local Repeater)")
+                            specRow("DMR ID (or Radio ID)", "DMR radio identifier — integer 1 to 16,777,215")
+                        }
+
+                        specSection("Optional Columns") {
+                            specRow("Call Type (or Type)", "\"Private\", \"Group\", or \"All Call\". Default: Group")
+                            specRow("Receive Tone", "\"Yes\" or \"No\" — alert tone on incoming call. Default: No")
+                            specRow("Call Alert", "\"Yes\" or \"No\" — call alert notification. Default: No")
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Example Rows").font(.headline)
+                        Text(verbatim: "Local Talkgroup,3161,Group,No,No\nMy Radio,1234567,Private,Yes,No")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    Text("Download a pre-filled template via Tools → Export → Download Contact Template.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+            }
+            .navigationTitle("Contact CSV Format")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 450, minHeight: 400)
+    }
+
+    private func specSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            content()
+        }
+    }
+
+    private func specRow(_ column: String, _ description: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(column)
+                .font(.caption.monospaced())
+                .foregroundStyle(.primary)
+                .frame(width: 180, alignment: .leading)
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.leading, 8)
+    }
+}
+
+// MARK: - Channel Import Preview
+
 /// View for previewing and confirming CSV channel imports.
 struct ChannelImportPreviewView: View {
     @Environment(\.dismiss) private var dismiss
@@ -12,10 +175,17 @@ struct ChannelImportPreviewView: View {
 
     @State private var selectedRows: Set<Int> = []
     @State private var selectAll = true
+    @State private var isImporting = false
+    @State private var showingFormatSpec = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Format guide banner
+                formatGuideBanner
+
+                Divider()
+
                 // Summary header
                 summaryHeader
 
@@ -42,6 +212,35 @@ struct ChannelImportPreviewView: View {
             // Select all valid rows by default
             selectedRows = Set(0..<importResult.channels.count)
         }
+        .sheet(isPresented: $showingFormatSpec) {
+            ChannelFormatSpecView()
+        }
+    }
+
+    private var formatGuideBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Required columns: Channel Name, RX Frequency (MHz)")
+                    .font(.caption.bold())
+                Text("Optional: Zone Name, TX Frequency, Mode, Power, Color Code, Time Slot, CTCSS/DCS…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Format Specification") {
+                showingFormatSpec = true
+            }
+            .font(.caption)
+            .buttonStyle(.link)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.blue.opacity(0.05))
     }
 
     private var summaryHeader: some View {
@@ -181,55 +380,37 @@ struct ChannelImportPreviewView: View {
             }
             .keyboardShortcut(.cancelAction)
 
-            Button("Import \(selectedRows.count) Channels") {
+            Button {
+                isImporting = true
                 importSelectedChannels()
+            } label: {
+                if isImporting {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Importing...")
+                    }
+                } else {
+                    Text("Import \(selectedRows.count) Channels")
+                }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(selectedRows.isEmpty)
+            .disabled(selectedRows.isEmpty || isImporting)
         }
         .padding()
     }
 
     private func importSelectedChannels() {
-        // Group channels by zone
-        var zoneChannels: [String: [ChannelData]] = [:]
-
-        for index in selectedRows.sorted() {
-            guard index < importResult.channels.count else { continue }
-            let (zoneName, channel) = importResult.channels[index]
-            zoneChannels[zoneName, default: []].append(channel)
+        // Build a filtered result containing only the selected rows
+        let selectedChannels = selectedRows.sorted().compactMap { index -> (zoneName: String, channel: ChannelData)? in
+            guard index < importResult.channels.count else { return nil }
+            return importResult.channels[index]
         }
-
-        // Update the codeplug
-        guard var codeplug = coordinator.parsedCodeplug else { return }
-
-        for (zoneName, channels) in zoneChannels {
-            // Find or create the zone
-            if let zoneIndex = codeplug.zones.firstIndex(where: { $0.name == zoneName }) {
-                // Append to existing zone
-                var zone = codeplug.zones[zoneIndex]
-                let startIndex = zone.channels.count
-                for (i, var channel) in channels.enumerated() {
-                    channel.zoneIndex = zoneIndex
-                    channel.channelIndex = startIndex + i
-                    zone.channels.append(channel)
-                }
-                codeplug.zones[zoneIndex] = zone
-            } else {
-                // Create new zone
-                var newZone = ParsedZone()
-                newZone.name = zoneName
-                newZone.position = codeplug.zones.count
-                for (i, var channel) in channels.enumerated() {
-                    channel.zoneIndex = newZone.position
-                    channel.channelIndex = i
-                    newZone.channels.append(channel)
-                }
-                codeplug.zones.append(newZone)
-            }
-        }
-
-        coordinator.parsedCodeplug = codeplug
+        let filteredResult = CSVService.ChannelImportResult(
+            channels: selectedChannels,
+            errors: [],
+            warnings: []
+        )
+        coordinator.applyChannelImport(filteredResult)
         onConfirm()
         dismiss()
     }
@@ -254,10 +435,17 @@ struct ContactImportPreviewView: View {
 
     @State private var selectedRows: Set<Int> = []
     @State private var selectAll = true
+    @State private var isImporting = false
+    @State private var showingFormatSpec = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Format guide banner
+                formatGuideBanner
+
+                Divider()
+
                 // Summary header
                 summaryHeader
 
@@ -283,6 +471,35 @@ struct ContactImportPreviewView: View {
         .onAppear {
             selectedRows = Set(0..<importResult.contacts.count)
         }
+        .sheet(isPresented: $showingFormatSpec) {
+            ContactFormatSpecView()
+        }
+    }
+
+    private var formatGuideBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Required columns: Contact Name, DMR ID")
+                    .font(.caption.bold())
+                Text("Optional: Call Type (Group/Private/All Call), Receive Tone, Call Alert")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Format Specification") {
+                showingFormatSpec = true
+            }
+            .font(.caption)
+            .buttonStyle(.link)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.blue.opacity(0.05))
     }
 
     private var summaryHeader: some View {
@@ -360,12 +577,12 @@ struct ContactImportPreviewView: View {
             .width(100)
 
             TableColumn("Receive Tone") { item in
-                Text(item.contact.callReceiveTone ? "Yes" : "No")
+                Text(item.contact.callReceiveTone ? "Enabled" : "Disabled")
             }
             .width(80)
 
             TableColumn("Call Alert") { item in
-                Text(item.contact.callAlert ? "Yes" : "No")
+                Text(item.contact.callAlert ? "Enabled" : "Disabled")
             }
             .width(80)
         } rows: {
@@ -400,25 +617,37 @@ struct ContactImportPreviewView: View {
             }
             .keyboardShortcut(.cancelAction)
 
-            Button("Import \(selectedRows.count) Contacts") {
+            Button {
+                isImporting = true
                 importSelectedContacts()
+            } label: {
+                if isImporting {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Importing...")
+                    }
+                } else {
+                    Text("Import \(selectedRows.count) Contacts")
+                }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(selectedRows.isEmpty)
+            .disabled(selectedRows.isEmpty || isImporting)
         }
         .padding()
     }
 
     private func importSelectedContacts() {
-        guard var codeplug = coordinator.parsedCodeplug else { return }
-
-        for index in selectedRows.sorted() {
-            guard index < importResult.contacts.count else { continue }
-            let contact = importResult.contacts[index]
-            codeplug.contacts.append(contact)
+        // Build a filtered result containing only the selected rows
+        let selectedContacts = selectedRows.sorted().compactMap { index -> ParsedContact? in
+            guard index < importResult.contacts.count else { return nil }
+            return importResult.contacts[index]
         }
-
-        coordinator.parsedCodeplug = codeplug
+        let filteredResult = CSVService.ContactImportResult(
+            contacts: selectedContacts,
+            errors: [],
+            warnings: []
+        )
+        coordinator.applyContactImport(filteredResult)
         onConfirm()
         dismiss()
     }

@@ -103,8 +103,8 @@ struct CodeplugValidator {
 
     /// Commercial frequency ranges (in Hz)
     static let commercialBands: [(name: String, range: ClosedRange<UInt64>)] = [
-        ("VHF Low", 136_000_000...174_000_000),
-        ("VHF High", 136_000_000...174_000_000),
+        ("VHF Low", 136_000_000...156_000_000),
+        ("VHF High", 156_000_000...174_000_000),
         ("UHF", 403_000_000...527_000_000),
         ("800 MHz", 806_000_000...870_000_000),
         ("900 MHz", 896_000_000...941_000_000)

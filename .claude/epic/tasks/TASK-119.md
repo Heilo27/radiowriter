@@ -1,6 +1,6 @@
 # TASK-119: Create CHANGELOG.md from git history
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Low
 **Assignee:** Clio
 **Created:** 2026-02-06

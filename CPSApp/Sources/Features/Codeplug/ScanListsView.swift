@@ -275,7 +275,7 @@ struct ScanListsView: View {
     private func addScanList(_ list: ParsedScanList) {
         var lists = coordinator.parsedCodeplug?.scanLists ?? []
         lists.append(list)
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Add Scan List")
         selectedScanListIndex = lists.count - 1
     }
 
@@ -284,7 +284,7 @@ struct ScanListsView: View {
               let index = selectedScanListIndex,
               index >= 0 && index < lists.count else { return }
         lists[index] = list
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Edit Scan List")
     }
 
     private func deleteSelectedScanList() {
@@ -292,7 +292,7 @@ struct ScanListsView: View {
               let index = selectedScanListIndex,
               index >= 0 && index < lists.count else { return }
         lists.remove(at: index)
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Delete Scan List")
         if index >= lists.count {
             selectedScanListIndex = lists.isEmpty ? nil : lists.count - 1
         }
@@ -305,7 +305,7 @@ struct ScanListsView: View {
 
         let member = ScanListMember(zoneIndex: zoneIndex, channelIndex: channelIndex)
         lists[index].channelMembers.append(member)
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Add Channel to Scan List")
     }
 
     private func removeChannelFromList(_ member: ScanListMember) {
@@ -314,7 +314,7 @@ struct ScanListsView: View {
               index >= 0 && index < lists.count else { return }
 
         lists[index].channelMembers.removeAll { $0.id == member.id }
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Remove Channel from Scan List")
     }
 
     private func removeChannelFromList(zoneIndex: Int, channelIndex: Int) {
@@ -323,7 +323,7 @@ struct ScanListsView: View {
               index >= 0 && index < lists.count else { return }
 
         lists[index].channelMembers.removeAll { $0.zoneIndex == zoneIndex && $0.channelIndex == channelIndex }
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Remove Channel from Scan List")
     }
 
     private func moveChannelsInList(from source: IndexSet, to destination: Int) {
@@ -332,7 +332,7 @@ struct ScanListsView: View {
               index >= 0 && index < lists.count else { return }
 
         lists[index].channelMembers.move(fromOffsets: source, toOffset: destination)
-        coordinator.parsedCodeplug?.scanLists = lists
+        coordinator.updateScanLists(lists, actionName: "Reorder Scan List Channels")
     }
 }
 
@@ -366,8 +366,10 @@ struct ScanListEditorSheet: View {
                     .accessibilityLabel("Scan List Name")
 
                 Toggle("Talkback Enabled", isOn: $talkbackEnabled)
+                    .help("When enabled, pressing PTT during scan transmits on the channel where activity was detected, not the selected channel.")
 
                 Stepper("Hold Time: \(holdTime)ms", value: $holdTime, in: 100...5000, step: 100)
+                    .help("How long the radio stays on a channel after detecting activity before resuming scan.")
                     .accessibilityLabel("Hold Time")
                     .accessibilityValue("\(holdTime) milliseconds")
             }

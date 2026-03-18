@@ -131,7 +131,7 @@ public actor XNLConnection {
         // Create TCP socket
         let sock = socket(AF_INET, SOCK_STREAM, 0)
         guard sock >= 0 else {
-            return .connectionError("Failed to create socket")
+            return .connectionError("Could not initialize network connection")
         }
 
         // CRITICAL: Set TCP_NODELAY to disable Nagle's algorithm
@@ -161,7 +161,7 @@ public actor XNLConnection {
 
         guard result == 0 else {
             close(sock)
-            return .connectionError("Failed to connect: errno \(errno)")
+            return .connectionError("Could not reach radio at \(host):\(port) (system error \(errno))")
         }
 
         self.socketFD = sock
@@ -169,10 +169,14 @@ public actor XNLConnection {
         // Perform XNL authentication
         let authResult = await authenticate()
 
-        // If authentication succeeded, handle the XCMP init broadcast handshake
-        // CRITICAL: This handshake is required before RCMP commands will work!
+        // If authentication failed, close the socket to prevent a leak
         if case .success = authResult {
+            // Authentication succeeded — handle the XCMP init broadcast handshake.
+            // CRITICAL: This handshake is required before RCMP commands will work!
             await handleInitBroadcast(debug: debug)
+        } else {
+            close(socketFD)
+            socketFD = -1
         }
 
         return authResult
@@ -385,7 +389,7 @@ public actor XNLConnection {
         do {
             try await send(queryPacket)
         } catch {
-            return .connectionError("Failed to send master query: \(error.localizedDescription)")
+            return .connectionError("Radio did not respond to initial handshake")
         }
 
         // Step 3: Wait for DEV_SYSMAP_BRDCST (opcode 0x05) containing auth seed
@@ -413,7 +417,7 @@ public actor XNLConnection {
 
         // Step 4: Encrypt seed with TEA algorithm
         guard let authResponse = XNLEncryption.encrypt(seed) else {
-            return .connectionError("Failed to encrypt auth seed")
+            return .connectionError("Authentication key generation failed")
         }
 
         // Step 5: Send DEV_AUTH_KEY (opcode 0x06)
@@ -445,7 +449,7 @@ public actor XNLConnection {
         do {
             try await send(authPacket)
         } catch {
-            return .connectionError("Failed to send auth key: \(error.localizedDescription)")
+            return .connectionError("Could not complete authentication with radio")
         }
 
         // Step 6: Wait for AUTH_KEY_REPLY (opcode 0x07)
@@ -557,7 +561,7 @@ public actor XNLConnection {
 
     private func send(_ data: Data, debug: Bool = false) async throws {
         guard socketFD >= 0 else {
-            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Radio is not connected"])
         }
 
         if debug { RadioLog.xnl.debug("[SEND] Attempting to send \(data.count) bytes...") }
@@ -581,17 +585,17 @@ public actor XNLConnection {
                     // Mark connection as closed
                     close(socketFD)
                     socketFD = -1
-                    throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Connection closed by radio"])
+                    throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Radio disconnected unexpectedly"])
                 }
 
-                throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Send failed: errno \(err)"])
+                throw NSError(domain: "XNL", code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Failed to send data to radio (system error \(err))"])
             }
 
             if sent == 0 {
                 // Connection closed gracefully
                 close(socketFD)
                 socketFD = -1
-                throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection closed"])
+                throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection to radio was closed"])
             }
 
             totalSent += sent
@@ -613,13 +617,37 @@ public actor XNLConnection {
         tv.tv_usec = Int32((timeout - Double(Int(timeout))) * 1_000_000)
         setsockopt(socketFD, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
-        var buffer = [UInt8](repeating: 0, count: 1024)
-        let bytesRead = recv(socketFD, &buffer, 1024, 0)
-
-        if bytesRead > 0 {
-            return Data(buffer[0..<bytesRead])
+        // Read the 2-byte XNL packet length prefix first
+        var lengthBuf = [UInt8](repeating: 0, count: 2)
+        var totalRead = 0
+        while totalRead < 2 {
+            let n = lengthBuf.withUnsafeMutableBufferPointer { ptr in
+                recv(socketFD, ptr.baseAddress!.advanced(by: totalRead), 2 - totalRead, 0)
+            }
+            if n <= 0 { return nil }
+            totalRead += n
         }
-        return nil
+
+        // Packet length field is the total packet length (big-endian)
+        let packetLength = Int(lengthBuf[0]) << 8 | Int(lengthBuf[1])
+        guard packetLength >= 2 else { return nil }
+
+        // Remaining bytes to read after the 2-byte length field
+        let remaining = packetLength - 2
+        var payloadBuf = [UInt8](repeating: 0, count: remaining)
+        var payloadRead = 0
+        while payloadRead < remaining {
+            let n = payloadBuf.withUnsafeMutableBufferPointer { ptr in
+                recv(socketFD, ptr.baseAddress!.advanced(by: payloadRead), remaining - payloadRead, 0)
+            }
+            if n <= 0 { return nil }
+            payloadRead += n
+        }
+
+        // Reconstruct the full packet including the length prefix
+        var fullPacket = Data(lengthBuf)
+        fullPacket.append(contentsOf: payloadBuf)
+        return fullPacket
     }
 
     // MARK: - Public API for XCMP Commands
@@ -725,7 +753,7 @@ public actor XNLConnection {
     ///   - debug: Print debug info
     private func sendXCMPBroadcast(_ xcmpData: Data, debug: Bool = false) async throws {
         guard isAuthenticated else {
-            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Radio session not authenticated"])
         }
 
         // Wrap XCMP in XNL DataMessage with XCMP flag set
@@ -751,7 +779,7 @@ public actor XNLConnection {
     ///   - debug: Print debug info
     private func sendXCMPToMaster(_ xcmpData: Data, mirrorTxID: UInt16? = nil, debug: Bool = false) async throws {
         guard isAuthenticated else {
-            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Radio session not authenticated"])
         }
 
         // Use mirrored txID if provided, otherwise generate new one
@@ -780,7 +808,7 @@ public actor XNLConnection {
     /// - Returns: Response data or nil on timeout
     public func sendXCMP(_ xcmpData: Data, timeout: TimeInterval = 5.0, debug: Bool = false) async throws -> Data? {
         guard isAuthenticated else {
-            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not authenticated"])
+            throw NSError(domain: "XNL", code: -1, userInfo: [NSLocalizedDescriptionKey: "Radio session not authenticated"])
         }
 
         // Check connection state
@@ -793,10 +821,6 @@ public actor XNLConnection {
         }
 
         // NOTE: Python doesn't drain before commands - just sends immediately
-
-        // Add delay before sending - CPS shows ~546ms after auth
-        // Testing longer delays to see if radio needs more processing time
-        try? await Task.sleep(for: .milliseconds(500))
 
         // Build XCMP packet using STANDARD XNL structure (like Python build_xnl)
         // CRITICAL FIX: The earlier "CPS structure" interpretation was WRONG!
@@ -972,10 +996,6 @@ public actor XNLConnection {
                             RadioLog.xnl.debug("         XCMP payload: \(payloadHex, privacy: .public)")
                         }
 
-                        // Add delay after receiving response before returning
-                        // Testing longer delays to see if radio needs processing time
-                        try? await Task.sleep(for: .milliseconds(500))
-
                         return xcmpPayload
                     }
                     return Data()
@@ -1055,46 +1075,51 @@ public actor XNLConnection {
         if debug { RadioLog.xnl.info("[INIT] Programming mode entered successfully") }
 
         // Step 1: Read radio key
-        if debug { print("[INIT] Step 1: Reading radio key (0x0300)...") }
+        if debug { RadioLog.xnl.debug("[INIT] Step 1: Reading radio key (0x0300)...") }
         let readKeyCmd = Data([
             UInt8(XCMPOpcode.readRadioKey.rawValue >> 8),
             UInt8(XCMPOpcode.readRadioKey.rawValue & 0xFF)
         ])
 
         guard let keyResponse = try? await sendXCMP(readKeyCmd, timeout: 5.0, debug: debug) else {
-            if debug { print("[INIT] Failed to read radio key: timeout") }
+            if debug { RadioLog.xnl.error("[INIT] Failed to read radio key: timeout") }
             return .timeout
         }
 
         // Check response: [opcode 2B] [error 1B] [key 32B]
         if keyResponse.count < 35 {
-            if debug { print("[INIT] Invalid key response length: \(keyResponse.count)") }
+            if debug { RadioLog.xnl.error("[INIT] Invalid key response length: \(keyResponse.count)") }
             return .readRadioKeyFailed(code: 0xFF)
         }
 
         let keyError = keyResponse[2]
         if keyError != 0x00 {
-            if debug { print("[INIT] Read radio key failed with error: 0x\(String(format: "%02X", keyError))") }
+            if debug {
+                let errorHex = String(format: "%02X", keyError)
+                RadioLog.xnl.error("[INIT] Read radio key failed with error: 0x\(errorHex, privacy: .public)")
+            }
             return .readRadioKeyFailed(code: keyError)
         }
 
         let radioKey = Data(keyResponse[3..<35])
         if debug {
-            print("[INIT] Radio key: \(radioKey.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            let keyHex = radioKey.map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.xnl.debug("[INIT] Radio key: \(keyHex, privacy: .public)")
         }
 
         // Step 2: Encrypt the radio key
         guard let encryptedKey = XNLEncryption.encryptRadioKey(radioKey) else {
-            if debug { print("[INIT] Failed to encrypt radio key") }
+            if debug { RadioLog.xnl.error("[INIT] Failed to encrypt radio key") }
             return .readRadioKeyFailed(code: 0xFE)
         }
 
         if debug {
-            print("[INIT] Encrypted key: \(encryptedKey.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            let encKeyHex = encryptedKey.map { String(format: "%02X", $0) }.joined(separator: " ")
+            RadioLog.xnl.debug("[INIT] Encrypted key: \(encKeyHex, privacy: .public)")
         }
 
         // Step 3: Unlock security
-        if debug { print("[INIT] Step 2: Unlocking security (0x0301)...") }
+        if debug { RadioLog.xnl.debug("[INIT] Step 2: Unlocking security (0x0301)...") }
         var unlockCmd = Data([
             UInt8(XCMPOpcode.unlockSecurity.rawValue >> 8),
             UInt8(XCMPOpcode.unlockSecurity.rawValue & 0xFF)
@@ -1102,26 +1127,32 @@ public actor XNLConnection {
         unlockCmd.append(encryptedKey)
 
         guard let unlockResponse = try? await sendXCMP(unlockCmd, timeout: 5.0, debug: debug) else {
-            if debug { print("[INIT] Failed to unlock security: timeout") }
+            if debug { RadioLog.xnl.error("[INIT] Failed to unlock security: timeout") }
             return .timeout
         }
 
         // Check response: [opcode 2B] [error 1B]
         if unlockResponse.count < 3 {
-            if debug { print("[INIT] Invalid unlock response length: \(unlockResponse.count)") }
+            if debug { RadioLog.xnl.error("[INIT] Invalid unlock response length: \(unlockResponse.count)") }
             return .unlockSecurityFailed(code: 0xFF)
         }
 
         let unlockError = unlockResponse[2]
         if unlockError != 0x00 {
-            if debug { print("[INIT] Unlock security failed with error: 0x\(String(format: "%02X", unlockError))") }
+            if debug {
+                let errHex = String(format: "%02X", unlockError)
+                RadioLog.xnl.error("[INIT] Unlock security failed with error: 0x\(errHex, privacy: .public)")
+            }
             return .unlockSecurityFailed(code: unlockError)
         }
 
-        if debug { print("[INIT] Security unlocked successfully") }
+        if debug { RadioLog.xnl.info("[INIT] Security unlocked successfully") }
 
         // Step 4: Unlock partition
-        if debug { print("[INIT] Step 3: Unlocking partition 0x\(String(format: "%02X", partition.rawValue)) (0x0108)...") }
+        if debug {
+            let partHex = String(format: "%02X", partition.rawValue)
+            RadioLog.xnl.debug("[INIT] Step 3: Unlocking partition 0x\(partHex, privacy: .public) (0x0108)...")
+        }
         let partitionCmd = Data([
             UInt8(XCMPOpcode.ishUnlockPartition.rawValue >> 8),
             UInt8(XCMPOpcode.ishUnlockPartition.rawValue & 0xFF),
@@ -1129,25 +1160,28 @@ public actor XNLConnection {
         ])
 
         guard let partitionResponse = try? await sendXCMP(partitionCmd, timeout: 5.0, debug: debug) else {
-            if debug { print("[INIT] Failed to unlock partition: timeout") }
+            if debug { RadioLog.xnl.error("[INIT] Failed to unlock partition: timeout") }
             return .timeout
         }
 
         // Check response: [opcode 2B] [error 1B]
         if partitionResponse.count < 3 {
-            if debug { print("[INIT] Invalid partition response length: \(partitionResponse.count)") }
+            if debug { RadioLog.xnl.error("[INIT] Invalid partition response length: \(partitionResponse.count)") }
             return .unlockPartitionFailed(code: 0xFF)
         }
 
         let partitionError = partitionResponse[2]
         if partitionError != 0x00 {
-            if debug { print("[INIT] Unlock partition failed with error: 0x\(String(format: "%02X", partitionError))") }
+            if debug {
+                let pErrHex = String(format: "%02X", partitionError)
+                RadioLog.xnl.error("[INIT] Unlock partition failed with error: 0x\(pErrHex, privacy: .public)")
+            }
             return .unlockPartitionFailed(code: partitionError)
         }
 
         if debug {
-            print("[INIT] Partition unlocked successfully")
-            print("[INIT] Initialization complete! Radio is ready for PSDT access.")
+            RadioLog.xnl.info("[INIT] Partition unlocked successfully")
+            RadioLog.xnl.info("[INIT] Initialization complete! Radio is ready for PSDT access.")
         }
 
         return .success

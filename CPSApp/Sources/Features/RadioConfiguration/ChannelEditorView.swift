@@ -15,71 +15,59 @@ struct ChannelEditorView: View {
             Table(channels, selection: $selection, sortOrder: $sortOrder) {
                 TableColumn("#") { row in
                     Text("\(row.index + 1)")
-                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
-                .width(30)
+                .width(min: 30, ideal: 40, max: 50)
 
-                TableColumn("Name", value: \.name) { row in
+                TableColumn("Name") { row in
                     TextField("", text: binding(for: row.index, keyPath: \.name))
                         .textFieldStyle(.plain)
                 }
-                .width(min: 60, ideal: 80)
+                .width(min: 60, ideal: 100)
 
-                TableColumn("Frequency", value: \.frequencyDisplay) { row in
+                TableColumn("Frequency") { row in
                     TextField("", text: binding(for: row.index, keyPath: \.frequencyDisplay))
                         .textFieldStyle(.plain)
                         .monospacedDigit()
                 }
-                .width(min: 80, ideal: 100)
+                .width(min: 80, ideal: 110)
 
                 TableColumn("TX Tone") { row in
                     Text(row.txToneDisplay)
-                        .foregroundStyle(row.txToneDisplay == "None" ? .secondary : .primary)
+                        .foregroundStyle(row.txToneCode == 0 ? .secondary : .primary)
+                        .help("CTCSS/DCS tone transmitted with your voice to open squelch on receiving radios")
                 }
                 .width(min: 60, ideal: 80)
 
                 TableColumn("RX Tone") { row in
                     Text(row.rxToneDisplay)
-                        .foregroundStyle(row.rxToneDisplay == "None" ? .secondary : .primary)
+                        .foregroundStyle(row.rxToneCode == 0 ? .secondary : .primary)
+                        .help("CTCSS/DCS tone required to unmute this channel's receive audio")
                 }
                 .width(min: 60, ideal: 80)
 
                 TableColumn("Power") { row in
                     Text(row.powerDisplay)
+                        .help("TX power level. High increases range but drains battery faster")
                 }
-                .width(min: 50, ideal: 60)
+                .width(min: 40, ideal: 60)
             }
-            .contextMenu(forSelectionType: Int.self) { _ in
-                Button("Copy Channel") {}
-                    .accessibilityIdentifier("contextMenu.copyChannel")
-                Button("Paste Channel") {}
-                    .accessibilityIdentifier("contextMenu.pasteChannel")
-                Divider()
-                Button("Clear Channel") {}
-                    .accessibilityIdentifier("contextMenu.clearChannel")
-            } primaryAction: { _ in
-                // Double-click to edit
-            }
-            .accessibilityIdentifier("channelTable")
+            .onAppear { loadChannels() }
 
-            // Status bar
             HStack {
                 Text("\(channels.count) channels")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Spacer()
                 if !selection.isEmpty {
-                    Text("\(selection.count) selected")
+                    Text("· \(selection.count) selected")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .background(.bar)
-        }
-        .onAppear {
-            loadChannels()
         }
     }
 

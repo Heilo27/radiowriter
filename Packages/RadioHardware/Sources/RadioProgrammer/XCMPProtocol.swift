@@ -1,4 +1,5 @@
 import Foundation
+import os
 import RadioModelCore
 
 // MARK: - XCMP OpCodes
@@ -518,8 +519,8 @@ public struct XCMPPacket {
         guard data.count >= 2 else { return nil }
         let opCodeValue = UInt16(data[0]) << 8 | UInt16(data[1])
         guard let opCode = XCMPOpCode(rawValue: opCodeValue) else {
-            // Unknown opcode - still create packet with raw value
-            return XCMPPacket(opCode: XCMPOpCode(rawValue: opCodeValue) ?? .radioStatusRequest, data: Data(data.dropFirst(2)))
+            // Unknown opcode — return nil rather than silently mapping to a wrong type
+            return nil
         }
         return XCMPPacket(opCode: opCode, data: Data(data.dropFirst(2)))
     }
@@ -1358,7 +1359,7 @@ public actor XCMPClient {
     public func startReadSession(debug: Bool = false) async throws -> [UInt16] {
         let request = XCMPPacket.ishSessionStartRequest()
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else {
-            if debug { print("[SESSION] No response from session start") }
+            if debug { RadioLog.xcmp.debug("No response from session start") }
             return []
         }
 
@@ -1367,19 +1368,19 @@ public actor XCMPClient {
         // Then pairs of record IDs: [hi] [lo] ...
         // Example: 00 80 00 6a 00 00 00 6a 00 0a 00 0b 00 0c...
         guard reply.data.count >= 8 else {
-            if debug { print("[SESSION] Response too short: \(reply.data.count) bytes") }
+            if debug { RadioLog.xcmp.debug("Session response too short: \(reply.data.count) bytes") }
             return []
         }
 
         let status = reply.data[0]
         if status != 0x00 {
-            if debug { print("[SESSION] Session start failed with status: 0x\(String(format: "%02X", status))") }
+            if debug { RadioLog.xcmp.debug("Session start failed with status: 0x\(String(format: "%02X", status))") }
             return []
         }
 
         // Count is at bytes 2-3 (big endian)
         let count = (UInt16(reply.data[2]) << 8) | UInt16(reply.data[3])
-        if debug { print("[SESSION] Session started, \(count) records available") }
+        if debug { RadioLog.xcmp.debug("Session started, \(count) records available") }
 
         // Record IDs start at byte 8
         var recordIDs: [UInt16] = []
@@ -1390,7 +1391,7 @@ public actor XCMPClient {
             offset += 2
         }
 
-        if debug { print("[SESSION] Available records: \(recordIDs.prefix(10).map { String(format: "0x%04X", $0) }.joined(separator: ", "))...") }
+        if debug { RadioLog.xcmp.debug("Available records: \(recordIDs.prefix(10).map { String(format: "0x%04X", $0) }.joined(separator: ", "))...") }
         return recordIDs
     }
 
@@ -1407,27 +1408,25 @@ public actor XCMPClient {
         let request = XCMPPacket.codeplugReadDataRequest(records: records)
 
         if debug {
-            print("[READ] Requesting \(recordIDs.count) records with DATA format (0b 01 00 80)")
-            print("[READ] Request bytes: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
+            RadioLog.xcmp.debug("Requesting \(recordIDs.count) records with DATA format (0b 01 00 80)")
+            RadioLog.xcmp.debug("Request bytes: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
         }
 
         guard let reply = try await sendAndReceive(request, timeout: 10.0, debug: debug) else { return nil }
 
         if debug {
-            print("[READ] Response: \(reply.data.count) bytes")
-            // Show first 64 bytes to see response format
+            RadioLog.xcmp.debug("Read response: \(reply.data.count) bytes")
             let preview = reply.data.prefix(64)
-            print("[READ] Response preview: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Read response preview: \(preview.map { String(format: "%02X", $0) }.joined(separator: " "))")
 
-            // Check for 81 00 (data) vs 81 04 (metadata) status
             if let idx = findPattern(reply.data, pattern: [0x81]) {
                 let statusByte = reply.data.count > idx + 1 ? reply.data[idx + 1] : 0xFF
                 if statusByte == 0x00 {
-                    print("[READ] ✓ Response contains actual DATA (81 00 status)")
+                    RadioLog.xcmp.debug("Response contains actual DATA (81 00 status)")
                 } else if statusByte == 0x04 {
-                    print("[READ] ✗ Response contains METADATA only (81 04 status) - need different request format")
+                    RadioLog.xcmp.error("Response contains METADATA only (81 04 status) - need different request format")
                 } else {
-                    print("[READ] ? Response status: 81 \(String(format: "%02X", statusByte))")
+                    RadioLog.xcmp.debug("Response status: 81 \(String(format: "%02X", statusByte))")
                 }
             }
         }
@@ -1461,27 +1460,27 @@ public actor XCMPClient {
         let request = XCMPPacket.codeplugReadIndexedMetadataRequest(recordID: XCMPPacket.channelRecordID)
 
         if debug {
-            print("[CHANNEL] Querying channel count (record 0x0FFB metadata)")
-            print("[CHANNEL] Request: \(request.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Querying channel count (record 0x0FFB metadata)")
+            RadioLog.xcmp.debug("Channel count request: \(request.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
 
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
 
         if debug {
-            print("[CHANNEL] Response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Channel count response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
 
         // Response format: [header] 81 04 00 80 0F FB 00 01 00 00 00 [count:4 little-endian]
         // Look for 81 04 pattern to find metadata response
         guard let patternIdx = findPattern(reply.data, pattern: [0x81, 0x04]) else {
-            if debug { print("[CHANNEL] No metadata pattern (81 04) found in response") }
+            if debug { RadioLog.xcmp.debug("No metadata pattern (81 04) found in channel count response") }
             return nil
         }
 
         // Count is at offset +11 from the 81 04 pattern (could be 1-4 bytes depending on value)
         let countOffset = patternIdx + 11
         guard countOffset < reply.data.count else {
-            if debug { print("[CHANNEL] Response too short for count field") }
+            if debug { RadioLog.xcmp.debug("Channel count response too short for count field") }
             return nil
         }
 
@@ -1497,7 +1496,7 @@ public actor XCMPClient {
             count |= Int(reply.data[countOffset + 3]) << 24
         }
 
-        if debug { print("[CHANNEL] Channel count: \(count)") }
+        if debug { RadioLog.xcmp.debug("Channel count: \(count)") }
         return count
     }
 
@@ -1518,18 +1517,18 @@ public actor XCMPClient {
         )
 
         if debug {
-            print("[CHANNEL] Reading \(indices.count) channels (indices \(indices.first ?? 0)-\(indices.last ?? 0))")
-            print("[CHANNEL] Request preview: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
+            RadioLog.xcmp.debug("Reading \(indices.count) channels (indices \(indices.first ?? 0)-\(indices.last ?? 0))")
+            RadioLog.xcmp.debug("Channel read request: \(request.data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " "))...")
         }
 
         guard let reply = try await sendAndReceive(request, timeout: 15.0, debug: debug) else {
-            if debug { print("[CHANNEL] No response received") }
+            if debug { RadioLog.xcmp.debug("No response received for channel read") }
             return []
         }
 
         if debug {
-            print("[CHANNEL] Response: \(reply.data.count) bytes")
-            print("[CHANNEL] Response preview: \(reply.data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Channel read response: \(reply.data.count) bytes")
+            RadioLog.xcmp.debug("Channel read preview: \(reply.data.prefix(64).map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
 
         // Parse the response to extract channel records
@@ -1571,7 +1570,7 @@ public actor XCMPClient {
                 let dataStart = offset + 14
 
                 if debug && channels.count < 5 {
-                    print("[CHANNEL] Found channel \(channelIndex) at offset \(offset), size \(recordSize)")
+                    RadioLog.xcmp.debug("Found channel \(channelIndex) at offset \(offset), size \(recordSize)")
                 }
 
                 if dataStart + recordSize <= data.count && recordSize == Int(XCMPPacket.channelRecordSize) {
@@ -1650,7 +1649,7 @@ public actor XCMPClient {
                     }
 
                     if debug && channels.count < 5 {
-                        print("[CHANNEL] Channel \(channelIndex): '\(channel.name)' RX=\(Double(channel.rxFrequencyHz) / 1_000_000) MHz")
+                        RadioLog.xcmp.debug("Channel \(channelIndex): '\(channel.name)' RX=\(Double(channel.rxFrequencyHz) / 1_000_000) MHz")
                     }
 
                     channels.append(channel)
@@ -1661,7 +1660,7 @@ public actor XCMPClient {
             offset += 1
         }
 
-        if debug { print("[CHANNEL] Parsed \(channels.count) channels from response") }
+        if debug { RadioLog.xcmp.debug("Parsed \(channels.count) channels from response") }
         return channels
     }
 
@@ -1684,11 +1683,11 @@ public actor XCMPClient {
 
         // Step 1: Get channel count
         guard let channelCount = try await getChannelCount(debug: debug), channelCount > 0 else {
-            if debug { print("[CHANNEL] No channels found or count query failed") }
+            if debug { RadioLog.xcmp.debug("No channels found or count query failed") }
             return []
         }
 
-        if debug { print("[CHANNEL] Reading \(channelCount) channels...") }
+        if debug { RadioLog.xcmp.debug("Reading \(channelCount) channels...") }
 
         var allChannels: [ParsedChannelRecord] = []
 
@@ -1698,7 +1697,7 @@ public actor XCMPClient {
             if let channel = channels.first {
                 allChannels.append(channel)
                 if debug && idx < 5 {
-                    print("[CHANNEL] [\(idx)] \"\(channel.name)\" @ \(String(format: "%.4f", channel.rxFrequencyMHz)) MHz")
+                    RadioLog.xcmp.debug("[\(idx)] \"\(channel.name)\" @ \(String(format: "%.4f", channel.rxFrequencyMHz)) MHz")
                 }
             }
 
@@ -1706,7 +1705,7 @@ public actor XCMPClient {
             progress?(currentProgress)
         }
 
-        if debug { print("[CHANNEL] Successfully read \(allChannels.count) channels") }
+        if debug { RadioLog.xcmp.debug("Successfully read \(allChannels.count) channels") }
         progress?(1.0)
 
         return allChannels
@@ -1858,7 +1857,7 @@ public actor XCMPClient {
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
 
         if debug {
-            print("[ZONE] Query response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Zone query response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
 
         return ZoneQueryResult(from: reply.data)
@@ -1870,7 +1869,7 @@ public actor XCMPClient {
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
 
         if debug {
-            print("[ZONE] Details response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+            RadioLog.xcmp.debug("Zone details response: \(reply.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
 
         return ZoneDetailsResult(from: reply.data)
@@ -2118,9 +2117,7 @@ public actor XCMPClient {
         }
 
         if debug {
-            print("[CHANNEL] Zone \(zone) CH \(channel): \(channelData.name) " +
-                  "\(channelData.channelTypeDisplay) RX:\(channelData.rxFrequencyMHz) " +
-                  "TX:\(channelData.txFrequencyMHz) CC:\(channelData.colorCode) TS:\(channelData.timeSlot)")
+            RadioLog.xcmp.debug("Zone \(zone) CH \(channel): \(channelData.name) \(channelData.channelTypeDisplay) RX:\(channelData.rxFrequencyMHz) TX:\(channelData.txFrequencyMHz) CC:\(channelData.colorCode) TS:\(channelData.timeSlot)")
         }
 
         return channelData
@@ -2201,9 +2198,7 @@ public actor XCMPClient {
             result.callAlert = (alertReply.byteValue ?? 0) != 0
         }
 
-        if debug {
-            print("[CONTACT] \(index): \(result.name) ID:\(result.dmrID) Type:\(result.callTypeDisplay)")
-        }
+        RadioLog.xcmp.debug("[CONTACT] \(index): \(result.name) ID:\(result.dmrID) Type:\(result.callTypeDisplay)")
 
         return result
     }
@@ -2258,9 +2253,7 @@ public actor XCMPClient {
             result.members = members
         }
 
-        if debug {
-            print("[SCANLIST] \(index): \(result.name) Members:\(result.memberCount)")
-        }
+        RadioLog.xcmp.debug("[SCANLIST] \(index): \(result.name) Members:\(result.memberCount)")
 
         return result
     }
@@ -2301,9 +2294,7 @@ public actor XCMPClient {
             result.contactIndices = members
         }
 
-        if debug {
-            print("[RXGROUP] \(index): \(result.name) Members:\(result.memberCount)")
-        }
+        RadioLog.xcmp.debug("[RXGROUP] \(index): \(result.name) Members:\(result.memberCount)")
 
         return result
     }
@@ -2443,13 +2434,11 @@ public actor XCMPClient {
             result.manDownEnabled = (reply.byteValue ?? 0) != 0
         }
 
-        if debug {
-            print("[SETTINGS] Radio ID: \(result.radioID)")
-            print("[SETTINGS] Alias: \(result.radioAlias)")
-            print("[SETTINGS] VOX: \(result.voxEnabled ? "On" : "Off")")
-            print("[SETTINGS] TOT: \(result.totTime)s")
-            print("[SETTINGS] GPS: \(result.gpsEnabled ? "On" : "Off")")
-        }
+        RadioLog.xcmp.debug("[SETTINGS] Radio ID: \(result.radioID)")
+        RadioLog.xcmp.debug("[SETTINGS] Alias: \(result.radioAlias)")
+        RadioLog.xcmp.debug("[SETTINGS] VOX: \(result.voxEnabled ? "On" : "Off")")
+        RadioLog.xcmp.debug("[SETTINGS] TOT: \(result.totTime)s")
+        RadioLog.xcmp.debug("[SETTINGS] GPS: \(result.gpsEnabled ? "On" : "Off")")
 
         return result
     }

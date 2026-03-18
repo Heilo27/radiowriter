@@ -59,6 +59,10 @@ final class AppCoordinator {
     var pendingWriteAction: (() async -> Void)?
     var lastBackupURL: URL?
 
+    // File operation progress state
+    var fileOperationInProgress = false
+    var fileOperationStatus: String = ""
+
     // Validation state
     var showingValidationSheet = false
     var validationResult: ValidationResult?
@@ -78,6 +82,8 @@ final class AppCoordinator {
     var showingExportContactsDialog = false
     var showingImportChannelsDialog = false
     var showingImportContactsDialog = false
+    var showingExportChannelTemplateDialog = false
+    var showingExportContactTemplateDialog = false
 
     // DMR ID Lookup state
     var showingDMRIDLookup = false
@@ -107,6 +113,19 @@ final class AppCoordinator {
 
     /// Whether the parsed codeplug has unsaved modifications.
     var parsedCodeplugDirty = false
+
+    // MARK: - Regulatory Warnings
+
+    let regulatoryWarningManager = RegulatoryWarningManager()
+
+    /// Whether to show the FCC first-run warning dialog.
+    var showingFCCWarning = false
+
+    /// Whether to show the pre-write confirmation dialog.
+    var showingPreWriteConfirmation = false
+
+    /// Whether to show the About window.
+    var showingAboutWindow = false
 
     // MARK: - Undo/Redo Methods
 
@@ -168,11 +187,22 @@ final class AppCoordinator {
     /// Error message if programming failed.
     var programmingError: String?
 
+    /// Technical details for diagnostic disclosure (e.g. raw protocol error).
+    var programmingErrorDetails: String?
+
+    /// Actionable recovery suggestion for the current programming error.
+    var programmingRecoverySuggestion: String?
+
     nonisolated(unsafe) private var observationTask: Task<Void, Never>?
     private var previousDeviceCount = 0
 
     init() {
         radioDetector.startScanning()
+
+        // Show first-run FCC warning if not acknowledged
+        if !regulatoryWarningManager.fccWarningAcknowledged {
+            showingFCCWarning = true
+        }
 
         // Start observing the detector's devices
         observationTask = Task { [weak self] in
@@ -234,7 +264,7 @@ final class AppCoordinator {
                 connectionState = .disconnected
             } catch {
                 // Identification failed - still select a default model but don't transition
-                connectionState = .error("Could not identify radio: \(error.localizedDescription)")
+                connectionState = .error("Could not identify radio — select your model manually")
                 if let modelId = findDefaultModel(for: "xpr") {
                     selectedModelIdentifier = modelId
                 }
@@ -319,6 +349,14 @@ final class AppCoordinator {
     /// Opens a codeplug file from disk and transitions to editing.
     /// Runs heavy deserialization/decompression off the main thread.
     func openDocument(_ url: URL) async throws {
+        fileOperationInProgress = true
+        fileOperationStatus = "Opening codeplug..."
+
+        defer {
+            fileOperationInProgress = false
+            fileOperationStatus = ""
+        }
+
         // Load and deserialize on background thread
         let (codeplug, modelID) = try await Task.detached {
             let data = try Data(contentsOf: url)
@@ -339,6 +377,14 @@ final class AppCoordinator {
     /// Runs heavy serialization/compression off the main thread.
     func saveDocument(to url: URL) async throws {
         guard let codeplug = currentDocument?.codeplug else { return }
+
+        fileOperationInProgress = true
+        fileOperationStatus = "Saving codeplug..."
+
+        defer {
+            fileOperationInProgress = false
+            fileOperationStatus = ""
+        }
 
         // Serialize and write on background thread
         try await Task.detached {
@@ -377,9 +423,14 @@ final class AppCoordinator {
     func saveAndCloseDocument() {
         if let url = documentURL {
             Task {
-                try? await saveDocument(to: url)
-                await MainActor.run {
-                    forceCloseDocument()
+                do {
+                    try await saveDocument(to: url)
+                    await MainActor.run { self.forceCloseDocument() }
+                } catch {
+                    // Log save failure but don't close
+                    await MainActor.run {
+                        self.connectionState = .error("Save failed: \(error.localizedDescription)")
+                    }
                 }
             }
         } else {
@@ -404,7 +455,10 @@ final class AppCoordinator {
 
     /// Directory for storing codeplug backups.
     var backupDirectory: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            // Application Support not accessible — return a temp path as fallback
+            return FileManager.default.temporaryDirectory.appendingPathComponent("RadioWriter/Backups", isDirectory: true)
+        }
         return appSupport.appendingPathComponent("RadioWriter/Backups", isDirectory: true)
     }
 
@@ -606,6 +660,19 @@ final class AppCoordinator {
 
     /// Shows the backup prompt before writing.
     private func proceedToBackupPrompt() {
+        // First show pre-write confirmation if not dismissed
+        if !regulatoryWarningManager.preWriteWarningDismissed {
+            showingPreWriteConfirmation = true
+            pendingWriteAction = { [weak self] in
+                await self?.proceedToBackupPromptInternal()
+            }
+        } else {
+            proceedToBackupPromptInternal()
+        }
+    }
+
+    /// Internal method to show backup prompt (called after pre-write confirmation).
+    private func proceedToBackupPromptInternal() {
         // If we have existing data, prompt for backup first
         if parsedCodeplug != nil || currentDocument?.codeplug != nil {
             showingBackupBeforeWriteAlert = true
@@ -635,7 +702,8 @@ final class AppCoordinator {
                 await pendingWriteAction?()
                 pendingWriteAction = nil
             } catch {
-                connectionState = .error("Backup failed: \(error.localizedDescription)")
+                connectionState = .error("Backup failed. Write cancelled to protect radio data.")
+                return
             }
         }
     }
@@ -823,6 +891,113 @@ final class AppCoordinator {
         parsedCodeplug = codeplug
     }
 
+    /// Updates RX group lists with undo support.
+    func updateRxGroupLists(_ newLists: [ParsedRxGroupList], actionName: String) {
+        guard var codeplug = parsedCodeplug else { return }
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+        codeplug.rxGroupLists = newLists
+        parsedCodeplug = codeplug
+    }
+
+    /// Updates scan lists with undo support.
+    func updateScanLists(_ newLists: [ParsedScanList], actionName: String) {
+        guard var codeplug = parsedCodeplug else { return }
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+        codeplug.scanLists = newLists
+        parsedCodeplug = codeplug
+    }
+
+    /// Updates general settings fields with undo support.
+    /// Pass a closure that mutates the codeplug.
+    func updateGeneralSettings(_ mutate: (inout ParsedCodeplug) -> Void, actionName: String) {
+        guard var codeplug = parsedCodeplug else { return }
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+        mutate(&codeplug)
+        parsedCodeplug = codeplug
+    }
+
+    /// Applies a channel import result with undo support.
+    /// Merges channels from the result into existing zones, creating new zones as needed.
+    func applyChannelImport(_ result: CSVService.ChannelImportResult, actionName: String = "Import Channels") {
+        guard var codeplug = parsedCodeplug else { return }
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+        var zoneChannels: [String: [ChannelData]] = [:]
+        for (zoneName, channel) in result.channels {
+            zoneChannels[zoneName, default: []].append(channel)
+        }
+        for (zoneName, channels) in zoneChannels {
+            if let zoneIndex = codeplug.zones.firstIndex(where: { $0.name == zoneName }) {
+                var zone = codeplug.zones[zoneIndex]
+                let startIndex = zone.channels.count
+                for (i, var channel) in channels.enumerated() {
+                    channel.zoneIndex = zoneIndex
+                    channel.channelIndex = startIndex + i
+                    zone.channels.append(channel)
+                }
+                codeplug.zones[zoneIndex] = zone
+            } else {
+                var newZone = ParsedZone()
+                newZone.name = zoneName
+                newZone.position = codeplug.zones.count
+                for (i, var channel) in channels.enumerated() {
+                    channel.zoneIndex = newZone.position
+                    channel.channelIndex = i
+                    newZone.channels.append(channel)
+                }
+                codeplug.zones.append(newZone)
+            }
+        }
+        parsedCodeplug = codeplug
+    }
+
+    /// Applies a contact import result with undo support.
+    func applyContactImport(_ result: CSVService.ContactImportResult, actionName: String = "Import Contacts") {
+        guard var codeplug = parsedCodeplug else { return }
+        if !isUndoingOrRedoing {
+            let oldCodeplug = codeplug
+            undoManager.registerUndo(withTarget: self) { target in
+                target.isUndoingOrRedoing = true
+                target.parsedCodeplug = oldCodeplug
+                target.isUndoingOrRedoing = false
+            }
+            undoManager.setActionName(actionName)
+        }
+        codeplug.contacts.append(contentsOf: result.contacts)
+        parsedCodeplug = codeplug
+    }
+
     // MARK: - CSV Import/Export
 
     /// Exports channels from the current codeplug to CSV.
@@ -875,12 +1050,12 @@ final class AppCoordinator {
         }
 
         guard let model = RadioModelRegistry.model(for: modelIdentifier) else {
-            connectionState = .error("Unknown model: \(modelIdentifier)")
+            connectionState = .error("This radio model is not supported. Select a different model from the list and try again.")
             return
         }
 
         guard let device = detectedDevices.first else {
-            connectionState = .error("No radio detected")
+            connectionState = .error("No radio detected. Connect the USB cable and make sure the radio is powered on.")
             return
         }
 
@@ -913,7 +1088,7 @@ final class AppCoordinator {
 
                 do {
                     try await motoProgrammer.connect()
-                    connectionState = .connected("XNL:\(ip)")
+                    connectionState = .connected(ip)
                     programmingProgress = 0.05
 
                     connectionState = .programming
@@ -935,7 +1110,7 @@ final class AppCoordinator {
                                 }
                             }
                         },
-                        debug: true  // Enable debug for now to see what's happening
+                        debug: false
                     )
 
                     programmingStatus = "Processing data..."
@@ -975,7 +1150,7 @@ final class AppCoordinator {
 
                 } catch {
                     await motoProgrammer.disconnect()
-                    programmingError = error.localizedDescription
+                    setProgrammingError(error)
                     connectionState = .disconnected
                     return
                 }
@@ -1018,7 +1193,7 @@ final class AppCoordinator {
             programmingComplete = true
 
         } catch {
-            programmingError = error.localizedDescription
+            setProgrammingError(error)
             connectionState = .disconnected
             programmingProgress = 0.0
         }
@@ -1033,6 +1208,8 @@ final class AppCoordinator {
         programmingProgress = 0.0
         programmingComplete = false
         programmingError = nil
+        programmingErrorDetails = nil
+        programmingRecoverySuggestion = nil
     }
 
     /// Cancels the current programming operation.
@@ -1041,7 +1218,39 @@ final class AppCoordinator {
         programmingProgress = 0.0
         programmingComplete = false
         programmingError = nil
+        programmingErrorDetails = nil
+        programmingRecoverySuggestion = nil
         connectionState = .disconnected
+    }
+
+    /// Sets the programming error state from a thrown error.
+    /// Extracts user-facing message, recovery suggestion, and technical details.
+    private func setProgrammingError(_ error: any Error) {
+        programmingError = error.localizedDescription
+
+        if let motoError = error as? MOTOTRBOError {
+            programmingErrorDetails = motoError.technicalDescription
+            programmingRecoverySuggestion = motoError.recoverySuggestion
+        } else if let progError = error as? ProgrammerError {
+            programmingErrorDetails = progError.technicalDescription
+            programmingRecoverySuggestion = progError.recoverySuggestion
+        } else if let lteError = error as? LTEError {
+            programmingErrorDetails = lteError.technicalDescription
+            programmingRecoverySuggestion = lteError.recoverySuggestion
+        } else if let tetraError = error as? TETRAError {
+            programmingErrorDetails = tetraError.technicalDescription
+            programmingRecoverySuggestion = tetraError.recoverySuggestion
+        } else if let factoryError = error as? RadioProgrammerError {
+            programmingErrorDetails = factoryError.technicalDescription
+            programmingRecoverySuggestion = factoryError.recoverySuggestion
+        } else if let usbError = error as? USBError {
+            programmingErrorDetails = usbError.localizedDescription
+            programmingRecoverySuggestion = usbError.recoverySuggestion
+        } else {
+            programmingErrorDetails = error.localizedDescription
+            programmingRecoverySuggestion = (error as? LocalizedError)?.recoverySuggestion
+                ?? "Reconnect the USB cable and power cycle the radio, then try again."
+        }
     }
 
     // MARK: - Manual Device Entry
@@ -1076,17 +1285,17 @@ final class AppCoordinator {
     func writeToRadio() async {
         let hasParsedOnlyData = parsedCodeplug != nil && (currentDocument?.codeplug?.rawData.isEmpty ?? true)
         if hasParsedOnlyData {
-            connectionState = .error("Writing parsed radio reads is not available yet. Open or create a binary codeplug profile to write.")
+            connectionState = .error("Writing back to a radio after a zone/channel read is not yet supported. To write a codeplug, open or create a .cpsx profile.")
             return
         }
 
         guard let codeplug = currentDocument?.codeplug else {
-            connectionState = .error("No codeplug to write")
+            connectionState = .error("No codeplug is open. Open a codeplug file or create a new one before writing to the radio.")
             return
         }
 
         guard let device = detectedDevices.first else {
-            connectionState = .error("No radio detected")
+            connectionState = .error("No radio detected. Connect the USB cable and make sure the radio is powered on.")
             return
         }
 
@@ -1119,11 +1328,11 @@ final class AppCoordinator {
 
                 do {
                     try await motoProgrammer.connect()
-                    connectionState = .connected("XNL:\(ip)")
+                    connectionState = .connected(ip)
                     programmingProgress = 0.05
 
                     connectionState = .programming
-                    programmingStatus = "Writing codeplug via XCMP..."
+                    programmingStatus = "Writing codeplug to radio..."
 
                     // Use the XCMP write protocol
                     try await motoProgrammer.writeCodeplug(codeplug.rawData) { [weak self] progress in
@@ -1204,7 +1413,7 @@ final class AppCoordinator {
 
                 } catch {
                     await motoProgrammer.disconnect()
-                    programmingError = error.localizedDescription
+                    setProgrammingError(error)
                     connectionState = .disconnected
                     return
                 }
@@ -1235,11 +1444,11 @@ final class AppCoordinator {
 
             // Mark complete
             programmingProgress = 1.0
-            programmingStatus = "Write complete and verified"
+            programmingStatus = "Write complete"
             programmingComplete = true
 
         } catch {
-            programmingError = error.localizedDescription
+            setProgrammingError(error)
             connectionState = .disconnected
             programmingProgress = 0.0
         }
@@ -1297,7 +1506,7 @@ enum BackupSource {
 }
 
 /// Information about a backup file.
-struct BackupInfo: Identifiable {
+struct BackupInfo: Identifiable, Hashable {
     let url: URL
     let modelName: String
     let serialNumber: String
@@ -1332,11 +1541,22 @@ enum BackupError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noCodeplugToBackup:
-            return "No codeplug data available to backup"
+            return "No codeplug loaded to backup"
         case .backupDirectoryCreationFailed:
-            return "Could not create backup directory"
+            return "Could not create backup folder"
+        case .restoreFailed:
+            return "Could not restore backup"
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .noCodeplugToBackup:
+            return "Read from a radio or open a codeplug profile before creating a backup"
+        case .backupDirectoryCreationFailed:
+            return "Check that the Application Support folder is accessible and try again"
         case .restoreFailed(let reason):
-            return "Failed to restore backup: \(reason)"
+            return reason
         }
     }
 }

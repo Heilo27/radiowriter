@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../../docs/PROTOCOL_REFERENCE.md).
+> This file is the original quick-lookup table for XCMP commands extracted from CPS DLL analysis. The verified op-codes and packet formats from this file have been incorporated into the consolidated reference. Retained for source traceability.
+
 # XCMP Command Reference - Quick Lookup
 
 **Source:** Decompiled MOTOTRBO CPS DLLs

@@ -209,6 +209,29 @@ public enum RadioProgrammerError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
+        case .connectionFailed: return "Could not connect to the radio"
+        case .unknownRadioType: return "Radio model not recognized"
+        case .serialNotSupported: return "Serial connection not supported here"
+        case .protocolMismatch: return "Radio protocol mismatch"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .connectionFailed:
+            return "Make sure the radio is powered on and connected to the network. MOTOTRBO radios are typically reachable at 192.168.10.1."
+        case .unknownRadioType:
+            return "Select the radio model manually from the model list. If your radio is not listed, it may not be supported yet."
+        case .serialNotSupported:
+            return "Serial port programming requires connecting via a USB programming cable. Enter the serial port path (e.g., /dev/tty.usbserial-XXXXX) in the connection settings."
+        case .protocolMismatch:
+            return "The radio is using a protocol that doesn't match the selected model. Verify you have selected the correct radio model and try again."
+        }
+    }
+
+    /// Technical details suitable for diagnostic disclosure.
+    public var technicalDescription: String {
+        switch self {
         case .connectionFailed(let msg): return "Connection failed: \(msg)"
         case .unknownRadioType(let msg): return "Unknown radio type: \(msg)"
         case .serialNotSupported(let msg): return "Serial not supported: \(msg)"
@@ -246,7 +269,7 @@ public actor ASTROProgrammer: RadioFamilyProgrammer {
             )
 
         case .authenticationFailed(let code):
-            throw MOTOTRBOError.protocolError("ASTRO XNL authentication failed (code: 0x\(String(format: "%02X", code)))")
+            throw MOTOTRBOError.authenticationFailed("Radio rejected authentication (code: 0x\(String(format: "%02X", code)))")
 
         case .connectionError(let message):
             throw MOTOTRBOError.connectionFailed(message)

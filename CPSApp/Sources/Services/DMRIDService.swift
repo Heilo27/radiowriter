@@ -50,26 +50,37 @@ final class DMRIDService: ObservableObject {
     /// Current loading state.
     @Published var state: LoadingState = .idle
 
+    /// Descriptive text for the current loading operation.
+    @Published var progressDescription: String = ""
+
     /// Last database update time.
     @Published var lastUpdated: Date?
 
     /// Number of records in the database.
     @Published var recordCount: Int = 0
 
+    /// Active download task, kept for cancellation support.
+    private var currentDownloadTask: Task<Void, Never>?
+
     /// In-memory index for fast lookups.
     private var recordsByID: [UInt32: DMRRecord] = [:]
     private var recordsByCallsign: [String: DMRRecord] = [:]
+    private var recordsByNamePrefix: [String: [DMRRecord]] = [:]
+
+    /// Application Support directory, falling back to temporary directory if unavailable.
+    private var appSupportDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+    }
 
     /// Path to the cached database file.
     private var databaseURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appFolder = appSupport.appendingPathComponent("MotorolaCPS", isDirectory: true)
-        return appFolder.appendingPathComponent("dmrid-database.json")
+        appSupportDirectory.appendingPathComponent("RadioWriter/dmrid-database.json")
     }
 
     /// Path to metadata file.
     private var metadataURL: URL {
-        databaseURL.deletingLastPathComponent().appendingPathComponent("dmrid-metadata.json")
+        appSupportDirectory.appendingPathComponent("RadioWriter/dmrid-metadata.json")
     }
 
     private init() {
@@ -117,16 +128,38 @@ final class DMRIDService: ObservableObject {
             }
         }
 
-        // Finally search names
-        for record in recordsByID.values {
-            if record.name.lowercased().contains(lowercased) &&
-               !results.contains(where: { $0.id == record.id }) {
-                results.append(record)
-                if results.count >= limit { return results }
+        // Finally search names via prefix index
+        let nameKey = String(lowercased.prefix(3))
+        if !nameKey.isEmpty, let bucket = recordsByNamePrefix[nameKey] {
+            for record in bucket {
+                if record.name.lowercased().contains(lowercased) &&
+                   !results.contains(where: { $0.id == record.id }) {
+                    results.append(record)
+                    if results.count >= limit { return results }
+                }
             }
         }
 
         return results
+    }
+
+    /// Starts a database download, storing the task for cancellation support.
+    /// - Parameter forceRefresh: If true, downloads even if cache is recent
+    func startDownload(forceRefresh: Bool = false) {
+        currentDownloadTask?.cancel()
+        currentDownloadTask = Task {
+            await downloadDatabase(forceRefresh: forceRefresh)
+        }
+    }
+
+    /// Cancels any active database download.
+    func cancelDownload() {
+        currentDownloadTask?.cancel()
+        currentDownloadTask = nil
+        if case .loading = state {
+            state = .idle
+        }
+        progressDescription = ""
     }
 
     /// Downloads the latest database from RadioID.net.
@@ -139,27 +172,37 @@ final class DMRIDService: ObservableObject {
         }
 
         state = .loading(progress: 0)
+        progressDescription = "Connecting to RadioID.net..."
 
         do {
             // RadioID.net provides a JSON API for user data
             // Note: This uses the public API endpoint
-            let url = URL(string: "https://radioid.net/api/dmr/user/?country=United%20States")!
+            let url = URL(string: "https://radioid.net/api/dmr/user/")!
 
+            try Task.checkCancellation()
+            progressDescription = "Downloading database..."
             let (data, response) = try await URLSession.shared.data(from: url)
+
+            try Task.checkCancellation()
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
-                state = .error("Failed to download database")
+                state = .error("Couldn't download the DMR ID database. Check your internet connection and try again.")
+                progressDescription = ""
                 return
             }
 
             state = .loading(progress: 0.5)
+            let sizeKB = data.count / 1024
+            progressDescription = "Parsing \(sizeKB) KB of data..."
 
             // Parse the JSON response
             let decoder = JSONDecoder()
             let apiResponse = try decoder.decode(RadioIDAPIResponse.self, from: data)
 
+            try Task.checkCancellation()
             state = .loading(progress: 0.7)
+            progressDescription = "Saving \(apiResponse.results.count.formatted()) records..."
 
             // Save to cache
             try saveDatabase(apiResponse.results)
@@ -171,9 +214,14 @@ final class DMRIDService: ObservableObject {
             saveMetadata()
 
             state = .loaded(count: recordCount)
+            progressDescription = ""
 
+        } catch is CancellationError {
+            state = .idle
+            progressDescription = ""
         } catch {
-            state = .error("Download failed: \(error.localizedDescription)")
+            state = .error("Couldn't update the DMR ID database. Check your internet connection and try again.")
+            progressDescription = ""
         }
     }
 
@@ -183,6 +231,7 @@ final class DMRIDService: ObservableObject {
         try? FileManager.default.removeItem(at: metadataURL)
         recordsByID.removeAll()
         recordsByCallsign.removeAll()
+        recordsByNamePrefix.removeAll()
         recordCount = 0
         lastUpdated = nil
         state = .idle
@@ -191,14 +240,13 @@ final class DMRIDService: ObservableObject {
     // MARK: - Private Methods
 
     private func loadCachedDatabase() {
-        // Load metadata
+        // Load metadata synchronously (tiny file)
         if let data = try? Data(contentsOf: metadataURL),
            let metadata = try? JSONDecoder().decode(DatabaseMetadata.self, from: data) {
             lastUpdated = metadata.lastUpdated
         }
 
-        // Load database
-        let dbURL = databaseURL  // Capture before async closure
+        let dbURL = databaseURL
         guard FileManager.default.fileExists(atPath: dbURL.path) else {
             state = .idle
             return
@@ -206,17 +254,16 @@ final class DMRIDService: ObservableObject {
 
         state = .loading(progress: 0)
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let data = try Data(contentsOf: dbURL)
-                let records = try JSONDecoder().decode([DMRRecord].self, from: data)
-
-                DispatchQueue.main.async {
+                let records = try JSONDecoder().decode([DMRIDService.DMRRecord].self, from: data)
+                await MainActor.run { [weak self] in
                     self?.loadRecords(records)
                     self?.state = .loaded(count: self?.recordCount ?? 0)
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run { [weak self] in
                     self?.state = .error("Failed to load cached database")
                 }
             }
@@ -226,11 +273,18 @@ final class DMRIDService: ObservableObject {
     private func loadRecords(_ records: [DMRRecord]) {
         recordsByID.removeAll()
         recordsByCallsign.removeAll()
+        recordsByNamePrefix.removeAll()
 
+        var nameIndex: [String: [DMRRecord]] = [:]
         for record in records {
             recordsByID[record.id] = record
             recordsByCallsign[record.callsign.uppercased()] = record
+            let key = String(record.name.lowercased().prefix(3))
+            if !key.isEmpty {
+                nameIndex[key, default: []].append(record)
+            }
         }
+        recordsByNamePrefix = nameIndex
 
         recordCount = records.count
     }

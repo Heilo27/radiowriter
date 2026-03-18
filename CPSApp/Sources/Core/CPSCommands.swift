@@ -59,6 +59,7 @@ struct CPSCommands: Commands {
                 // Open template picker
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
+            .disabled(true)
             .accessibilityLabel("Create new profile from template")
 
             Divider()
@@ -67,6 +68,7 @@ struct CPSCommands: Commands {
                 // Import .cps file
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
+            .disabled(true)
             .accessibilityLabel("Import legacy CPS codeplug file")
         }
 
@@ -101,7 +103,7 @@ struct CPSCommands: Commands {
             Button("Reset Radio") {
                 // Reset
             }
-            .disabled(!hasRadio)
+            .disabled(true)
             .accessibilityLabel("Reset radio to factory defaults")
 
             Divider()
@@ -109,7 +111,7 @@ struct CPSCommands: Commands {
             Button("Compare with Radio...") {
                 // Diff view
             }
-            .disabled(!hasCodeplug || !hasRadio)
+            .disabled(true)
             .accessibilityLabel("Compare codeplug with radio contents")
 
             Divider()
@@ -123,7 +125,7 @@ struct CPSCommands: Commands {
                         try coord.createBackup(source: .currentDocument)
                     }
                 } catch {
-                    // Error handled by coordinator
+                    coord.connectionState = .error(error.localizedDescription)
                 }
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
@@ -164,6 +166,18 @@ struct CPSCommands: Commands {
                 }
                 .disabled(!hasCodeplug)
                 .accessibilityLabel("Export contacts to CSV file")
+
+                Divider()
+
+                Button("Download Channel Template...") {
+                    coordinator?.showingExportChannelTemplateDialog = true
+                }
+                .accessibilityLabel("Download empty channel CSV template with headers and example rows")
+
+                Button("Download Contact Template...") {
+                    coordinator?.showingExportContactTemplateDialog = true
+                }
+                .accessibilityLabel("Download empty contact CSV template with headers and example rows")
             }
 
             Divider()
@@ -178,11 +192,13 @@ struct CPSCommands: Commands {
                 // Open frequency planner
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
+            .disabled(true)
             .accessibilityLabel("Open frequency planning tool")
 
             Button("Fleet Overview") {
                 // Open fleet overview
             }
+            .disabled(true)
             .accessibilityLabel("View fleet radio overview")
 
             Divider()
@@ -191,13 +207,13 @@ struct CPSCommands: Commands {
                 // Generate report
             }
             .keyboardShortcut("p", modifiers: [.command, .shift])
-            .disabled(!hasCodeplug)
+            .disabled(true)
             .accessibilityLabel("Generate codeplug report")
 
             Button("Export to XML...") {
                 // Export XML
             }
-            .disabled(!hasCodeplug)
+            .disabled(true)
             .accessibilityLabel("Export codeplug to XML format")
         }
 
@@ -209,16 +225,19 @@ struct CPSCommands: Commands {
                 // Toggle inspector - would need additional FocusedValue for this
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
+            .disabled(true)
             .accessibilityLabel("Toggle inspector panel")
 
             Button("Expand All Sections") {
                 // Expand all disclosure groups
             }
+            .disabled(true)
             .accessibilityLabel("Expand all settings sections")
 
             Button("Collapse All Sections") {
                 // Collapse all disclosure groups
             }
+            .disabled(true)
             .accessibilityLabel("Collapse all settings sections")
         }
 
@@ -230,12 +249,21 @@ struct CPSCommands: Commands {
                 // Show keyboard shortcuts window
             }
             .keyboardShortcut("/", modifiers: [.command])
+            .disabled(true)
             .accessibilityLabel("Show keyboard shortcuts reference")
 
             Button("Radio Programming Guide") {
                 // Open documentation
             }
+            .disabled(true)
             .accessibilityLabel("Open radio programming documentation")
+
+            Divider()
+
+            Button("About RadioWriter") {
+                coordinator?.showingAboutWindow = true
+            }
+            .accessibilityLabel("Show information about RadioWriter")
         }
     }
 }

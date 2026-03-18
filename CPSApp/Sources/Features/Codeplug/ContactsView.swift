@@ -14,11 +14,8 @@ struct ContactsView: View {
 
     var body: some View {
         HSplitView {
-            // Left: Contact list
             contactListView
                 .frame(minWidth: 250, maxWidth: 350)
-
-            // Right: Contact detail/editor
             contactDetailView
                 .frame(minWidth: 300)
         }
@@ -28,19 +25,23 @@ struct ContactsView: View {
             }
         }
         .sheet(isPresented: $showingEditContact) {
-            if let contact = selectedContact {
-                ContactEditorSheet(contact: contact) { updatedContact in
+            if let index = selectedContactIndex,
+               let contacts = coordinator.parsedCodeplug?.contacts,
+               index >= 0 && index < contacts.count {
+                ContactEditorSheet(contact: contacts[index]) { updatedContact in
                     updateContact(updatedContact)
                 }
             }
         }
-        .alert("Delete Contact?", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
+        .alert("Delete Contact", isPresented: $showingDeleteAlert) {
             Button("Delete", role: .destructive) {
                 deleteSelectedContact()
             }
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will delete '\(selectedContact?.name ?? "")'. This cannot be undone.")
+            if let contact = selectedContact {
+                Text("Delete \"\(contact.name)\"? This cannot be undone.")
+            }
         }
     }
 
@@ -81,6 +82,10 @@ struct ContactsView: View {
                                 highlightMatch(String(item.contact.dmrID))
                             ContactRow(contact: item.contact, isHighlighted: isHighlighted)
                                 .tag(item.index)
+                                .onTapGesture(count: 2) {
+                                    selectedContactIndex = item.index
+                                    showingEditContact = true
+                                }
                                 .contextMenu {
                                     Button {
                                         selectedContactIndex = item.index
@@ -101,6 +106,18 @@ struct ContactsView: View {
                         }
                     }
                     .listStyle(.inset)
+                    .onDeleteCommand {
+                        if selectedContactIndex != nil {
+                            showingDeleteAlert = true
+                        }
+                    }
+                    .onKeyPress(.return) {
+                        if selectedContactIndex != nil {
+                            showingEditContact = true
+                            return .handled
+                        }
+                        return .ignored
+                    }
                 }
             } else {
                 VStack {
@@ -189,7 +206,7 @@ struct ContactsView: View {
     private func addContact(_ contact: ParsedContact) {
         var contacts = coordinator.parsedCodeplug?.contacts ?? []
         contacts.append(contact)
-        coordinator.parsedCodeplug?.contacts = contacts
+        coordinator.updateContacts(contacts, actionName: "Add Contact")
         selectedContactIndex = contacts.count - 1
     }
 
@@ -198,7 +215,7 @@ struct ContactsView: View {
               let index = selectedContactIndex,
               index >= 0 && index < contacts.count else { return }
         contacts[index] = contact
-        coordinator.parsedCodeplug?.contacts = contacts
+        coordinator.updateContacts(contacts, actionName: "Update Contact")
     }
 
     private func deleteSelectedContact() {
@@ -206,7 +223,7 @@ struct ContactsView: View {
               let index = selectedContactIndex,
               index >= 0 && index < contacts.count else { return }
         contacts.remove(at: index)
-        coordinator.parsedCodeplug?.contacts = contacts
+        coordinator.updateContacts(contacts, actionName: "Delete Contact")
         if index >= contacts.count {
             selectedContactIndex = contacts.isEmpty ? nil : contacts.count - 1
         }
@@ -259,12 +276,11 @@ struct ContactRow: View {
             Image(systemName: iconForType)
                 .foregroundStyle(colorForType)
                 .frame(width: 24)
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(contact.name)
                     .font(.body)
                     .foregroundStyle(isHighlighted ? Color.accentColor : .primary)
-                HStack(spacing: 8) {
+                HStack {
                     Text("ID: \(contact.dmrID)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(isHighlighted ? Color.accentColor.opacity(0.8) : .secondary)
@@ -273,8 +289,6 @@ struct ContactRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Spacer()
         }
         .padding(.vertical, 4)
     }
@@ -315,9 +329,9 @@ struct ContactEditorSheet: View {
         let contactData = contact ?? ParsedContact()
         _name = State(initialValue: contactData.name)
         _contactType = State(initialValue: contactData.contactType)
-        _dmrID = State(initialValue: c.dmrID)
-        _callReceiveTone = State(initialValue: c.callReceiveTone)
-        _callAlert = State(initialValue: c.callAlert)
+        _dmrID = State(initialValue: contactData.dmrID)
+        _callReceiveTone = State(initialValue: contactData.callReceiveTone)
+        _callAlert = State(initialValue: contactData.callAlert)
     }
 
     var body: some View {
@@ -325,13 +339,14 @@ struct ContactEditorSheet: View {
             Form {
                 Section("Basic Information") {
                     TextField("Contact Name", text: $name)
-                        .accessibilityLabel("Contact Name")
+                        .accessibilityLabel("Contact name")
 
                     Picker("Call Type", selection: $contactType) {
                         ForEach(ContactCallType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
                     }
+                    .help("Private Call goes to one radio. Group Call broadcasts to a talk group. All Call reaches every radio on the channel.")
 
                     HStack {
                         Text("DMR ID")
@@ -339,9 +354,10 @@ struct ContactEditorSheet: View {
                         TextField("ID", value: $dmrID, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
-                            .accessibilityLabel("DMR ID")
-                            .accessibilityHint("Enter the contact's DMR radio identifier")
+                            .accessibilityLabel("DMR ID number")
+                            .accessibilityHint("Enter a numeric DMR ID from 1 to 16,777,215")
                     }
+                    .help("DMR ID is a unique numeric identifier for a radio or talk group on DMR networks. Look up IDs at radioid.net.")
                 }
 
                 Section("Settings") {
@@ -349,7 +365,6 @@ struct ContactEditorSheet: View {
                     Toggle("Call Alert", isOn: $callAlert)
                 }
             }
-            .formStyle(.grouped)
             .navigationTitle(isNew ? "Add Contact" : "Edit Contact")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -357,7 +372,10 @@ struct ContactEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        var contact = ParsedContact(name: name, dmrID: dmrID, type: contactType)
+                        var contact = ParsedContact()
+                        contact.name = name
+                        contact.dmrID = dmrID
+                        contact.contactType = contactType
                         contact.callReceiveTone = callReceiveTone
                         contact.callAlert = callAlert
                         onSave(contact)

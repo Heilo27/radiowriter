@@ -1,6 +1,6 @@
 # TASK-110: [LOW] Remove extracted CPS binaries from repository
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Low
 **Assignee:** Unassigned
 **Created:** 2026-02-05

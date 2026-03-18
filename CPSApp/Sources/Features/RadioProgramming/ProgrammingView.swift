@@ -43,10 +43,7 @@ struct ProgrammingView: View {
 
             // Error
             if let error = coordinator.programmingError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .frame(maxWidth: 300)
+                errorSection(message: error)
             }
 
             // Actions
@@ -69,6 +66,7 @@ struct ProgrammingView: View {
                             }
                         }
                     }
+                    .buttonStyle(.borderedProminent)
                     Button("Cancel") {
                         coordinator.cancelProgramming()
                     }
@@ -82,6 +80,38 @@ struct ProgrammingView: View {
         .padding(40)
         .frame(width: 400)
         .interactiveDismissDisabled(!coordinator.programmingComplete && coordinator.programmingError == nil)
+    }
+
+    @ViewBuilder
+    private func errorSection(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .font(.callout.weight(.medium))
+
+            if let suggestion = coordinator.programmingRecoverySuggestion {
+                Text(suggestion)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let details = coordinator.programmingErrorDetails {
+                DisclosureGroup("Show Technical Details") {
+                    Text(details)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .fontDesign(.monospaced)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
+                }
+                .font(.caption)
+            }
+        }
+        .padding(12)
+        .background(Color.red.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: 360, alignment: .leading)
     }
 
     private var timeRemainingText: String {

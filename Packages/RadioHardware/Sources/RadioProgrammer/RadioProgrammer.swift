@@ -26,6 +26,7 @@ public actor RadioProgrammer {
         }
 
         state = .reading
+        defer { state = .idle }
 
         // Enter programming mode
         try await enterProgrammingMode()
@@ -46,7 +47,6 @@ public actor RadioProgrammer {
         // Exit programming mode
         try await exitProgrammingMode()
 
-        state = .idle
         return codeplugData
     }
 
@@ -62,6 +62,7 @@ public actor RadioProgrammer {
         }
 
         state = .writing
+        defer { state = .idle }
 
         // Enter programming mode
         try await enterProgrammingMode()
@@ -80,8 +81,6 @@ public actor RadioProgrammer {
 
         // Exit programming mode
         try await exitProgrammingMode()
-
-        state = .idle
     }
 
     // MARK: - Verify
@@ -171,11 +170,46 @@ public enum ProgrammerError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notConnected: return "Radio is not connected"
-        case .protocolError(let msg): return "Protocol error: \(msg)"
-        case .checksumError(let offset): return "Checksum mismatch at offset \(offset)"
-        case .writeRejected(let offset): return "Radio rejected write at offset \(offset)"
-        case .verificationFailed: return "Verification failed: written data does not match"
-        case .timeout: return "Radio did not respond in time"
+        case .protocolError: return "Communication error with radio"
+        case .checksumError: return "Data integrity error during read"
+        case .writeRejected: return "Radio rejected the write operation"
+        case .verificationFailed: return "Write verification failed"
+        case .timeout: return "Radio is not responding"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .notConnected:
+            return "Try: Check USB cable connection and ensure the radio is powered on"
+        case .protocolError:
+            return "Try: Restart the radio and retry the operation"
+        case .checksumError:
+            return "Try: Retry the operation. If this persists, try a different USB cable"
+        case .writeRejected:
+            return "Try: Ensure the radio is not locked. Restart the radio and retry"
+        case .verificationFailed:
+            return "Try: Read from the radio to check current state, then write again"
+        case .timeout:
+            return "Try: Ensure the radio is powered on and the cable is connected, then retry"
+        }
+    }
+
+    /// Technical details suitable for diagnostic disclosure.
+    public var technicalDescription: String {
+        switch self {
+        case .notConnected:
+            return "USBConnection.isConnected returned false"
+        case .protocolError(let msg):
+            return "Protocol error: \(msg)"
+        case .checksumError(let offset):
+            return "Checksum mismatch at offset \(String(format: "0x%04X", offset))"
+        case .writeRejected(let offset):
+            return "Write rejected at offset \(String(format: "0x%04X", offset)) (expected ACK 0x06)"
+        case .verificationFailed:
+            return "Read-back data does not match written data"
+        case .timeout:
+            return "Radio did not respond within the timeout period"
         }
     }
 }

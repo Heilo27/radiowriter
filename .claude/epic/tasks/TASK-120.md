@@ -1,6 +1,6 @@
 # TASK-120: Humanize protocol error messages - translate to plain English
 
-**Status:** Pending
+**Status:** Done
 **Priority:** Medium
 **Assignee:** Echo
 **Created:** 2026-02-06

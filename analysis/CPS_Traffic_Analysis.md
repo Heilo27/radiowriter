@@ -1,3 +1,6 @@
+> **See also:** The authoritative consolidated reference is [`docs/PROTOCOL_REFERENCE.md`](../docs/PROTOCOL_REFERENCE.md).
+> This file is the detailed analysis of 7 CPS 2.0 Wireshark traffic captures. It is the primary source for the dual-session read pattern (section 7), session parameter tables, and TxID prefix observations documented in the consolidated reference. Retained as primary evidence and source traceability.
+
 # CPS 2.0 Traffic Analysis - Comprehensive Protocol Documentation
 
 **Date**: 2026-01-30

@@ -21,8 +21,11 @@ struct ValidationResultsView: View {
                         issuesList(result)
                     }
                 } else {
-                    ProgressView("Validating...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 12) {
+                        ProgressView("Validating codeplug...")
+                            .controlSize(.regular)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationTitle("Pre-Write Validation")
