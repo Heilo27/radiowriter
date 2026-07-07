@@ -29,6 +29,13 @@
 		674587F68FBEB43D815D32A8 /* ChannelEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A513CD2C3FC8AE62D6B29B /* ChannelEditingTests.swift */; };
 		6AD7A32553ED5B2089FF0602 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F9791C2F318D4534E3B809B /* AppCoordinator.swift */; };
 		7A4F0BAF7EA7A976FF5C2E3A /* ValidationResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DC1CF9F6D2091C23CB66771 /* ValidationResultsView.swift */; };
+		C7037AE48B63AB4029F7ED42 /* IshRecordInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1671910F0E52CBC6D0A3E49 /* IshRecordInspectorView.swift */; };
+		0E4AC6E144D60994C54D343C /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10BD04094EA895A2B458965C /* AboutView.swift */; };
+		06B0AC32EBEC9F60B2A3B922 /* FCCWarningDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9285296D6C5A3BB94F0902A /* FCCWarningDialog.swift */; };
+		EEF1C235292B7224FEECBE08 /* PreWriteConfirmationDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B324B1D4A2D5DD630D2B5E /* PreWriteConfirmationDialog.swift */; };
+		2479A6901A65FD5A897B2AEC /* RegulatoryWarnings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C92942357343193F6BEE073 /* RegulatoryWarnings.swift */; };
+		8479A5E1A3BCC3DB238E9511 /* GlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C241998355AF664C411A4E /* GlossaryView.swift */; };
+		FB0712A11FAE92017EC6B1D5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F01E183CA7BDDA293DD7AB /* OnboardingView.swift */; };
 		A3718BA5D7921F61E804CEC6 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA3E964C71F2193DC364541 /* ContactsView.swift */; };
 		A4C8B700458A8B7325F709F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F80EEF1BFDDF4B913C68855 /* ContentView.swift */; };
 		A8D410CF24E3EDD792424B22 /* RadioHardware in Frameworks */ = {isa = PBXBuildFile; productRef = 6613216EC89E86B998EAE93D /* RadioHardware */; };
@@ -62,6 +69,13 @@
 		06A513CD2C3FC8AE62D6B29B /* ChannelEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelEditingTests.swift; sourceTree = "<group>"; };
 		1247B6CCCD38D7BC97EC153E /* ScanListsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanListsView.swift; sourceTree = "<group>"; };
 		1DC1CF9F6D2091C23CB66771 /* ValidationResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationResultsView.swift; sourceTree = "<group>"; };
+		B1671910F0E52CBC6D0A3E49 /* IshRecordInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IshRecordInspectorView.swift; sourceTree = "<group>"; };
+		10BD04094EA895A2B458965C /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		F9285296D6C5A3BB94F0902A /* FCCWarningDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FCCWarningDialog.swift; sourceTree = "<group>"; };
+		90B324B1D4A2D5DD630D2B5E /* PreWriteConfirmationDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreWriteConfirmationDialog.swift; sourceTree = "<group>"; };
+		2C92942357343193F6BEE073 /* RegulatoryWarnings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegulatoryWarnings.swift; sourceTree = "<group>"; };
+		47C241998355AF664C411A4E /* GlossaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryView.swift; sourceTree = "<group>"; };
+		F1F01E183CA7BDDA293DD7AB /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1E0488B444B1534B3C06B28F /* RadioCommunicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioCommunicationTests.swift; sourceTree = "<group>"; };
 		1EF113C7EF9B67BFA53628E1 /* CPSCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPSCommands.swift; sourceTree = "<group>"; };
 		21553D5F1A22A99A938D86B2 /* FormEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormEditorView.swift; sourceTree = "<group>"; };
@@ -165,9 +179,30 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		54F6A6CAB1D6116D2AD77C6B /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				10BD04094EA895A2B458965C /* AboutView.swift */,
+				F9285296D6C5A3BB94F0902A /* FCCWarningDialog.swift */,
+				90B324B1D4A2D5DD630D2B5E /* PreWriteConfirmationDialog.swift */,
+				2C92942357343193F6BEE073 /* RegulatoryWarnings.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		3AAD365F5719765ECDAD3548 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				B1671910F0E52CBC6D0A3E49 /* IshRecordInspectorView.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
 		61B60EAC3E744AAFB7D68F9B /* Help */ = {
 			isa = PBXGroup;
 			children = (
+				47C241998355AF664C411A4E /* GlossaryView.swift */,
+				F1F01E183CA7BDDA293DD7AB /* OnboardingView.swift */,
 				BB46096165BAA26997AF7000 /* KeyboardShortcutsView.swift */,
 			);
 			path = Help;
@@ -259,6 +294,8 @@
 				050A60AC82B014398F8940D4 /* Codeplug */,
 				CC3046AA9ECBCE0763D86737 /* Contacts */,
 				61B60EAC3E744AAFB7D68F9B /* Help */,
+				3AAD365F5719765ECDAD3548 /* Diagnostics */,
+				54F6A6CAB1D6116D2AD77C6B /* Settings */,
 				670DA4D3383968941B364B7B /* Import */,
 				F5A60B9EE876A6C275BA497A /* RadioConfiguration */,
 				6C4FE5C4999E778943688865 /* RadioProgramming */,
@@ -436,6 +473,13 @@
 				3749D1E926DF1D19EEC2E68F /* DMRIDService.swift in Sources */,
 				AB052FD817D8A15360FB055E /* FormEditorView.swift in Sources */,
 				AFC7705C5E56634C5746A5F4 /* GeneralSettingsView.swift in Sources */,
+				C7037AE48B63AB4029F7ED42 /* IshRecordInspectorView.swift in Sources */,
+				0E4AC6E144D60994C54D343C /* AboutView.swift in Sources */,
+				06B0AC32EBEC9F60B2A3B922 /* FCCWarningDialog.swift in Sources */,
+				EEF1C235292B7224FEECBE08 /* PreWriteConfirmationDialog.swift in Sources */,
+				2479A6901A65FD5A897B2AEC /* RegulatoryWarnings.swift in Sources */,
+				8479A5E1A3BCC3DB238E9511 /* GlossaryView.swift in Sources */,
+				FB0712A11FAE92017EC6B1D5 /* OnboardingView.swift in Sources */,
 				3B5F2EB2519107759F574C2D /* KeyboardShortcutsView.swift in Sources */,
 				36B0588C9BEEDFD37A90675E /* ProgrammingView.swift in Sources */,
 				0CC023E144ACFCB59E0B761D /* RadioInputControls.swift in Sources */,
@@ -500,6 +544,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -563,6 +608,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";

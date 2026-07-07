@@ -23,6 +23,17 @@ struct ZoneChannelView: View {
     @State private var showingDeleteChannelAlert = false
     @State private var showingChannelEditor = false
 
+    // Channel view mode (List vs Table)
+    @State private var channelViewMode: ChannelViewMode = .list
+    @State private var sortOrder: [KeyPathComparator<ChannelRowItem>] = [
+        KeyPathComparator(\ChannelRowItem.index, order: .forward)
+    ]
+
+    private enum ChannelViewMode: String, CaseIterable {
+        case list = "List"
+        case table = "Table"
+    }
+
     var body: some View {
         HSplitView {
             // Left sidebar: Zone list
@@ -314,6 +325,17 @@ struct ZoneChannelView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    // View mode toggle (List <-> Table)
+                    Picker("View Mode", selection: $channelViewMode) {
+                        ForEach(ChannelViewMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 120)
+                    .accessibilityLabel("Channel view mode")
+
                     // Channel actions
                     Menu {
                         Button {
@@ -359,55 +381,11 @@ struct ZoneChannelView: View {
                     ContentUnavailableView.search(text: searchText)
                         .accessibilityLabel("No channels match '\(searchText)'")
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(filteredChannels, id: \.index) { item in
-                                Button {
-                                    selectedChannelIndex = item.index
-                                } label: {
-                                    let freqString = String(format: "%.4f", item.channel.rxFrequencyMHz)
-                                    let isHighlighted = highlightMatch(item.channel.name) || highlightMatch(freqString)
-                                    ParsedChannelRow(channel: item.channel, index: item.index, isHighlighted: isHighlighted)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(selectedChannelIndex == item.index ? Color.accentColor.opacity(0.2) : Color.clear)
-                                        .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Channel \(item.index + 1): \(item.channel.name)")
-                                .accessibilityHint("Double-tap to edit")
-                                .accessibilityAddTraits(selectedChannelIndex == item.index ? .isSelected : [])
-                                .onTapGesture(count: 2) {
-                                    selectedChannelIndex = item.index
-                                    showingChannelEditor = true
-                                }
-                                .contextMenu {
-                                        Button {
-                                            selectedChannelIndex = item.index
-                                            showingChannelEditor = true
-                                        } label: {
-                                            Label("Edit", systemImage: "pencil")
-                                        }
-
-                                        Button {
-                                            if let newIndex = coordinator.cloneChannel(zoneIndex: selectedZoneIndex, channelIndex: item.index) {
-                                                selectedChannelIndex = newIndex
-                                            }
-                                        } label: {
-                                            Label("Duplicate Channel", systemImage: "doc.on.doc")
-                                        }
-
-                                        Divider()
-
-                                        Button(role: .destructive) {
-                                            selectedChannelIndex = item.index
-                                            showingDeleteChannelAlert = true
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                            }
-                        }
+                    switch channelViewMode {
+                    case .list:
+                        channelListMode
+                    case .table:
+                        channelTableMode
                     }
                 }
             } else if selectedZone != nil {
@@ -441,6 +419,149 @@ struct ZoneChannelView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: - Channel List Mode (native List with selection, keyboard nav, drag reorder)
+
+    private var channelListMode: some View {
+        List(selection: $selectedChannelIndex) {
+            ForEach(filteredChannels, id: \.index) { item in
+                let freqString = String(format: "%.4f", item.channel.rxFrequencyMHz)
+                let isHighlighted = highlightMatch(item.channel.name) || highlightMatch(freqString)
+                ParsedChannelRow(channel: item.channel, index: item.index, isHighlighted: isHighlighted)
+                    .tag(item.index)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel("Channel \(item.index + 1): \(item.channel.name)")
+                    .accessibilityHint("Double-tap to edit")
+                    .onTapGesture(count: 2) {
+                        selectedChannelIndex = item.index
+                        showingChannelEditor = true
+                    }
+                    .contextMenu {
+                        channelContextMenu(for: item.index)
+                    }
+            }
+            // Drag-to-reorder is only meaningful when not filtering.
+            .onMove { source, destination in
+                guard searchText.isEmpty else { return }
+                moveChannels(from: source, to: destination)
+            }
+        }
+    }
+
+    // MARK: - Channel Table Mode (sortable power-user table)
+
+    private var channelTableMode: some View {
+        Table(sortedChannelItems, selection: $selectedChannelIndex, sortOrder: $sortOrder) {
+            TableColumn("#", value: \.index) { item in
+                Text("\(item.index + 1)")
+                    .monospacedDigit()
+                    .accessibilityLabel("Channel number \(item.index + 1)")
+            }
+            .width(min: 32, ideal: 40, max: 56)
+
+            TableColumn("Name", value: \.channel.name) { item in
+                Text(item.channel.name)
+            }
+
+            TableColumn("RX", value: \.channel.rxFrequencyMHz) { item in
+                Text(String(format: "%.4f", item.channel.rxFrequencyMHz))
+                    .monospacedDigit()
+                    .accessibilityLabel("Receive \(String(format: "%.4f", item.channel.rxFrequencyMHz)) megahertz")
+            }
+            .width(min: 70, ideal: 80)
+
+            TableColumn("TX", value: \.channel.txFrequencyMHz) { item in
+                // Show offset for repeaters, absolute TX for simplex.
+                if item.channel.rxFrequencyHz != item.channel.txFrequencyHz {
+                    Text(String(format: "%+.4f", item.channel.txOffsetMHz))
+                        .monospacedDigit()
+                        .accessibilityLabel("Transmit offset \(String(format: "%+.4f", item.channel.txOffsetMHz)) megahertz")
+                } else {
+                    Text(String(format: "%.4f", item.channel.txFrequencyMHz))
+                        .monospacedDigit()
+                        .accessibilityLabel("Transmit \(String(format: "%.4f", item.channel.txFrequencyMHz)) megahertz")
+                }
+            }
+            .width(min: 70, ideal: 80)
+
+            TableColumn("Mode", value: \.modeSort) { item in
+                Text(item.channel.isDigital ? "D" : "A")
+                    .accessibilityLabel(item.channel.isDigital ? "Digital" : "Analog")
+            }
+            .width(min: 36, ideal: 44, max: 56)
+
+            TableColumn("CC", value: \.channel.colorCode) { item in
+                Text(item.channel.isDigital ? "\(item.channel.colorCode)" : "—")
+                    .monospacedDigit()
+                    .accessibilityLabel(item.channel.isDigital ? "Color code \(item.channel.colorCode)" : "No color code")
+            }
+            .width(min: 32, ideal: 40, max: 52)
+
+            TableColumn("TS", value: \.channel.timeSlot) { item in
+                Text(item.channel.isDigital ? "\(item.channel.timeSlot)" : "—")
+                    .monospacedDigit()
+                    .accessibilityLabel(item.channel.isDigital ? "Time slot \(item.channel.timeSlot)" : "No time slot")
+            }
+            .width(min: 32, ideal: 40, max: 52)
+
+            TableColumn("Pwr", value: \.powerSort) { item in
+                Text(item.channel.txPowerHigh ? "High" : "Low")
+                    .accessibilityLabel(item.channel.txPowerHigh ? "High power" : "Low power")
+            }
+            .width(min: 44, ideal: 52, max: 64)
+
+            TableColumn("BW", value: \.bandwidthSort) { item in
+                Text(item.channel.bandwidthWide ? "25" : "12.5")
+                    .monospacedDigit()
+                    .accessibilityLabel(item.channel.bandwidthWide ? "25 kilohertz" : "12.5 kilohertz")
+            }
+            .width(min: 44, ideal: 56, max: 72)
+        }
+        .contextMenu(forSelectionType: Int.self) { indices in
+            if let index = indices.first {
+                channelContextMenu(for: index)
+            }
+        } primaryAction: { indices in
+            if let index = indices.first {
+                selectedChannelIndex = index
+                showingChannelEditor = true
+            }
+        }
+    }
+
+    /// Filtered channel items sorted by the active `sortOrder`, wrapped as `Identifiable` for the Table.
+    private var sortedChannelItems: [ChannelRowItem] {
+        let items = filteredChannels.map { ChannelRowItem(index: $0.index, channel: $0.channel) }
+        return items.sorted(using: sortOrder)
+    }
+
+    /// Shared context menu used by both the list and the table.
+    @ViewBuilder
+    private func channelContextMenu(for index: Int) -> some View {
+        Button {
+            selectedChannelIndex = index
+            showingChannelEditor = true
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+
+        Button {
+            if let newIndex = coordinator.cloneChannel(zoneIndex: selectedZoneIndex, channelIndex: index) {
+                selectedChannelIndex = newIndex
+            }
+        } label: {
+            Label("Duplicate Channel", systemImage: "doc.on.doc")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            selectedChannelIndex = index
+            showingDeleteChannelAlert = true
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
     }
 
     private func moveChannels(from source: IndexSet, to destination: Int) {
@@ -587,6 +708,22 @@ struct ZoneChannelView: View {
     }
 }
 
+// MARK: - Channel Row Item (Identifiable wrapper for Table)
+
+/// Identifiable wrapper around an indexed channel so the native `Table`
+/// can use `selection:` bound to the channel index (`id == index`).
+struct ChannelRowItem: Identifiable {
+    let index: Int
+    let channel: ChannelData
+    var id: Int { index }
+
+    // Comparable proxies for Bool-backed columns (Bool isn't Comparable, so
+    // sortable TableColumns can't key on it directly).
+    var modeSort: Int { channel.isDigital ? 1 : 0 }
+    var powerSort: Int { channel.txPowerHigh ? 1 : 0 }
+    var bandwidthSort: Int { channel.bandwidthWide ? 1 : 0 }
+}
+
 // MARK: - Channel Row
 
 struct ParsedChannelRow: View {
@@ -634,15 +771,16 @@ struct ParsedChannelRow: View {
 
             Spacer()
 
-            // Power indicator
-            Text(channel.txPowerHigh ? "H" : "L")
-                .font(.caption.bold())
-                .foregroundStyle(channel.txPowerHigh ? .red : .green)
+            // Power indicator — High is emphasized (accent), Low is quiet (neutral).
+            // Red is reserved app-wide for errors, never for a normal setting.
+            Text(channel.txPowerHigh ? "HIGH" : "LOW")
+                .font(.caption2.bold())
+                .foregroundStyle(channel.txPowerHigh ? Color.accentColor : Color.secondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(channel.txPowerHigh ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
+                    Capsule()
+                        .fill(channel.txPowerHigh ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.12))
                 )
                 .accessibilityLabel(channel.txPowerHigh ? "High power" : "Low power")
         }
@@ -785,14 +923,14 @@ struct ChannelDetailView: View {
 
     private var basicInfoContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Channel Name", value: channel.name)
-            SettingRow("Position", value: "\(channel.channelIndex + 1)")
-            SettingRow("Channel Type", value: channel.channelTypeDisplay)
+            LabeledContent("Channel Name", value: channel.name)
+            LabeledContent("Position", value: "\(channel.channelIndex + 1)")
+            LabeledContent("Channel Type", value: channel.channelTypeDisplay)
                 .help("Analog (conventional FM) or Digital (DMR). Determines which settings apply to this channel.")
-            SettingRow("Bandwidth", value: channel.bandwidthDisplay)
+            LabeledContent("Bandwidth", value: channel.bandwidthDisplay)
                 .help("Channel spacing. 12.5 kHz (Narrow) is standard for Part 90 since 2013. Only use 25 kHz (Wide) if required by your system.")
             if !channel.voiceAnnouncement.isEmpty {
-                SettingRow("Voice Announcement", value: channel.voiceAnnouncement)
+                LabeledContent("Voice Announcement", value: channel.voiceAnnouncement)
             }
         }
         .padding(.leading, 24)
@@ -803,18 +941,18 @@ struct ChannelDetailView: View {
 
     private var frequencyContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("RX Frequency", value: String(format: "%.5f MHz", channel.rxFrequencyMHz))
+            LabeledContent("RX Frequency", value: String(format: "%.5f MHz", channel.rxFrequencyMHz))
                 .help("Receive frequency -- the frequency your radio listens on.")
-            SettingRow("TX Frequency", value: String(format: "%.5f MHz", channel.txFrequencyMHz))
+            LabeledContent("TX Frequency", value: String(format: "%.5f MHz", channel.txFrequencyMHz))
                 .help("Transmit frequency -- the frequency your radio transmits on. Matches RX for simplex; offset for repeater use.")
 
             if channel.rxFrequencyHz != channel.txFrequencyHz {
-                SettingRow("TX Offset", value: String(format: "%+.4f MHz", channel.txOffsetMHz))
+                LabeledContent("TX Offset", value: String(format: "%+.4f MHz", channel.txOffsetMHz))
                     .help("Difference between TX and RX frequencies. Repeaters require an offset so the radio transmits on a different frequency than it receives.")
-                SettingRow("Mode", value: channel.txOffsetMHz > 0 ? "Repeater (+)" : "Repeater (-)")
+                LabeledContent("Mode", value: channel.txOffsetMHz > 0 ? "Repeater (+)" : "Repeater (-)")
                     .help("Repeater mode means the radio uses different TX and RX frequencies to communicate through a repeater station. Simplex uses the same frequency for both.")
             } else {
-                SettingRow("Mode", value: "Simplex")
+                LabeledContent("Mode", value: "Simplex")
                     .help("Simplex means the radio transmits and receives on the same frequency -- direct radio-to-radio communication without a repeater.")
             }
         }
@@ -826,13 +964,13 @@ struct ChannelDetailView: View {
 
     private var powerTimingContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("TX Power", value: channel.powerDisplay)
+            LabeledContent("TX Power", value: channel.powerDisplay)
                 .help("Transmit power level. High increases range but drains battery faster. Low is sufficient for short-range or indoor use.")
-            SettingRow("RX Only", value: channel.rxOnly ? "Enabled" : "Disabled")
+            LabeledContent("RX Only", value: channel.rxOnly ? "Enabled" : "Disabled")
                 .help("When enabled, the radio can only receive on this channel -- transmitting is blocked.")
-            SettingRow("TOT Timeout", value: "\(channel.totTimeout) seconds")
+            LabeledContent("TOT Timeout", value: "\(channel.totTimeout) seconds")
                 .help("Timeout Timer -- limits continuous transmission time to prevent accidental channel blockage.")
-            SettingRow("Allow Talkaround", value: channel.allowTalkaround ? "Enabled" : "Disabled")
+            LabeledContent("Allow Talkaround", value: channel.allowTalkaround ? "Enabled" : "Disabled")
                 .help("Talkaround lets the radio transmit on the receive frequency to bypass the repeater for direct radio-to-radio communication.")
         }
         .padding(.leading, 24)
@@ -843,15 +981,15 @@ struct ChannelDetailView: View {
 
     private var digitalSettingsContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Color Code", value: "\(channel.colorCode)")
+            LabeledContent("Color Code", value: "\(channel.colorCode)")
                 .help("DMR Color Code (0-15) separates radio systems on the same frequency. All radios in the same system must use the same Color Code.")
-            SettingRow("Time Slot", value: "Slot \(channel.timeSlot)")
+            LabeledContent("Time Slot", value: "Slot \(channel.timeSlot)")
                 .help("DMR Time Slot (1 or 2). DMR divides a frequency into two time slots, doubling capacity. Check your repeater's plan for the correct slot.")
-            SettingRow("Contact ID", value: channel.contactID > 0 ? "\(channel.contactID)" : "None")
+            LabeledContent("Contact ID", value: channel.contactID > 0 ? "\(channel.contactID)" : "None")
                 .help("The DMR ID of the talk group or individual contact this channel calls by default when you press PTT.")
-            SettingRow("Contact Type", value: channel.contactTypeDisplay)
+            LabeledContent("Contact Type", value: channel.contactTypeDisplay)
                 .help("Group Call broadcasts to a talk group. Private Call goes to one radio. All Call reaches every radio on the channel.")
-            SettingRow("RX Group List", value: channel.rxGroupListID > 0 ? "List \(channel.rxGroupListID)" : "None")
+            LabeledContent("RX Group List", value: channel.rxGroupListID > 0 ? "List \(channel.rxGroupListID)" : "None")
                 .help("RX Group List defines which talk groups this channel will receive. Without one, you only hear the default contact.")
         }
         .padding(.leading, 24)
@@ -862,19 +1000,19 @@ struct ChannelDetailView: View {
 
     private var advancedDigitalContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Inbound Color Code", value: "\(channel.inboundColorCode)")
+            LabeledContent("Inbound Color Code", value: "\(channel.inboundColorCode)")
                 .help("Color Code used for incoming transmissions. Usually matches the main Color Code unless the repeater uses asymmetric routing.")
-            SettingRow("Outbound Color Code", value: "\(channel.outboundColorCode)")
+            LabeledContent("Outbound Color Code", value: "\(channel.outboundColorCode)")
                 .help("Color Code used for outgoing transmissions. Usually matches the main Color Code.")
-            SettingRow("Dual Capacity Direct Mode", value: channel.dualCapacityDirectMode ? "Enabled" : "Disabled")
+            LabeledContent("Dual Capacity Direct Mode", value: channel.dualCapacityDirectMode ? "Enabled" : "Disabled")
                 .help("DCDM allows two simultaneous DMR conversations on the same frequency in simplex mode by using both time slots.")
-            SettingRow("Timing Leader Preference", value: channel.timingLeaderDisplay)
+            LabeledContent("Timing Leader Preference", value: channel.timingLeaderDisplay)
                 .help("Controls which radio drives timing in a direct DMR call. Set to Leader if this radio should establish timing; Follower if it should sync to another.")
-            SettingRow("Extended Range Direct Mode", value: channel.extendedRangeDirectMode ? "Enabled" : "Disabled")
+            LabeledContent("Extended Range Direct Mode", value: channel.extendedRangeDirectMode ? "Enabled" : "Disabled")
                 .help("ERDM increases simplex range by using a different modulation technique at the cost of reduced audio quality.")
-            SettingRow("Window Size", value: "\(channel.windowSize)")
-            SettingRow("Compressed UDP Header", value: channel.compressedUDPHeader ? "Enabled" : "Disabled")
-            SettingRow("Text Message Type", value: channel.textMessageType == 0 ? "DMR Standard" : "MOTOTRBO")
+            LabeledContent("Window Size", value: "\(channel.windowSize)")
+            LabeledContent("Compressed UDP Header", value: channel.compressedUDPHeader ? "Enabled" : "Disabled")
+            LabeledContent("Text Message Type", value: channel.textMessageType == 0 ? "DMR Standard" : "MOTOTRBO")
                 .help("DMR Standard text messages are compatible with all DMR radios. MOTOTRBO format adds proprietary features but only works with Motorola radios.")
         }
         .padding(.leading, 24)
@@ -885,45 +1023,45 @@ struct ChannelDetailView: View {
 
     private var analogSettingsContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("RX Squelch Type", value: channel.squelchTypeDisplay)
+            LabeledContent("RX Squelch Type", value: channel.squelchTypeDisplay)
                 .help("Squelch suppresses noise when no signal is present. Carrier opens on any signal. CTCSS/DCS only opens when the correct tone or code is received.")
 
             if channel.txCTCSSHz > 0 {
-                SettingRow("TX CTCSS", value: String(format: "%.1f Hz", channel.txCTCSSHz))
+                LabeledContent("TX CTCSS", value: String(format: "%.1f Hz", channel.txCTCSSHz))
                     .help("CTCSS (Continuous Tone-Coded Squelch) -- a subaudible tone sent with your voice to open squelch on receiving radios set to the same tone.")
             } else {
-                SettingRow("TX CTCSS", value: "None")
+                LabeledContent("TX CTCSS", value: "None")
                     .help("CTCSS (Continuous Tone-Coded Squelch) -- a subaudible tone sent with your voice. Set to None if not required by your repeater or group.")
             }
 
             if channel.rxCTCSSHz > 0 {
-                SettingRow("RX CTCSS", value: String(format: "%.1f Hz", channel.rxCTCSSHz))
+                LabeledContent("RX CTCSS", value: String(format: "%.1f Hz", channel.rxCTCSSHz))
                     .help("Receive CTCSS tone -- your radio will only unmute when it receives this specific subaudible tone.")
             } else {
-                SettingRow("RX CTCSS", value: "None")
+                LabeledContent("RX CTCSS", value: "None")
                     .help("Receive CTCSS tone. Set to None to hear all transmissions on this frequency regardless of tone.")
             }
 
             if channel.txDCSCode > 0 {
-                SettingRow("TX DCS", value: String(format: "D%03o", channel.txDCSCode))
+                LabeledContent("TX DCS", value: String(format: "D%03o", channel.txDCSCode))
                     .help("DCS (Digital-Coded Squelch) -- a digital code sent below the voice to selectively open squelch. Similar to CTCSS but uses digital data.")
             } else {
-                SettingRow("TX DCS", value: "None")
+                LabeledContent("TX DCS", value: "None")
                     .help("DCS (Digital-Coded Squelch) -- a digital alternative to CTCSS. Set to None if not required.")
             }
 
             if channel.rxDCSCode > 0 {
-                SettingRow("RX DCS", value: String(format: "D%03o", channel.rxDCSCode))
+                LabeledContent("RX DCS", value: String(format: "D%03o", channel.rxDCSCode))
                     .help("Receive DCS code -- your radio will only unmute when it receives this specific digital code.")
             } else {
-                SettingRow("RX DCS", value: "None")
+                LabeledContent("RX DCS", value: "None")
             }
 
-            SettingRow("DCS Invert", value: channel.dcsInvert ? "Enabled" : "Disabled")
+            LabeledContent("DCS Invert", value: channel.dcsInvert ? "Enabled" : "Disabled")
                 .help("DCS polarity. Normal (N) or Inverted (I) must match the repeater or other radio.")
-            SettingRow("Scramble", value: channel.scrambleEnabled ? "Enabled" : "Disabled")
+            LabeledContent("Scramble", value: channel.scrambleEnabled ? "Enabled" : "Disabled")
                 .help("Analog voice scrambling provides basic privacy by inverting the audio. Not true encryption -- it can be defeated with readily available equipment.")
-            SettingRow("Voice Emphasis", value: channel.voiceEmphasis ? "Enabled" : "Disabled")
+            LabeledContent("Voice Emphasis", value: channel.voiceEmphasis ? "Enabled" : "Disabled")
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
@@ -933,19 +1071,19 @@ struct ChannelDetailView: View {
 
     private var privacyContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Privacy Type", value: channel.privacyTypeDisplay)
+            LabeledContent("Privacy Type", value: channel.privacyTypeDisplay)
                 .help("Privacy scrambles transmissions. Basic Privacy is obfuscation only. Enhanced/AES provides stronger protection. All radios must use the same type and key.")
 
             if channel.privacyType > 0 {
-                SettingRow("Privacy Key", value: "\(channel.privacyKey)")
+                LabeledContent("Privacy Key", value: "\(channel.privacyKey)")
                     .help("The encryption key index. All radios in the group must use the same key number to communicate.")
                 if !channel.privacyAlias.isEmpty {
-                    SettingRow("Privacy Alias", value: channel.privacyAlias)
+                    LabeledContent("Privacy Alias", value: channel.privacyAlias)
                 }
-                SettingRow("Fixed Key Decryption", value: channel.fixedPrivacyKeyDecryption ? "Enabled" : "Disabled")
+                LabeledContent("Fixed Key Decryption", value: channel.fixedPrivacyKeyDecryption ? "Enabled" : "Disabled")
             }
 
-            SettingRow("Ignore RX Clear Voice", value: channel.ignoreRxClearVoice ? "Enabled" : "Disabled")
+            LabeledContent("Ignore RX Clear Voice", value: channel.ignoreRxClearVoice ? "Enabled" : "Disabled")
                 .help("When enabled and privacy is active, the radio ignores unencrypted voice on this channel.")
         }
         .padding(.leading, 24)
@@ -956,19 +1094,19 @@ struct ChannelDetailView: View {
 
     private var signalingContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("ARS", value: channel.arsEnabled ? "Enabled" : "Disabled")
+            LabeledContent("ARS", value: channel.arsEnabled ? "Enabled" : "Disabled")
                 .help("ARS (Automatic Registration Service) automatically registers the radio with the system when it powers on or changes channels.")
-            SettingRow("Enhanced GNSS", value: channel.enhancedGNSSEnabled ? "Enabled" : "Disabled")
+            LabeledContent("Enhanced GNSS", value: channel.enhancedGNSSEnabled ? "Enabled" : "Disabled")
                 .help("Enhanced GNSS uses multiple satellite systems (GPS, GLONASS, Galileo, BeiDou) for faster and more accurate position fixes.")
-            SettingRow("Lone Worker", value: channel.loneWorker ? "Enabled" : "Disabled")
+            LabeledContent("Lone Worker", value: channel.loneWorker ? "Enabled" : "Disabled")
                 .help("Lone Worker periodically prompts the user to confirm they are safe. If no response, the radio raises an alert.")
-            SettingRow("Emergency Alarm Ack", value: channel.emergencyAlarmAck ? "Enabled" : "Disabled")
-            SettingRow("TX Interrupt", value: channel.txInterruptType == 0 ? "Disabled" : "Always Allow")
+            LabeledContent("Emergency Alarm Ack", value: channel.emergencyAlarmAck ? "Enabled" : "Disabled")
+            LabeledContent("TX Interrupt", value: channel.txInterruptType == 0 ? "Disabled" : "Always Allow")
                 .help("TX Interrupt allows a higher-priority call to interrupt an ongoing transmission on this channel.")
-            SettingRow("ARTS", value: channel.artsEnabled ? "Enabled" : "Disabled")
+            LabeledContent("ARTS", value: channel.artsEnabled ? "Enabled" : "Disabled")
                 .help("ARTS (Auto-Range Transpond System) periodically checks if another radio is within communication range and alerts if contact is lost.")
             if !channel.rasAlias.isEmpty {
-                SettingRow("RAS Alias", value: channel.rasAlias)
+                LabeledContent("RAS Alias", value: channel.rasAlias)
             }
         }
         .padding(.leading, 24)
@@ -979,9 +1117,9 @@ struct ChannelDetailView: View {
 
     private var scanningContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Scan List", value: channel.scanListID > 0 ? "List \(channel.scanListID)" : "None")
+            LabeledContent("Scan List", value: channel.scanListID > 0 ? "List \(channel.scanListID)" : "None")
                 .help("Scan List is a group of channels the radio cycles through to monitor for activity. Assign one to enable scanning from this channel.")
-            SettingRow("Auto Scan", value: channel.autoScan ? "Enabled" : "Disabled")
+            LabeledContent("Auto Scan", value: channel.autoScan ? "Enabled" : "Disabled")
                 .help("When enabled, the radio automatically begins scanning when switched to this channel.")
         }
         .padding(.leading, 24)
@@ -992,38 +1130,15 @@ struct ChannelDetailView: View {
 
     private var mototrboContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("MOTOTRBO Link", value: channel.mototrboLinkEnabled ? "Enabled" : "Disabled")
-            SettingRow("OTA Battery Management", value: channel.otaBatteryManagement ? "Enabled" : "Disabled")
-            SettingRow("Audio Enhancement", value: channel.audioEnhancement ? "Enabled" : "Disabled")
+            LabeledContent("MOTOTRBO Link", value: channel.mototrboLinkEnabled ? "Enabled" : "Disabled")
+            LabeledContent("OTA Battery Management", value: channel.otaBatteryManagement ? "Enabled" : "Disabled")
+            LabeledContent("Audio Enhancement", value: channel.audioEnhancement ? "Enabled" : "Disabled")
             if !channel.phoneSystem.isEmpty {
-                SettingRow("Phone System", value: channel.phoneSystem)
+                LabeledContent("Phone System", value: channel.phoneSystem)
             }
         }
         .padding(.leading, 24)
         .padding(.vertical, 8)
-    }
-}
-
-// MARK: - Setting Row
-
-struct SettingRow: View {
-    let label: String
-    let value: String
-
-    init(_ label: String, value: String) {
-        self.label = label
-        self.value = value
-    }
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .fontWeight(.medium)
-        }
-        .font(.callout)
     }
 }
 
@@ -1035,9 +1150,13 @@ struct EditableChannelDetailView: View {
     let onUpdate: (ChannelData) -> Void
 
     @State private var editingChannel: ChannelData
-    @State private var rxFrequencyString: String
-    @State private var txFrequencyString: String
     @State private var expandedSections: Set<String> = ["quick", "frequency", "digital"]
+
+    /// Suppresses the field `.onChange` → `onUpdate` echo while we programmatically
+    /// reset `editingChannel` on channel selection. Without this, selecting a
+    /// different channel fires every field's onChange, writing the channel back to
+    /// itself — a spurious "Edit Channel" undo step + false dirty flag.
+    @State private var isSwitchingChannel = false
 
     /// Unique key for the channel to detect when a new channel is selected.
     private var channelKey: String {
@@ -1048,67 +1167,61 @@ struct EditableChannelDetailView: View {
         self.channel = channel
         self.onUpdate = onUpdate
         _editingChannel = State(initialValue: channel)
-        _rxFrequencyString = State(initialValue: String(format: "%.5f", channel.rxFrequencyMHz))
-        _txFrequencyString = State(initialValue: String(format: "%.5f", channel.txFrequencyMHz))
+    }
+
+    /// Propagate a genuine user edit — but never the programmatic reset echo.
+    private func pushUpdate() {
+        guard !isSwitchingChannel else { return }
+        pushUpdate()
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                // MARK: - Quick Edit Section
-                DisclosureGroup(
-                    isExpanded: binding(for: "quick"),
-                    content: { quickEditContent },
-                    label: { sectionHeader("Quick Edit", icon: "pencil.circle") }
-                )
-
-                Divider()
-
-                // MARK: - Frequency Section (Editable)
-                DisclosureGroup(
-                    isExpanded: binding(for: "frequency"),
-                    content: { frequencyEditContent },
-                    label: { sectionHeader("Frequencies", icon: "waveform") }
-                )
-
-                Divider()
-
-                // MARK: - Digital Settings (Editable if digital)
-                if editingChannel.isDigital {
-                    DisclosureGroup(
-                        isExpanded: binding(for: "digital"),
-                        content: { digitalEditContent },
-                        label: { sectionHeader("Digital (DMR)", icon: "antenna.radiowaves.left.and.right") }
-                    )
-
-                    Divider()
-                }
-
-                // MARK: - Power Settings
-                DisclosureGroup(
-                    isExpanded: binding(for: "power"),
-                    content: { powerEditContent },
-                    label: { sectionHeader("Power & Options", icon: "bolt.fill") }
-                )
-
-                Divider()
-
-                // MARK: - Read-only Advanced Info
-                DisclosureGroup(
-                    isExpanded: binding(for: "advanced"),
-                    content: { advancedReadOnlyContent },
-                    label: { sectionHeader("Advanced (Read-Only)", icon: "info.circle") }
-                )
-
-                Spacer(minLength: 20)
+        Form {
+            // MARK: - Quick Edit Section
+            Section(isExpanded: binding(for: "quick")) {
+                quickEditContent
+            } header: {
+                sectionHeader("Quick Edit", icon: "pencil.circle")
             }
-            .padding()
+
+            // MARK: - Frequency Section (Editable)
+            Section(isExpanded: binding(for: "frequency")) {
+                frequencyEditContent
+            } header: {
+                sectionHeader("Frequencies", icon: "waveform")
+            }
+
+            // MARK: - Digital Settings (Editable if digital)
+            if editingChannel.isDigital {
+                Section(isExpanded: binding(for: "digital")) {
+                    digitalEditContent
+                } header: {
+                    sectionHeader("Digital (DMR)", icon: "antenna.radiowaves.left.and.right")
+                }
+            }
+
+            // MARK: - Power Settings
+            Section(isExpanded: binding(for: "power")) {
+                powerEditContent
+            } header: {
+                sectionHeader("Power & Options", icon: "bolt.fill")
+            }
+
+            // MARK: - Read-only Advanced Info
+            Section(isExpanded: binding(for: "advanced")) {
+                advancedReadOnlyContent
+            } header: {
+                sectionHeader("Advanced (Read-Only)", icon: "info.circle")
+            }
         }
+        .formStyle(.grouped)
         .onChange(of: channelKey) { _, _ in
-            // Update when a different channel is selected
+            // Programmatically reset to the newly-selected channel. Suppress the
+            // field onChange echo so this doesn't register as a user edit.
+            isSwitchingChannel = true
             editingChannel = channel
-            rxFrequencyString = String(format: "%.5f", channel.rxFrequencyMHz)
-            txFrequencyString = String(format: "%.5f", channel.txFrequencyMHz)
+            // Clear on the next runloop tick, after the field onChanges have fired.
+            Task { @MainActor in isSwitchingChannel = false }
         }
     }
 
@@ -1140,211 +1253,108 @@ struct EditableChannelDetailView: View {
     // MARK: - Quick Edit Content
 
     private var quickEditContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Channel Name
-            HStack {
-                Text("Name")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
+        Group {
+            LabeledContent("Name") {
                 TextField("Channel Name", text: $editingChannel.name)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit {
-                        onUpdate(editingChannel)
+                        pushUpdate()
                     }
                     .accessibilityLabel("Channel name")
             }
 
             // Channel Type (read-only display)
-            HStack {
-                Text("Type")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
+            LabeledContent("Type") {
                 Text(editingChannel.isDigital ? "Digital (DMR)" : "Analog")
                     .fontWeight(.medium)
             }
         }
-        .padding(.leading, 24)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Frequency Edit Content
 
     private var frequencyEditContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // RX Frequency
-            HStack {
-                Text("RX Freq")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                TextField("RX Frequency", text: $rxFrequencyString)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
-                    .onSubmit {
-                        if let freq = Double(rxFrequencyString) {
-                            editingChannel.rxFrequencyHz = UInt32(freq * 1_000_000)
-                            onUpdate(editingChannel)
-                        }
-                    }
-                    .accessibilityLabel("Receive frequency in MHz")
-                Text("MHz")
-                    .foregroundStyle(.secondary)
-            }
+        Group {
+            FrequencyInput(frequencyHz: $editingChannel.rxFrequencyHz, label: "RX Freq")
+                .onChange(of: editingChannel.rxFrequencyHz) { _, _ in
+                    pushUpdate()
+                }
 
-            // TX Frequency
-            HStack {
-                Text("TX Freq")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                TextField("TX Frequency", text: $txFrequencyString)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 120)
-                    .onSubmit {
-                        if let freq = Double(txFrequencyString) {
-                            editingChannel.txFrequencyHz = UInt32(freq * 1_000_000)
-                            onUpdate(editingChannel)
-                        }
-                    }
-                    .accessibilityLabel("Transmit frequency in MHz")
-                Text("MHz")
-                    .foregroundStyle(.secondary)
-            }
+            FrequencyInput(frequencyHz: $editingChannel.txFrequencyHz, label: "TX Freq")
+                .onChange(of: editingChannel.txFrequencyHz) { _, _ in
+                    pushUpdate()
+                }
 
             // Offset (read-only calculated)
             if editingChannel.rxFrequencyHz != editingChannel.txFrequencyHz {
-                HStack {
-                    Text("Offset")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 100, alignment: .leading)
+                LabeledContent("Offset") {
                     Text(String(format: "%+.4f MHz", editingChannel.txOffsetMHz))
                         .fontWeight(.medium)
                 }
             }
         }
-        .padding(.leading, 24)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Digital Edit Content
 
     private var digitalEditContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Color Code
-            HStack {
-                Text("Color Code")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                Picker("", selection: $editingChannel.colorCode) {
-                    ForEach(0...15, id: \.self) { cc in
-                        Text("\(cc)").tag(cc)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 80)
+        Group {
+            ColorCodePicker(colorCode: $editingChannel.colorCode)
                 .onChange(of: editingChannel.colorCode) { _, _ in
-                    onUpdate(editingChannel)
+                    pushUpdate()
                 }
-                .accessibilityLabel("Color code")
-            }
 
-            // Time Slot
-            HStack {
-                Text("Time Slot")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                Picker("", selection: $editingChannel.timeSlot) {
-                    Text("TS1").tag(1)
-                    Text("TS2").tag(2)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 100)
+            TimeslotPicker(timeslot: $editingChannel.timeSlot)
                 .onChange(of: editingChannel.timeSlot) { _, _ in
-                    onUpdate(editingChannel)
+                    pushUpdate()
                 }
-                .accessibilityLabel("Time slot")
-            }
 
-            // Contact ID
-            HStack {
-                Text("Contact ID")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
+            LabeledContent("Contact ID") {
                 TextField("Contact ID", value: $editingChannel.contactID, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
                     .onSubmit {
-                        onUpdate(editingChannel)
+                        pushUpdate()
                     }
                     .accessibilityLabel("Contact ID")
             }
         }
-        .padding(.leading, 24)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Power Edit Content
 
     private var powerEditContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // TX Power
-            HStack {
-                Text("TX Power")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                Picker("", selection: $editingChannel.txPowerHigh) {
-                    Text("High").tag(true)
-                    Text("Low").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 100)
+        Group {
+            PowerPicker(highPower: $editingChannel.txPowerHigh)
                 .onChange(of: editingChannel.txPowerHigh) { _, _ in
-                    onUpdate(editingChannel)
+                    pushUpdate()
                 }
-                .accessibilityLabel("Transmit power")
-            }
 
-            // Bandwidth
-            HStack {
-                Text("Bandwidth")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 100, alignment: .leading)
-                Picker("", selection: $editingChannel.bandwidthWide) {
-                    Text("12.5 kHz").tag(false)
-                    Text("25 kHz").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 140)
+            BandwidthPicker(wideband: $editingChannel.bandwidthWide)
                 .onChange(of: editingChannel.bandwidthWide) { _, _ in
-                    onUpdate(editingChannel)
+                    pushUpdate()
                 }
-                .accessibilityLabel("Bandwidth")
-            }
 
-            // RX Only
-            Toggle(isOn: $editingChannel.rxOnly) {
-                Text("RX Only")
-                    .foregroundStyle(.secondary)
-            }
-            .onChange(of: editingChannel.rxOnly) { _, _ in
-                onUpdate(editingChannel)
-            }
-            .accessibilityLabel("Receive only mode")
+            Toggle("RX Only", isOn: $editingChannel.rxOnly)
+                .onChange(of: editingChannel.rxOnly) { _, _ in
+                    pushUpdate()
+                }
+                .accessibilityLabel("Receive only mode")
         }
-        .padding(.leading, 24)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Advanced Read-Only Content
 
     private var advancedReadOnlyContent: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingRow("Position", value: "\(editingChannel.channelIndex + 1)")
-            SettingRow("TOT Timeout", value: "\(editingChannel.totTimeout) seconds")
-            SettingRow("Allow Talkaround", value: editingChannel.allowTalkaround ? "Enabled" : "Disabled")
+            LabeledContent("Position", value: "\(editingChannel.channelIndex + 1)")
+            LabeledContent("TOT Timeout", value: "\(editingChannel.totTimeout) seconds")
+            LabeledContent("Allow Talkaround", value: editingChannel.allowTalkaround ? "Enabled" : "Disabled")
             if editingChannel.isDigital {
-                SettingRow("RX Group List", value: "\(editingChannel.rxGroupListID)")
-                SettingRow("Privacy", value: editingChannel.privacyType == 0 ? "None" : "Enabled")
+                LabeledContent("RX Group List", value: "\(editingChannel.rxGroupListID)")
+                LabeledContent("Privacy", value: editingChannel.privacyType == 0 ? "None" : "Enabled")
             }
-            SettingRow("Auto Scan", value: editingChannel.autoScan ? "Enabled" : "Disabled")
+            LabeledContent("Auto Scan", value: editingChannel.autoScan ? "Enabled" : "Disabled")
 
             Text("Use 'More Options' for additional settings")
                 .font(.caption)

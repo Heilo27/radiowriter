@@ -86,4 +86,8 @@ public enum FieldCategory: String, CaseIterable, Sendable {
     case bluetooth = "Bluetooth"
     case voicePrompts = "Voice Prompts"
     case advanced = "Advanced"
+    /// Raw ISH record dump from a live radio read. Shown only when a codeplug
+    /// has been read from hardware and carries un-decoded ISH records — the
+    /// discovery view used to map (partition,type,id) tuples to logical sections.
+    case diagnostics = "Diagnostics"
 }

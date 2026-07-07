@@ -32,25 +32,98 @@ struct ContentView: View {
         }
         .navigationTitle(windowTitle)
         .toolbar { toolbarContent }
+        .safeAreaInset(edge: .bottom) { statusStrip }
+        .onChange(of: visibleCategories) { _, cats in
+            // Keep the selection valid: if the current category is no longer in the
+            // sidebar (e.g. after a radio read narrows the list), snap to the first
+            // available one so the content area never shows a section with no row.
+            if let sel = selectedCategory, !cats.contains(sel) {
+                selectedCategory = cats.first
+            } else if selectedCategory == nil {
+                selectedCategory = cats.first
+            }
+        }
+    }
+
+    // MARK: - Status Strip
+
+    /// A slim ambient status bar. Turns invisible model state (dirty / backup /
+    /// validation / write-readiness) into at-a-glance confidence without opening
+    /// the inspector.
+    private var statusStrip: some View {
+        HStack(spacing: 14) {
+            // Edited / saved
+            Label(
+                coordinator.hasUnsavedChanges ? "Edited" : "Saved",
+                systemImage: coordinator.hasUnsavedChanges ? "pencil" : "checkmark"
+            )
+            .foregroundStyle(coordinator.hasUnsavedChanges ? Color.orange : Color.secondary)
+
+            Divider().frame(height: 12)
+
+            // Backup
+            Label(
+                coordinator.lastBackupURL != nil ? "Backed up" : "No backup",
+                systemImage: coordinator.lastBackupURL != nil ? "checkmark.shield" : "shield.slash"
+            )
+            .foregroundStyle(coordinator.lastBackupURL != nil ? Color.secondary : Color.orange)
+
+            Divider().frame(height: 12)
+
+            // Validation
+            if let result = coordinator.validationResult {
+                Label(
+                    result.issues.isEmpty ? "Validated" : "\(result.issues.count) issue\(result.issues.count == 1 ? "" : "s")",
+                    systemImage: result.issues.isEmpty ? "checkmark.seal"
+                        : (result.hasErrors ? "exclamationmark.triangle" : "info.circle")
+                )
+                .foregroundStyle(result.issues.isEmpty ? Color.secondary : (result.hasErrors ? Color.red : Color.orange))
+            } else {
+                Label("Not validated", systemImage: "seal")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Write-readiness — the honest signal about whether Write will work.
+            writeReadinessLabel
+        }
+        .font(.caption)
+        .labelStyle(.titleAndIcon)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    @ViewBuilder
+    private var writeReadinessLabel: some View {
+        switch coordinator.writeReadiness {
+        case .ready:
+            Label("Ready to write", systemImage: "arrow.up.circle.fill")
+                .foregroundStyle(.green)
+        case .noRadio:
+            Label("Connect a radio to write", systemImage: "cable.connector.slash")
+                .foregroundStyle(.secondary)
+        case .readOnly:
+            Label("Read-only (zones/channels)", systemImage: "lock")
+                .foregroundStyle(.secondary)
+        case .noData:
+            Label("Nothing to write", systemImage: "tray")
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Sidebar
 
     private var sidebar: some View {
         List(selection: $selectedCategory) {
-            if let codeplug = document?.codeplug,
-               let model = RadioModelRegistry.model(for: codeplug.modelIdentifier) {
-                ForEach(model.nodes, id: \.id) { node in
-                    Label(node.displayName, systemImage: iconForCategory(node.category))
-                        .tag(node.category)
-                        .accessibilityIdentifier("sidebar.\(node.category.rawValue)")
-                }
-            } else {
-                ForEach(FieldCategory.allCases, id: \.self) { category in
-                    Label(category.rawValue, systemImage: iconForCategory(category))
-                        .tag(category)
-                        .accessibilityIdentifier("sidebar.\(category.rawValue)")
-                }
+            // One source of truth: only show categories that actually resolve to a
+            // usable editor for the current data. No dead-end "not available" clicks.
+            ForEach(visibleCategories, id: \.self) { category in
+                Label(labelForCategory(category), systemImage: iconForCategory(category))
+                    .tag(category)
+                    .accessibilityIdentifier("sidebar.\(category.rawValue)")
             }
         }
         .listStyle(.sidebar)
@@ -76,6 +149,8 @@ struct ContentView: View {
                 RxGroupListsView()  // RX Group Lists are signaling-related
             case .general:
                 GeneralSettingsView()
+            case .diagnostics:
+                IshRecordInspectorView(records: coordinator.parsedCodeplug?.ishRecordDump ?? [])
             case .some(let category):
                 // For other categories, show placeholder or form editor
                 if let codeplug = document?.codeplug, let doc = document {
@@ -115,36 +190,140 @@ struct ContentView: View {
 
     // MARK: - Inspector
 
+    /// The inspector is the app's ambient information surface: which radio you're
+    /// working with, the state of your edits (unsaved / backed up / validated),
+    /// and context for the current section. Native Form for consistent macOS look.
     private var inspectorPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Inspector")
-                .font(.headline)
-                .padding(.horizontal)
+        Form {
+            radioIdentitySection
+            workingStateSection
+            sectionContext
+        }
+        .formStyle(.grouped)
+        .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+    }
 
-            Divider()
+    /// "Which radio am I working with?" — model, serial, firmware. Sourced from a
+    /// live identification if present, else the parsed codeplug's own header.
+    @ViewBuilder
+    private var radioIdentitySection: some View {
+        let model = coordinator.identifiedRadio?.modelNumber
+            ?? coordinator.parsedCodeplug?.modelNumber
+            ?? document?.modelIdentifier
+        let serial = coordinator.identifiedRadio?.serialNumber
+            ?? nonEmpty(coordinator.parsedCodeplug?.serialNumber)
+        let firmware = coordinator.identifiedRadio?.firmwareVersion
+            ?? nonEmpty(coordinator.parsedCodeplug?.firmwareVersion)
 
-            if let category = selectedCategory {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Category", systemImage: iconForCategory(category))
-                        .font(.subheadline.bold())
+        Section("Radio") {
+            LabeledContent("Model", value: nonEmpty(model) ?? "—")
+            if let serial { LabeledContent("Serial", value: serial) }
+            if let firmware { LabeledContent("Firmware", value: firmware) }
+            if coordinator.detectedDevices.isEmpty {
+                Label("Not connected", systemImage: "cable.connector.slash")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
+    }
 
+    /// The at-a-glance confidence panel: unsaved edits, last backup, validation.
+    @ViewBuilder
+    private var workingStateSection: some View {
+        Section("Working State") {
+            LabeledContent("Changes") {
+                if coordinator.hasUnsavedChanges {
+                    Label("Unsaved", systemImage: "pencil.circle.fill")
+                        .foregroundStyle(.orange)
+                } else {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+
+            LabeledContent("Backup") {
+                if coordinator.lastBackupURL != nil {
+                    Label("Backed up", systemImage: "checkmark.shield.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("None yet", systemImage: "shield.slash")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let result = coordinator.validationResult {
+                LabeledContent("Validation") {
+                    if result.issues.isEmpty {
+                        Label("Passed", systemImage: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        let n = result.issues.count
+                        Label("\(n) issue\(n == 1 ? "" : "s")",
+                              systemImage: result.hasErrors
+                                ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                            .foregroundStyle(result.hasErrors ? .red : .orange)
+                    }
+                }
+            } else {
+                LabeledContent("Validation") {
+                    Text("Not run")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+        }
+    }
+
+    /// Context for whatever section the user is currently viewing.
+    @ViewBuilder
+    private var sectionContext: some View {
+        if let category = selectedCategory {
+            Section(category.rawValue) {
+                Label {
                     Text(helpTextForCategory(category))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: iconForCategory(category))
+                        .foregroundStyle(.tint)
                 }
-                .padding(.horizontal)
             }
-
-            Spacer()
         }
-        .padding(.top)
-        .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 220)
+    }
+
+    private func nonEmpty(_ s: String?) -> String? {
+        guard let s, !s.isEmpty else { return nil }
+        return s
+    }
+
+    /// Explains the Write button's state so a disabled control is never a mystery.
+    private var writeHelpText: String {
+        switch coordinator.writeReadiness {
+        case .ready:
+            return "Write codeplug to the connected radio (⌘⇧W)"
+        case .noRadio:
+            return "Connect a radio to write"
+        case .readOnly:
+            return "Reading zones/channels is read-only for now — open or create a .cpsx profile to write"
+        case .noData:
+            return "Open or create a codeplug to write"
+        }
     }
 
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button {
+                coordinator.closeDocument()
+            } label: {
+                Label("Close", systemImage: "chevron.left")
+            }
+            .help("Close and return to the welcome screen (⌘W)")
+            .accessibilityLabel("Close codeplug and return to welcome screen")
+        }
+
         ToolbarItem(placement: .navigation) {
             RadioStatusIndicator(
                 state: coordinator.connectionState,
@@ -168,23 +347,20 @@ struct ContentView: View {
             Button("Write", systemImage: "arrow.up.to.line") {
                 coordinator.writeToRadioWithBackupPrompt()
             }
-            .disabled(document?.codeplug == nil || coordinator.detectedDevices.isEmpty)
+            .disabled(!coordinator.writeReadiness.canWrite)
             .keyboardShortcut("w", modifiers: [.command, .shift])
             .accessibilityIdentifier("toolbar.write")
             .accessibilityLabel("Write to radio")
-            .help("Write codeplug to connected radio (Cmd+Shift+W)")
+            .help(writeHelpText)
 
-            Menu {
-                Button("Clone Codeplug for Fleet") {
-                    coordinator.cloneCodeplug()
-                }
-                .disabled(coordinator.parsedCodeplug == nil)
-            } label: {
-                Label("Clone", systemImage: "doc.on.doc")
+            Button("Save", systemImage: "square.and.arrow.down") {
+                coordinator.save()
             }
-            .menuStyle(.borderlessButton)
-            .help("Clone codeplug for programming multiple radios")
-            .accessibilityIdentifier("toolbar.clone")
+            .disabled(document?.codeplug == nil)
+            .keyboardShortcut("s", modifiers: [.command])
+            .help("Save codeplug (⌘S)")
+            .accessibilityIdentifier("toolbar.save")
+            .accessibilityLabel("Save codeplug")
         }
 
         ToolbarItem(placement: .automatic) {
@@ -198,6 +374,43 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
+    /// The single source of truth for which categories appear in the sidebar.
+    /// Only lists categories that resolve to a real editor for the current data,
+    /// so no click ever dead-ends on a "not available" placeholder.
+    private var visibleCategories: [FieldCategory] {
+        let hasIshDump = !(coordinator.parsedCodeplug?.ishRecordDump.isEmpty ?? true)
+
+        // A radio read (parsed codeplug) currently decodes only these sections.
+        // A loaded .cpsx document has the full structured model.
+        if coordinator.parsedCodeplug != nil {
+            var cats: [FieldCategory] = [.general, .channel, .contacts, .scan, .signaling]
+            if hasIshDump { cats.append(.diagnostics) }
+            return cats
+        }
+
+        if let codeplug = document?.codeplug,
+           let model = RadioModelRegistry.model(for: codeplug.modelIdentifier) {
+            // File-backed: trust the model's declared nodes, in their order.
+            var cats = model.nodes.map(\.category)
+            if hasIshDump && !cats.contains(.diagnostics) { cats.append(.diagnostics) }
+            return cats
+        }
+
+        // Fallback: everything except Diagnostics (which needs a live read).
+        return FieldCategory.allCases.filter { $0 != .diagnostics || hasIshDump }
+    }
+
+    /// Sidebar label — uses the model's node display name for file-backed docs,
+    /// otherwise the category's own name.
+    private func labelForCategory(_ category: FieldCategory) -> String {
+        if let codeplug = document?.codeplug,
+           let model = RadioModelRegistry.model(for: codeplug.modelIdentifier),
+           let node = model.nodes.first(where: { $0.category == category }) {
+            return node.displayName
+        }
+        return category.rawValue
+    }
+
     private func iconForCategory(_ category: FieldCategory) -> String {
         switch category {
         case .general: return "gearshape"
@@ -209,6 +422,7 @@ struct ContentView: View {
         case .bluetooth: return "headphones"
         case .voicePrompts: return "mic"
         case .advanced: return "wrench.and.screwdriver"
+        case .diagnostics: return "stethoscope"
         }
     }
 
@@ -223,6 +437,7 @@ struct ContentView: View {
         case .bluetooth: return "Bluetooth audio accessory settings."
         case .voicePrompts: return "Custom voice announcements."
         case .advanced: return "Advanced radio parameters."
+        case .diagnostics: return "Raw ISH records read from the radio, for protocol analysis."
         }
     }
 }
@@ -249,11 +464,18 @@ struct RadioStatusIndicator: View {
             }
             Text(statusLabel)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(labelColor)
         }
         .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    /// Error state must read as an error, not muted gray text. Non-error states
+    /// stay quiet so the toolbar isn't noisy.
+    private var labelColor: Color {
+        if case .error = state { return .red }
+        return .secondary
     }
 
     private var statusLabel: String {

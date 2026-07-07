@@ -54,22 +54,30 @@ struct CPSCommands: Commands {
             .accessibilityLabel("Redo last undone change")
         }
 
-        CommandGroup(after: .newItem) {
-            Button("New from Template...") {
-                // Open template picker
+        // Save / Save As — the core persistence commands.
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") {
+                coordinator?.save()
             }
-            .keyboardShortcut("n", modifiers: [.command, .shift])
-            .disabled(true)
-            .accessibilityLabel("Create new profile from template")
+            .keyboardShortcut("s", modifiers: [.command])
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Save codeplug")
+
+            Button("Save As...") {
+                coordinator?.saveAs()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Save codeplug to a new file")
 
             Divider()
 
-            Button("Import Legacy CPS File...") {
-                // Import .cps file
+            Button("Close") {
+                coordinator?.closeDocument()
             }
-            .keyboardShortcut("i", modifiers: [.command, .shift])
-            .disabled(true)
-            .accessibilityLabel("Import legacy CPS codeplug file")
+            .keyboardShortcut("w", modifiers: [.command])
+            .disabled(!hasCodeplug)
+            .accessibilityLabel("Close and return to the welcome screen")
         }
 
         CommandMenu("Radio") {
@@ -90,29 +98,6 @@ struct CPSCommands: Commands {
             .disabled(!canWriteRadio)
             .accessibilityLabel("Write codeplug to connected radio")
             .accessibilityHint(hasCodeplug ? "Uploads the codeplug to the radio" : "Load or read a codeplug first")
-
-            Divider()
-
-            Button("Clone for Fleet") {
-                coordinator?.cloneCodeplug()
-            }
-            .keyboardShortcut("d", modifiers: [.command])
-            .disabled(!hasCodeplug)
-            .accessibilityLabel("Clone codeplug for programming multiple radios")
-
-            Button("Reset Radio") {
-                // Reset
-            }
-            .disabled(true)
-            .accessibilityLabel("Reset radio to factory defaults")
-
-            Divider()
-
-            Button("Compare with Radio...") {
-                // Diff view
-            }
-            .disabled(true)
-            .accessibilityLabel("Compare codeplug with radio contents")
 
             Divider()
 
@@ -187,58 +172,6 @@ struct CPSCommands: Commands {
             }
             .keyboardShortcut("l", modifiers: [.command, .option])
             .accessibilityLabel("Look up DMR IDs from RadioID.net database")
-
-            Button("Frequency Planner") {
-                // Open frequency planner
-            }
-            .keyboardShortcut("f", modifiers: [.command, .option])
-            .disabled(true)
-            .accessibilityLabel("Open frequency planning tool")
-
-            Button("Fleet Overview") {
-                // Open fleet overview
-            }
-            .disabled(true)
-            .accessibilityLabel("View fleet radio overview")
-
-            Divider()
-
-            Button("Generate Report...") {
-                // Generate report
-            }
-            .keyboardShortcut("p", modifiers: [.command, .shift])
-            .disabled(true)
-            .accessibilityLabel("Generate codeplug report")
-
-            Button("Export to XML...") {
-                // Export XML
-            }
-            .disabled(true)
-            .accessibilityLabel("Export codeplug to XML format")
-        }
-
-        // View menu additions
-        CommandGroup(after: .sidebar) {
-            Divider()
-
-            Button("Show Inspector") {
-                // Toggle inspector - would need additional FocusedValue for this
-            }
-            .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(true)
-            .accessibilityLabel("Toggle inspector panel")
-
-            Button("Expand All Sections") {
-                // Expand all disclosure groups
-            }
-            .disabled(true)
-            .accessibilityLabel("Expand all settings sections")
-
-            Button("Collapse All Sections") {
-                // Collapse all disclosure groups
-            }
-            .disabled(true)
-            .accessibilityLabel("Collapse all settings sections")
         }
 
         // Help menu additions
@@ -246,17 +179,10 @@ struct CPSCommands: Commands {
             Divider()
 
             Button("Keyboard Shortcuts") {
-                // Show keyboard shortcuts window
+                coordinator?.showingKeyboardShortcuts = true
             }
             .keyboardShortcut("/", modifiers: [.command])
-            .disabled(true)
             .accessibilityLabel("Show keyboard shortcuts reference")
-
-            Button("Radio Programming Guide") {
-                // Open documentation
-            }
-            .disabled(true)
-            .accessibilityLabel("Open radio programming documentation")
 
             Divider()
 
