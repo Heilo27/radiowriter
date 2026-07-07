@@ -106,35 +106,6 @@ public struct XNLEncryption {
         return decrypted == testData
     }
 
-    /// Prints test vectors for debugging.
-    public static func printTestVectors() {
-        let testInputs: [[UInt8]] = [
-            [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
-            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08],
-            [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
-            [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0],
-        ]
-
-        RadioLog.crypto.debug("XNL Encryption Test Vectors")
-        let keyFormatted = key.map { String(format: "0x%08X", $0) }.joined(separator: ", ")
-        RadioLog.crypto.debug("Key: \(keyFormatted, privacy: .public)")
-        let deltaFormatted = String(format: "%08X", delta)
-        RadioLog.crypto.debug("Delta: 0x\(deltaFormatted, privacy: .public)")
-        RadioLog.crypto.debug("")
-
-        for input in testInputs {
-            let inputData = Data(input)
-            let inputHex = input.map { String(format: "%02X", $0) }.joined(separator: " ")
-
-            if let output = encrypt(inputData) {
-                let outputHex = output.map { String(format: "%02X", $0) }.joined(separator: " ")
-                RadioLog.crypto.debug("Input:  \(inputHex, privacy: .public)")
-                RadioLog.crypto.debug("Output: \(outputHex, privacy: .public)")
-                RadioLog.crypto.debug("")
-            }
-        }
-    }
-
     // MARK: - Radio Key Encryption (TEA-based)
 
     /// Encrypts a 32-byte radio key using TEA in ECB mode.

@@ -52,16 +52,18 @@ public enum RadioPartition: UInt8 {
 }
 
 /// Programming mode actions for RcmpIshProgramMode (0x0106).
-/// From RcmpWrapper.dll
+/// GROUND TRUTH: `IshProgramMode.Actions` in RcmpWrapper.cs. Corrected 2026-07-06 —
+/// Enter/Exit were SWAPPED. The old enter=0x01 was actually ExitWithRadioReset,
+/// and the old exit=0x00 was actually Enter. That swap alone would drop the radio
+/// out of program mode when we meant to enter it.
 public enum ProgramModeAction: UInt8 {
-    case exitProgramMode = 0x00
-    case enterProgramMode = 0x01
-    case enterCloneMode = 0x02
-    case exitWithoutRadioReset = 0x03
-    case enterOtapWriteMode = 0x04
-    case enterOtapReadMode = 0x05
-    case exitOtapModeWithChecksum = 0x06
-    case enterRemoteProgrammingMode = 0x07
+    case enterProgramMode = 0x00          // Enter (was 0x01)
+    case exitWithRadioReset = 0x01        // ExitWithRadioReset (was mis-named exitProgramMode=0x00)
+    case enterCloneMode = 0x02            // EnterCloneMode
+    case exitWithoutRadioReset = 0x03     // ExitWithoutRadioReset
+    case enterOtapWriteMode = 0x04        // OTAP write
+    case enterOtapReadMode = 0x05         // OTAP read
+    case exitOtapModeWithChecksum = 0x06  // ExitOtapChecksum
 }
 
 /// Connection result for XNL authentication.
@@ -1053,7 +1055,7 @@ public actor XNLConnection {
         let enterProgramCmd = Data([
             UInt8(XCMPOpcode.ishProgramMode.rawValue >> 8),
             UInt8(XCMPOpcode.ishProgramMode.rawValue & 0xFF),
-            ProgramModeAction.enterProgramMode.rawValue  // 0x01
+            ProgramModeAction.enterProgramMode.rawValue  // 0x00 (corrected from swapped 0x01)
         ])
 
         guard let programResponse = try? await sendXCMP(enterProgramCmd, timeout: 5.0, debug: debug) else {

@@ -8,60 +8,99 @@ import RadioModelCore
 /// Request codes have the high bit clear, reply codes have 0x8000 OR'd.
 /// Broadcast messages typically have 0xB000 prefix.
 ///
-/// VERIFIED FROM CPS 2.0 CAPTURE (2026-01-30):
-/// - Reading uses 0x0012 (SecurityKey), 0x0010 (Model), 0x000F (Version),
-///   0x0011 (Serial), 0x001F (CodeplugId), 0x002E (CodeplugRead)
-/// - NO programming mode (0x0106) required for reading!
+/// GROUND TRUTH: opcode values corrected 2026-07-06 against the decompiled
+/// CPS 2.0 `Common.Communication.RcmpWrapper.cs` (see
+/// analysis/CPS_VERIFICATION_2026-07-06.md). The earlier "VERIFIED FROM CPS
+/// CAPTURE" names were wrong: 8 constants pointed at the wrong opcode and the
+/// real security-unlock pair (0x0300/0x0301) was missing entirely, which is why
+/// the radio rejected everything with SecurityLocked (6). Names below now match
+/// the C# RcmpWrapper class for each opcode.
 public enum XCMPOpCode: UInt16 {
-    // === VERIFIED WORKING FROM CPS CAPTURE ===
+    // === Device Info Commands (used by CPS for reading) ===
 
-    // Device Info Commands (used by CPS for reading)
-    case versionInfoRequest = 0x000F      // Param: 0x00=full, 0x41=build, P/R/Q variants
+    case versionInfoRequest = 0x000F      // RcmpVersionInfo. Param: 0x00=firmware, 0x41=security, 0x42=codeplug, 0x50=psdt
     case versionInfoReply = 0x800F
-    case modelNumberRequest = 0x0010      // Param: 0x00
+    case modelNumberRequest = 0x0010      // RcmpModelNumber. Param: 0x00
     case modelNumberReply = 0x8010
-    case serialNumberRequest = 0x0011     // Param: 0x00
+    case serialNumberRequest = 0x0011     // RcmpSerialNumber. Param: 0x00
     case serialNumberReply = 0x8011
-    case securityKeyRequest = 0x0012      // No params - returns 16-byte session key
-    case securityKeyReply = 0x8012
-    case codeplugIdRequest = 0x001F       // Params: 0x00 0x00
-    case codeplugIdReply = 0x801F
+    case readUUIDRequest = 0x0012         // RcmpReadUUID (was mis-named securityKeyRequest). Returns radio UUID.
+    case readUUIDReply = 0x8012
+    case tanapaNumberRequest = 0x001F     // RcmpTanapaNumber (was mis-named codeplugIdRequest, RcmpWrapper:5582)
+    case tanapaNumberReply = 0x801F
 
-    // Codeplug Read (record-based, NOT linear addressing!)
-    case codeplugReadRequest = 0x002E     // Record list format
-    case codeplugReadReply = 0x802E
+    // Codeplug Read — XcmpSuperBundle (RcmpWrapper:17556), record-based, NOT linear addressing.
+    case superBundleRequest = 0x002E      // XcmpSuperBundle: wraps ISH read items. (was codeplugReadRequest)
+    case superBundleReply = 0x802E
 
-    // Status Commands
-    case statusFlagsRequest = 0x003D      // Params: 0x00 0x00
-    case statusFlagsReply = 0x803D
-    case featureSetRequest = 0x0037       // 3 bytes params
-    case featureSetReply = 0x8037
+    // === Status / attribute commands ===
+
+    case secureConnectRequest = 0x003D    // XcmpSecureConnect (was mis-named statusFlagsRequest, RcmpWrapper:17194)
+    case secureConnectReply = 0x803D
+    case codeplugAttributeRequest = 0x0037 // XcmpCodeplugAttribute (was mis-named featureSetRequest AND was also at 0x0025; real opcode is 0x0037, RcmpWrapper:15321)
+    case codeplugAttributeReply = 0x8037
     case languagePackRequest = 0x002C     // 1 byte param
     case languagePackReply = 0x802C
 
-    // === LEGACY/UNVERIFIED OPCODES ===
-
-    // Status and Info (0x000E)
+    // Status and Info (0x000E) — RcmpDeviceInitStatus / radio status
     case radioStatusRequest = 0x000E
     case radioStatusReply = 0x800E
 
-    // Codeplug Attributes (0x0025)
-    case codeplugAttributeRequest = 0x0025
-    case codeplugAttributeReply = 0x8025
+    // Remote Disconnect (0x0025) — RcmpRemoteDisconnect (was mis-named codeplugAttributeRequest, RcmpWrapper:8269)
+    case remoteDisconnectRequest = 0x0025
+    case remoteDisconnectReply = 0x8025
 
-    // CPS Operations (0x0100-0x010F) - May be for WRITE only
-    case cpsUnlockRequest = 0x0100
-    case cpsUnlockReply = 0x8100
-    case cpsReadRequest = 0x0104
-    case cpsReadReply = 0x8104
-    case ishSessionStart = 0x0105          // Session start - returns available record IDs
-    case ishSessionStartReply = 0x8105
-    case ishProgramModeRequest = 0x0106   // May only be needed for writes
+    // === ISH (Item Storage Header) codeplug family (RcmpWrapper) ===
+    // These are the REAL codeplug read/write primitives, bundled inside
+    // XcmpSuperBundle (0x002E). The ISH read-walk itself is owned by the
+    // read-path agent; these constants give it the correct opcodes.
+    case readIshItemRequest = 0x0100      // RcmpReadIshItem (was mis-named cpsUnlockRequest, RcmpWrapper:11220)
+    case readIshItemReply = 0x8100
+    case writeIshItemRequest = 0x0101     // RcmpWriteIshItem (RcmpWrapper:14884)
+    case writeIshItemReply = 0x8101
+    case deleteIshIDsRequest = 0x0102     // RcmpDeleteIshIDs (RcmpWrapper:10109)
+    case deleteIshIDsReply = 0x8102
+    case ishDeleteTypeRequest = 0x0103    // XcmpISHDeleteType (RcmpWrapper:16994)
+    case ishDeleteTypeReply = 0x8103
+    case readIshIDSetRequest = 0x0104     // RcmpReadIshIDSet (was mis-named cpsReadRequest, RcmpWrapper:10802)
+    case readIshIDSetReply = 0x8104
+    case readIshTypeSetRequest = 0x0105   // RcmpReadIshTypeSet (was mis-named ishSessionStart, RcmpWrapper:11823)
+    case readIshTypeSetReply = 0x8105
+    case ishProgramModeRequest = 0x0106   // RcmpIshProgramMode (action byte, RcmpWrapper)
     case ishProgramModeReply = 0x8106
+    case ishReorgControlRequest = 0x0107  // RcmpIshReorgControl (RcmpWrapper:10449)
+    case ishReorgControlReply = 0x8107
+    case ishUnlockPartitionRequest = 0x0108 // RcmpIshUnlockPartition (RcmpWrapper:10601)
+    case ishUnlockPartitionReply = 0x8108
 
-    // Clone Operations (0x010A)
-    case cloneReadRequest = 0x010A
-    case cloneReadReply = 0x810A
+    // === Security unlock handshake (RcmpWrapper:11622 / 14214) ===
+    // THE fix for "radio rejects everything". Two-step:
+    //   1. readRadioKey (0x0300) — bare opcode, reply carries a 32-byte key.
+    //   2. unlockSecurity (0x0301) — payload = TEA-encrypted 32-byte key.
+    // NOTE: the live handshake is implemented in XNLConnection.initialize();
+    // these constants exist so both layers share one source of truth.
+    case readRadioKeyRequest = 0x0300     // RcmpReadRadioKey (RcmpWrapper:11622)
+    case readRadioKeyReply = 0x8300
+    case unlockSecurityRequest = 0x0301   // RcmpUnlockSecurity (RcmpWrapper:14214)
+    case unlockSecurityReply = 0x8301
+
+    // === FABRICATED — NOT IN CPS 2.0. DO NOT SEND TO HARDWARE. (2026-07-06) ===
+    // 0x010A does NOT exist in RcmpWrapper.cs. The entire cloneRead* subsystem
+    // (readChannelData / getChannelName / cloneRead(...) and the CloneRead*
+    // factories below) is built on this bogus opcode. Real codeplug reads use
+    // RcmpReadIshItem (0x0100) bundled inside XcmpSuperBundle (0x002E).
+    // Retained ONLY so the read path compiles; the read-path agent OWNS
+    // replacing this whole subsystem with the ISH read-walk. Until then, these
+    // reads will fail on a real radio.
+    case cloneReadRequest = 0x010A   // FABRICATED — remove when ISH read-walk lands
+    case cloneReadReply = 0x810A     // FABRICATED — remove when ISH read-walk lands
+
+    // === REMOVED — fabricated opcodes not present in CPS 2.0 (2026-07-06) ===
+    //   - radioPowerRequest/Reply 0x040A
+    //   - alarmStatusRequest/Reply 0x042E
+    //   - channelSelectRequest/Reply 0x040D
+    //   - deviceInitStatusBroadcast 0xB400
+    // Left out entirely — no known caller. Any new reference must fail to compile.
 
     // PSDT Access (0x010B)
     case psdtAccessRequest = 0x010B
@@ -88,17 +127,9 @@ public enum XCMPOpCode: UInt16 {
     case eraseFlashRequest = 0x0203
     case eraseFlashReply = 0x8203
 
-    // Power Control (0x040A)
-    case radioPowerRequest = 0x040A
-    case radioPowerReply = 0x840A
-
-    // Channel/Zone Selection (0x040D)
-    case channelSelectRequest = 0x040D
-    case channelSelectReply = 0x840D
-
-    // Alarm (0x042E)
-    case alarmStatusRequest = 0x042E
-    case alarmStatusReply = 0x842E
+    // REMOVED — fabricated, not in CPS 2.0 (2026-07-06):
+    //   radioPowerRequest/Reply 0x040A, channelSelectRequest/Reply 0x040D,
+    //   alarmStatusRequest/Reply 0x042E.
 
     // Data Transfer (0x0446)
     case transferDataRequest = 0x0446
@@ -108,8 +139,8 @@ public enum XCMPOpCode: UInt16 {
     case moduleInfoRequest = 0x0461
     case moduleInfoReply = 0x8461
 
-    // Device Management
-    case deviceInitStatusBroadcast = 0xB400
+    // REMOVED — fabricated, not in CPS 2.0 (2026-07-06):
+    //   deviceInitStatusBroadcast 0xB400.
 
     /// Returns the expected reply opcode for a request.
     public var replyOpCode: XCMPOpCode? {
@@ -138,11 +169,13 @@ public enum XCMPStatusType: UInt8 {
 }
 
 /// Version info types for VersionInfoRequest (0x000F).
+/// GROUND TRUTH: `VersionInfoType` in RcmpWrapper.cs:14305. Corrected 2026-07-06 —
+/// the old codeplug=0x0F was fabricated and codeplugCPS/bootloader were mislabeled.
 public enum XCMPVersionType: UInt8 {
-    case firmware = 0x00
-    case codeplug = 0x0F
-    case codeplugCPS = 0x41  // Used in CPS mode
-    case bootloader = 0x50
+    case firmware = 0x00        // HostSoftwareVersion
+    case securityVersion = 0x41 // SecurityVersion (was mis-named codeplugCPS)
+    case codeplug = 0x42        // CodeplugVersion (was 0x0F, wrong)
+    case psdtVersion = 0x50     // PsdtVersion (was mis-named bootloader)
 }
 
 // MARK: - Clone Data Types
@@ -395,13 +428,24 @@ public enum CloneDataType: UInt8 {
 // MARK: - XCMP Error Codes
 
 /// XCMP error codes returned in reply packets.
-public enum XCMPErrorCode: UInt8 {
+/// GROUND TRUTH: `RcmpReplyResult` in RcmpWrapper.cs:3703. Corrected 2026-07-06 —
+/// the previous table was shifted and could not represent SecurityLocked (6),
+/// which is the exact error the radio returns when unlock has not run.
+public enum XCMPErrorCode: UInt8, Sendable {
     case success = 0x00
     case failure = 0x01
-    case invalidParameter = 0x02
-    case reInitXNL = 0x03
-    case notSupported = 0x04
-    case busy = 0x05
+    case incorrectMode = 0x02        // was invalidParameter
+    case opcodeNotSupported = 0x03   // was reInitXNL
+    case invalidParameter = 0x04     // was notSupported
+    case replyTooBig = 0x05          // was busy
+    case securityLocked = 0x06       // NEW — the "radio rejects everything" error
+    case busy = 0x10                 // 16 (LockSequence/Erase/Pair share this value)
+    case radioIsLocked = 0x12        // 18
+    case programFailure = 0x14       // 20
+    case flashWriteFailure = 0x80    // 128
+    case ishItemNotFound = 0x81      // 129
+    case partitionReadOnly = 0x85    // 133 (IshPartitionReadOnly)
+    case ishReorgNeeded = 0x86       // 134
 }
 
 // MARK: - PSDT Access (0x010B)
@@ -527,10 +571,11 @@ public struct XCMPPacket {
 
     // MARK: - Factory Methods (VERIFIED from CPS 2.0 Capture)
 
-    /// Creates a SecurityKeyRequest (0x0012) - CPS sends this first after auth.
-    /// Returns 16-byte session key in reply.
+    /// Creates a ReadUUID request (0x0012 = RcmpReadUUID). NOTE: 0x0012 is NOT a
+    /// security-key command — that mapping was wrong. Real security unlock is the
+    /// 0x0300/0x0301 handshake in XNLConnection.initialize().
     public static func securityKeyRequest() -> XCMPPacket {
-        XCMPPacket(opCode: .securityKeyRequest, data: Data())
+        XCMPPacket(opCode: .readUUIDRequest, data: Data())
     }
 
     /// Creates a ModelNumberRequest (0x0010) with param 0x00.
@@ -543,25 +588,25 @@ public struct XCMPPacket {
         XCMPPacket(opCode: .serialNumberRequest, data: Data([0x00]))
     }
 
-    /// Creates a CodeplugIdRequest (0x001F) with params 0x00 0x00.
+    /// Creates a TanapaNumber request (0x001F = RcmpTanapaNumber). NOTE: 0x001F is
+    /// the TANAPA part number, NOT a codeplug ID — the old name was wrong.
     public static func codeplugIdRequest() -> XCMPPacket {
-        XCMPPacket(opCode: .codeplugIdRequest, data: Data([0x00, 0x00]))
+        XCMPPacket(opCode: .tanapaNumberRequest, data: Data([0x00, 0x00]))
     }
 
-    /// Creates a StatusFlagsRequest (0x003D) with params 0x00 0x00.
+    /// Creates a SecureConnect request (0x003D = XcmpSecureConnect). NOTE: 0x003D is
+    /// XcmpSecureConnect, NOT a status-flags query — the old name was wrong.
     public static func statusFlagsRequest() -> XCMPPacket {
-        XCMPPacket(opCode: .statusFlagsRequest, data: Data([0x00, 0x00]))
+        XCMPPacket(opCode: .secureConnectRequest, data: Data([0x00, 0x00]))
     }
 
-    /// Creates an IshSessionStart request (0x0105) to initialize codeplug reading.
-    /// CPS sends: 80 01 ee 00 00
-    /// Response contains list of available record IDs.
+    /// Creates a ReadIshTypeSet request (0x0105 = RcmpReadIshTypeSet). NOTE: 0x0105
+    /// is RcmpReadIshTypeSet, NOT an "ISH session start" — that name/payload was
+    /// fabricated. The [80 01 EE 00 00] payload below is NOT the real CPS wire
+    /// format for ReadIshTypeSet; the read-path agent owns rebuilding this.
     public static func ishSessionStartRequest() -> XCMPPacket {
-        // Parameters from CPS capture: 80 01 ee 00 00
-        // 0x80 = read flag
-        // 0x01 = partition (application)
-        // 0xee 0x00 0x00 = session params (unknown meaning)
-        XCMPPacket(opCode: .ishSessionStart, data: Data([0x80, 0x01, 0xEE, 0x00, 0x00]))
+        // FABRICATED PAYLOAD — pending ISH read-walk rebuild by read-path agent.
+        XCMPPacket(opCode: .readIshTypeSetRequest, data: Data([0x80, 0x01, 0xEE, 0x00, 0x00]))
     }
 
     /// Creates a CodeplugRead METADATA request (0x002E) - queries which records exist.
@@ -588,7 +633,7 @@ public struct XCMPPacket {
             data.append(0x00)
         }
 
-        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+        return XCMPPacket(opCode: .superBundleRequest, data: data)
     }
 
     /// Creates a CodeplugRead DATA request (0x002E) - reads actual record content.
@@ -625,7 +670,7 @@ public struct XCMPPacket {
             data.append(0x00)
         }
 
-        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+        return XCMPPacket(opCode: .superBundleRequest, data: data)
     }
 
     /// Legacy alias for codeplugReadMetadataRequest
@@ -674,7 +719,7 @@ public struct XCMPPacket {
             data.append(0x00)  // Padding
         }
 
-        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+        return XCMPPacket(opCode: .superBundleRequest, data: data)
     }
 
     /// Creates a metadata query for indexed records to get the count.
@@ -704,7 +749,7 @@ public struct XCMPPacket {
         data.append(0x00)  // Padding
         data.append(0x00)  // Padding
 
-        return XCMPPacket(opCode: .codeplugReadRequest, data: data)
+        return XCMPPacket(opCode: .superBundleRequest, data: data)
     }
 
     /// Known record sizes for MOTOTRBO XPR radios (from CPS traffic analysis)
@@ -766,16 +811,19 @@ public struct XCMPPacket {
         XCMPPacket(opCode: .versionInfoRequest, data: Data([versionType.rawValue]))
     }
 
-    /// Creates a CPS unlock request packet.
+    /// DEPRECATED / WRONG MODEL. 0x0100 is RcmpReadIshItem (a record read), NOT an
+    /// "unlock" command. The real security unlock is the 0x0300 → 0x0301 handshake
+    /// implemented in XNLConnection.initialize(). This bare 0x0100 does nothing
+    /// useful and should not be called. Retained only for source compatibility.
     public static func cpsUnlockRequest() -> XCMPPacket {
-        // The unlock command may need specific payload - need to capture from real CPS
-        XCMPPacket(opCode: .cpsUnlockRequest, data: Data())
+        XCMPPacket(opCode: .readIshItemRequest, data: Data())
     }
 
-    /// Creates a CPS read request packet.
-    /// - Parameters:
-    ///   - address: Memory address to read from
-    ///   - length: Number of bytes to read
+    /// DEPRECATED / FABRICATED MODEL. 0x0104 is RcmpReadIshIDSet, NOT an
+    /// address/length block read. CPS codeplug storage is ISH (partition/type/id/
+    /// offset records), not linear memory — this address-based payload is wrong.
+    /// Retained only so MOTOTRBOProgrammer's (already-gated) Path-C read compiles;
+    /// the read-path agent OWNS replacing this with the ISH read-walk.
     public static func cpsReadRequest(address: UInt32, length: UInt16) -> XCMPPacket {
         var data = Data()
         // Address (4 bytes, big-endian)
@@ -786,7 +834,7 @@ public struct XCMPPacket {
         // Length (2 bytes, big-endian)
         data.append(UInt8((length >> 8) & 0xFF))
         data.append(UInt8(length & 0xFF))
-        return XCMPPacket(opCode: .cpsReadRequest, data: data)
+        return XCMPPacket(opCode: .readIshIDSetRequest, data: data)
     }
 
     /// Creates a CloneReadRequest packet using raw index type and data type.
@@ -1070,6 +1118,205 @@ public struct XCMPPacket {
     /// Creates a codeplug attribute request.
     public static func codeplugAttributeRequest() -> XCMPPacket {
         XCMPPacket(opCode: .codeplugAttributeRequest, data: Data())
+    }
+
+    // MARK: - ISH (Item Storage Header) Read Requests — VERIFIED FROM CPS 2.0 SOURCE
+    //
+    // GROUND TRUTH: `Common.Communication.RcmpWrapper.cs` classes
+    //   RcmpReadIshTypeSet (opcode 261 = 0x0105, RcmpWrapper:11823)
+    //   RcmpReadIshIDSet   (opcode 260 = 0x0104, RcmpWrapper:10802)
+    //   RcmpReadIshItem    (opcode 256 = 0x0100, RcmpWrapper:11220)
+    //
+    // Wire encoding contract (RcmpWrapper `p.a` serializer, RcmpWrapper:2377):
+    //   • a `byte`   argument  -> 1 byte
+    //   • a `ushort` argument  -> 2 bytes, BIG-ENDIAN  (>>8 then &0xFF, RcmpWrapper:2458-2459)
+    //   • a `uint`   argument  -> 4 bytes, big-endian
+    // The wire field order equals the `BuildCommandMessage` p.a(...) argument list,
+    // which equals the constructor argument order.
+    //
+    // XCMPPacket.encode() prepends the 2-byte opcode, so the `data` payloads built
+    // below start AFTER the opcode (i.e. they are the constructor args minus Opcode).
+
+    /// RcmpReadIshTypeSet (0x0105): enumerate the ISH *types* present in a logical
+    /// partition. Wire (after opcode): [partition:1][numberOfTypes:2 BE][offset:2 BE].
+    /// `numberOfTypes` is how many type IDs to return this call; `offset` pages into
+    /// the type list. Reply carries TotalTypeCount so the caller can page.
+    /// Source: RcmpReadIshTypeSet.BuildCommandMessage -> p.a(buffer,offset,Opcode,a,b,c).
+    public static func readIshTypeSetRequest(partition: UInt8, numberOfTypes: UInt16, offset: UInt16) -> XCMPPacket {
+        var data = Data()
+        data.append(partition)
+        data.append(UInt8(numberOfTypes >> 8)); data.append(UInt8(numberOfTypes & 0xFF))
+        data.append(UInt8(offset >> 8));        data.append(UInt8(offset & 0xFF))
+        return XCMPPacket(opCode: .readIshTypeSetRequest, data: data)
+    }
+
+    /// RcmpReadIshIDSet (0x0104): enumerate the *IDs* of one ISH type in a partition.
+    /// Wire (after opcode): [partition:1][ishType:2 BE][numberOfIDs:2 BE][offset:2 BE].
+    /// Source: RcmpReadIshIDSet.BuildCommandMessage -> p.a(buffer,offset,Opcode,a,b,c,d)
+    /// where a=logicalPartition, b=type, c=numberOfIDs, d=offset (ctor @ RcmpWrapper:11039).
+    public static func readIshIDSetRequest(partition: UInt8, ishType: UInt16, numberOfIDs: UInt16, offset: UInt16) -> XCMPPacket {
+        var data = Data()
+        data.append(partition)
+        data.append(UInt8(ishType >> 8));     data.append(UInt8(ishType & 0xFF))
+        data.append(UInt8(numberOfIDs >> 8)); data.append(UInt8(numberOfIDs & 0xFF))
+        data.append(UInt8(offset >> 8));      data.append(UInt8(offset & 0xFF))
+        return XCMPPacket(opCode: .readIshIDSetRequest, data: data)
+    }
+
+    /// RcmpReadIshItem (0x0100): read the bytes of one ISH record (partition,type,id).
+    /// Wire (after opcode): [partition:1][type:2 BE][id:2 BE][numberOfBytes:2 BE][offset:2 BE].
+    /// `numberOfBytes` chunks large records; `offset` is the byte offset within the item.
+    /// Source: RcmpReadIshItem.BuildCommandMessage -> p.a(buffer,offset,Opcode,a,b,c,d,e)
+    /// where a=partition, b=type, c=id, d=numberOfBytes, e=offset (ctor @ RcmpWrapper:11470).
+    public static func readIshItemRequest(partition: UInt8, type: UInt16, id: UInt16, numberOfBytes: UInt16, offset: UInt16) -> XCMPPacket {
+        var data = Data()
+        data.append(partition)
+        data.append(UInt8(type >> 8));          data.append(UInt8(type & 0xFF))
+        data.append(UInt8(id >> 8));            data.append(UInt8(id & 0xFF))
+        data.append(UInt8(numberOfBytes >> 8)); data.append(UInt8(numberOfBytes & 0xFF))
+        data.append(UInt8(offset >> 8));        data.append(UInt8(offset & 0xFF))
+        return XCMPPacket(opCode: .readIshItemRequest, data: data)
+    }
+
+    /// RcmpIshProgramMode (0x0106): enter/exit ISH program mode. Wire: [action:1].
+    /// CPS ReadDevice does OpenConnection(op=Read) which issues IshProgramMode Enter(0)
+    /// before the ISH walk. Actions: 0=Enter, 1=ExitWithReset, 3=ExitNoReset.
+    public static func ishProgramModeRequest(action: UInt8) -> XCMPPacket {
+        XCMPPacket(opCode: .ishProgramModeRequest, data: Data([action]))
+    }
+}
+
+// MARK: - ISH Reply Parsers — VERIFIED FROM CPS 2.0 SOURCE
+//
+// Reply wire framing (RcmpBaseMessage.DecodeReplyMessage + p.a result reader,
+// RcmpWrapper:1970-2029): every XCMP reply is
+//   [replyOpcode:2 BE (= request|0x8000)] [result:1] [payload...]
+// XCMPPacket.decode() strips the 2-byte opcode, so the `data` handed to these
+// parsers begins at the RESULT byte, i.e. data[0] = RcmpReplyResult.
+// After the result byte the fields are read big-endian in the order the C#
+// DecodeReplyMessage assigns them.
+
+/// Parsed RcmpReadIshTypeSet reply (0x8105). Fields after result byte, per
+/// RcmpReadIshTypeSet.DecodeReplyMessage (RcmpWrapper:12060): partition(byte),
+/// numberOfTypes(ushort), offset(ushort), totalTypeCount(ushort), then
+/// numberOfTypes × ushort type IDs.
+public struct IshTypeSetReply: Sendable {
+    public let result: XCMPErrorCode
+    public let partition: UInt8
+    public let offset: UInt16
+    public let totalTypeCount: UInt16
+    public let types: [UInt16]
+
+    public init?(from data: Data) {
+        guard data.count >= 1 else { return nil }
+        self.result = XCMPErrorCode(rawValue: data[0]) ?? .failure
+        guard result == .success, data.count >= 8 else {
+            self.partition = 0; self.offset = 0; self.totalTypeCount = 0; self.types = []
+            return
+        }
+        self.partition = data[1]
+        let numberOfTypes = UInt16(data[2]) << 8 | UInt16(data[3])
+        self.offset = UInt16(data[4]) << 8 | UInt16(data[5])
+        self.totalTypeCount = UInt16(data[6]) << 8 | UInt16(data[7])
+        var out: [UInt16] = []
+        var p = 8
+        var n = 0
+        while n < Int(numberOfTypes) && p + 1 < data.count {
+            out.append(UInt16(data[p]) << 8 | UInt16(data[p + 1]))
+            p += 2; n += 1
+        }
+        self.types = out
+    }
+}
+
+/// Parsed RcmpReadIshIDSet reply (0x8104). Fields after result byte, per
+/// RcmpReadIshIDSet.DecodeReplyMessage (RcmpWrapper:11070): partition(byte),
+/// ishType(ushort), numberOfIDs(ushort), offset(ushort), totalIdCount(ushort),
+/// then numberOfIDs × ushort ID values.
+public struct IshIDSetReply: Sendable {
+    public let result: XCMPErrorCode
+    public let partition: UInt8
+    public let ishType: UInt16
+    public let offset: UInt16
+    public let totalIdCount: UInt16
+    public let ids: [UInt16]
+
+    public init?(from data: Data) {
+        guard data.count >= 1 else { return nil }
+        self.result = XCMPErrorCode(rawValue: data[0]) ?? .failure
+        guard result == .success, data.count >= 10 else {
+            self.partition = 0; self.ishType = 0; self.offset = 0; self.totalIdCount = 0; self.ids = []
+            return
+        }
+        self.partition = data[1]
+        self.ishType = UInt16(data[2]) << 8 | UInt16(data[3])
+        let numberOfIDs = UInt16(data[4]) << 8 | UInt16(data[5])
+        self.offset = UInt16(data[6]) << 8 | UInt16(data[7])
+        self.totalIdCount = UInt16(data[8]) << 8 | UInt16(data[9])
+        var out: [UInt16] = []
+        var p = 10
+        var n = 0
+        while n < Int(numberOfIDs) && p + 1 < data.count {
+            out.append(UInt16(data[p]) << 8 | UInt16(data[p + 1]))
+            p += 2; n += 1
+        }
+        self.ids = out
+    }
+}
+
+/// Parsed RcmpReadIshItem reply (0x8100). Fields after result byte, per
+/// RcmpReadIshItem.DecodeReplyMessage (RcmpWrapper:11502): partition(byte),
+/// type(ushort), id(ushort), numberOfBytes(ushort), offset(ushort),
+/// itemSize(ushort), then the record data bytes.
+///   • `numberOfBytes` = bytes returned in THIS reply chunk.
+///   • `itemSize`      = total size of the whole ISH item (for chunked reads).
+public struct IshItemReply: Sendable {
+    public let result: XCMPErrorCode
+    public let partition: UInt8
+    public let type: UInt16
+    public let id: UInt16
+    public let offset: UInt16
+    public let itemSize: UInt16
+    public let data: Data
+
+    public init?(from raw: Data) {
+        guard raw.count >= 1 else { return nil }
+        self.result = XCMPErrorCode(rawValue: raw[0]) ?? .failure
+        guard result == .success, raw.count >= 12 else {
+            self.partition = 0; self.type = 0; self.id = 0
+            self.offset = 0; self.itemSize = 0; self.data = Data()
+            return
+        }
+        self.partition = raw[1]
+        self.type = UInt16(raw[2]) << 8 | UInt16(raw[3])
+        self.id = UInt16(raw[4]) << 8 | UInt16(raw[5])
+        let numberOfBytes = UInt16(raw[6]) << 8 | UInt16(raw[7])
+        self.offset = UInt16(raw[8]) << 8 | UInt16(raw[9])
+        self.itemSize = UInt16(raw[10]) << 8 | UInt16(raw[11])
+        let start = 12
+        let end = min(start + Int(numberOfBytes), raw.count)
+        self.data = start < end ? Data(raw[start..<end]) : Data()
+    }
+}
+
+/// One discovered ISH record: its address tuple plus the raw bytes read from it.
+/// This is the generic, hardware-truth output of the ISH walk. The semantic
+/// mapping (which type == channels, which == zones, etc.) is NOT known from the
+/// CPS decompile alone (CPS resolves it via a metadata DB) and must be confirmed
+/// against a real radio dump — see MOTOTRBOProgrammer.readAllIshRecords.
+public struct IshRecord: Sendable {
+    public let partition: UInt8
+    public let type: UInt16
+    public let id: UInt16
+    public let itemSize: UInt16
+    public let data: Data
+
+    public init(partition: UInt8, type: UInt16, id: UInt16, itemSize: UInt16, data: Data) {
+        self.partition = partition
+        self.type = type
+        self.id = id
+        self.itemSize = itemSize
+        self.data = data
     }
 }
 
@@ -1853,7 +2100,7 @@ public actor XCMPClient {
     public func queryZones(queryType: UInt8 = 0x01, debug: Bool = false) async throws -> ZoneQueryResult? {
         // XCMP 0x0037: Zone/Feature Query
         // Format: 0x0037 [type] [subtype] [extra]
-        let request = XCMPPacket(opCode: .featureSetRequest, data: Data([queryType, 0x01, 0x00]))
+        let request = XCMPPacket(opCode: .codeplugAttributeRequest, data: Data([queryType, 0x01, 0x00]))
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
 
         if debug {
@@ -1865,7 +2112,7 @@ public actor XCMPClient {
 
     /// Queries zone details including channel count per zone.
     public func queryZoneDetails(debug: Bool = false) async throws -> ZoneDetailsResult? {
-        let request = XCMPPacket(opCode: .featureSetRequest, data: Data([0x01, 0x03, 0x00]))
+        let request = XCMPPacket(opCode: .codeplugAttributeRequest, data: Data([0x01, 0x03, 0x00]))
         guard let reply = try await sendAndReceive(request, timeout: 5.0, debug: debug) else { return nil }
 
         if debug {
@@ -2441,6 +2688,179 @@ public actor XCMPClient {
         RadioLog.xcmp.debug("[SETTINGS] GPS: \(result.gpsEnabled ? "On" : "Off")")
 
         return result
+    }
+
+    // MARK: - ISH Read Walk — VERIFIED FROM CPS 2.0 SOURCE
+    //
+    // This is the REAL CPS codeplug-read mechanism, replacing the fabricated
+    // cloneRead (0x010A) path. CPS ReadDevice (CommandHandler ReadDeviceCommand
+    // @25662 → CommunicateReadDeviceWorker) walks ISH storage as:
+    //   for each logical partition:
+    //     ReadIshTypeSet  (0x0105) -> list of ISH types in that partition
+    //     for each type:
+    //       ReadIshIDSet  (0x0104) -> list of IDs of that type
+    //       for each id:
+    //         ReadIshItem (0x0100) -> record bytes (chunked by numberOfBytes)
+    //
+    // ⚠️ NOTE ON SUPERBUNDLE (0x002E): CPS batches many ReadIshItem messages into a
+    // single XcmpSuperBundle for throughput. That batching is NOT implemented here
+    // yet — this is a straight sequential ReadIshItem loop, which is protocol-
+    // equivalent (same per-item request/reply bytes) but slower on the wire.
+    // Bundling is a pure optimisation and is deferred; see TODO(superbundle).
+
+    /// Max bytes to request per ReadIshItem chunk. ISH replies must fit one XCMP
+    /// reply; RcmpReplyResult.ReplyTooBig (5) signals we asked for too much.
+    private static let ishChunkSize: UInt16 = 256
+
+    /// Enters ISH program mode for reading (IshProgramMode action 0 = Enter).
+    /// CPS issues this inside OpenConnection(op=Read) before the ISH walk.
+    /// Returns the reply result byte, or nil if no reply.
+    @discardableResult
+    public func ishEnterProgramMode(debug: Bool = false) async throws -> XCMPErrorCode? {
+        let req = XCMPPacket.ishProgramModeRequest(action: ProgramModeAction.enterProgramMode.rawValue)
+        guard let reply = try await sendAndReceive(req, timeout: 5.0, debug: debug) else { return nil }
+        let code = XCMPErrorCode(rawValue: reply.data.first ?? 0x01) ?? .failure
+        if debug { RadioLog.xcmp.debug("[ISH] Enter program mode -> \(String(describing: code))") }
+        return code
+    }
+
+    /// Exits ISH program mode. action: 0x01 = ExitWithRadioReset, 0x03 = ExitNoReset.
+    @discardableResult
+    public func ishExitProgramMode(reset: Bool = false, debug: Bool = false) async throws -> XCMPErrorCode? {
+        let action: UInt8 = reset ? ProgramModeAction.exitWithRadioReset.rawValue
+                                  : ProgramModeAction.exitWithoutRadioReset.rawValue
+        let req = XCMPPacket.ishProgramModeRequest(action: action)
+        guard let reply = try await sendAndReceive(req, timeout: 5.0, debug: debug) else { return nil }
+        return XCMPErrorCode(rawValue: reply.data.first ?? 0x01) ?? .failure
+    }
+
+    /// Enumerates all ISH types present in a logical partition, paging via `offset`
+    /// until TotalTypeCount is satisfied. Returns [] if the partition is absent /
+    /// the radio replies with a non-success result (e.g. IshItemNotFound).
+    public func ishReadTypeSet(partition: UInt8, debug: Bool = false) async throws -> [UInt16] {
+        var all: [UInt16] = []
+        var offset: UInt16 = 0
+        // Ask for a generous page; the radio caps the reply and reports TotalTypeCount.
+        let page: UInt16 = 64
+        while true {
+            let req = XCMPPacket.readIshTypeSetRequest(partition: partition, numberOfTypes: page, offset: offset)
+            guard let reply = try await sendAndReceive(req, timeout: 5.0, debug: debug),
+                  let parsed = IshTypeSetReply(from: reply.data) else { break }
+            if parsed.result != .success {
+                if debug { RadioLog.xcmp.debug("[ISH] TypeSet part=\(partition) offset=\(offset) -> \(String(describing: parsed.result))") }
+                break
+            }
+            all.append(contentsOf: parsed.types)
+            offset = UInt16(min(Int(all.count), Int(UInt16.max)))
+            if parsed.types.isEmpty || all.count >= Int(parsed.totalTypeCount) { break }
+        }
+        return all
+    }
+
+    /// Enumerates all IDs of one ISH type in a partition, paging via `offset`.
+    public func ishReadIDSet(partition: UInt8, type: UInt16, debug: Bool = false) async throws -> [UInt16] {
+        var all: [UInt16] = []
+        var offset: UInt16 = 0
+        let page: UInt16 = 128
+        while true {
+            let req = XCMPPacket.readIshIDSetRequest(partition: partition, ishType: type, numberOfIDs: page, offset: offset)
+            guard let reply = try await sendAndReceive(req, timeout: 5.0, debug: debug),
+                  let parsed = IshIDSetReply(from: reply.data) else { break }
+            if parsed.result != .success { break }
+            all.append(contentsOf: parsed.ids)
+            offset = UInt16(min(Int(all.count), Int(UInt16.max)))
+            if parsed.ids.isEmpty || all.count >= Int(parsed.totalIdCount) { break }
+        }
+        return all
+    }
+
+    /// Reads one full ISH record (partition,type,id), chunking by `ishChunkSize`
+    /// until `itemSize` bytes have been collected. Returns nil if the first chunk
+    /// fails (record absent / locked).
+    public func ishReadItem(partition: UInt8, type: UInt16, id: UInt16, debug: Bool = false) async throws -> IshRecord? {
+        var collected = Data()
+        var offset: UInt16 = 0
+        var totalSize: UInt16 = 0
+        var first = true
+        while true {
+            let req = XCMPPacket.readIshItemRequest(
+                partition: partition, type: type, id: id,
+                numberOfBytes: Self.ishChunkSize, offset: offset
+            )
+            guard let reply = try await sendAndReceive(req, timeout: 8.0, debug: debug),
+                  let parsed = IshItemReply(from: reply.data) else {
+                return first ? nil : IshRecord(partition: partition, type: type, id: id, itemSize: totalSize, data: collected)
+            }
+            if parsed.result != .success {
+                if debug && first {
+                    RadioLog.xcmp.debug("[ISH] Item part=\(partition) type=0x\(String(format: "%04X", type)) id=\(id) -> \(String(describing: parsed.result))")
+                }
+                return first ? nil : IshRecord(partition: partition, type: type, id: id, itemSize: totalSize, data: collected)
+            }
+            if first { totalSize = parsed.itemSize; first = false }
+            collected.append(parsed.data)
+            // Advance by bytes actually returned; stop when we've read the whole item
+            // or the radio returned a short/empty chunk (guards against loops).
+            if parsed.data.isEmpty { break }
+            offset = UInt16(min(Int(offset) + parsed.data.count, Int(UInt16.max)))
+            if totalSize == 0 || Int(offset) >= Int(totalSize) { break }
+            if collected.count > 65_535 { break } // hard safety cap per record
+        }
+        return IshRecord(partition: partition, type: type, id: id, itemSize: totalSize, data: collected)
+    }
+
+    /// Generic ISH walk over a set of candidate logical partitions. Enumerates every
+    /// (partition,type,id) the radio reports and pulls each record's bytes. This is
+    /// the hardware-truth dump: it makes NO assumption about which type means what.
+    ///
+    /// - Parameter candidatePartitions: partition numbers to probe. The codeplug's
+    ///   logical partition number is resolved by CPS from a metadata DB and is NOT
+    ///   knowable from the decompile, so we probe a small range and keep whatever
+    ///   the radio actually returns. Partitions that don't exist reply with a
+    ///   non-success result and are skipped cleanly.
+    public func readAllIshRecords(
+        candidatePartitions: [UInt8],
+        debug: Bool = false,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> [IshRecord] {
+        var records: [IshRecord] = []
+        let partCount = max(candidatePartitions.count, 1)
+
+        for (pIdx, partition) in candidatePartitions.enumerated() {
+            let types = try await ishReadTypeSet(partition: partition, debug: debug)
+            if types.isEmpty {
+                if debug { RadioLog.xcmp.debug("[ISH] partition \(partition): no types (absent or empty)") }
+                progress?(Double(pIdx + 1) / Double(partCount))
+                continue
+            }
+            if debug {
+                let th = types.map { String(format: "0x%04X", $0) }.joined(separator: ", ")
+                RadioLog.xcmp.debug("[ISH] partition \(partition): \(types.count) types: \(th)")
+            }
+
+            for type in types {
+                let ids = try await ishReadIDSet(partition: partition, type: type, debug: debug)
+                if debug {
+                    RadioLog.xcmp.debug("[ISH]   part=\(partition) type=0x\(String(format: "%04X", type)): \(ids.count) ids")
+                }
+                for id in ids {
+                    if let rec = try await ishReadItem(partition: partition, type: type, id: id, debug: debug) {
+                        records.append(rec)
+                        // Log EVERY discovered tuple — this is the map the user will use
+                        // to confirm the semantic mapping against a real radio.
+                        RadioLog.xcmp.info(
+                            "[ISH-DUMP] part=\(partition) type=0x\(String(format: "%04X", type)) id=\(id) size=\(rec.itemSize) bytes=\(rec.data.count)"
+                        )
+                    }
+                }
+            }
+            progress?(Double(pIdx + 1) / Double(partCount))
+        }
+
+        if debug {
+            RadioLog.xcmp.info("[ISH] Walk complete: \(records.count) records across \(candidatePartitions.count) candidate partitions")
+        }
+        return records
     }
 }
 

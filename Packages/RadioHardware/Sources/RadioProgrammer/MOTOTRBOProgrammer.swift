@@ -300,321 +300,107 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
 
         progress(0.05)
 
-        // Step 3: Start a reading session using CPS method (0x0105)
-        // This is what CPS does - NOT programming mode (0x0106/0x0300/0x0301)
-        if debug { RadioLog.programmer.debug("[READ] Starting read session (0x0105)...") }
-        let availableRecords = try await client.startReadSession(debug: debug)
-        if availableRecords.isEmpty {
-            if debug { RadioLog.programmer.debug("[READ] Session start returned no records, will try fallback...") }
-        } else {
-            if debug { RadioLog.programmer.debug("[READ] Session started with \(availableRecords.count, privacy: .public) available records") }
-        }
+        // Step 3: Enter ISH program mode (read). GROUND TRUTH: CPS ReadDevice does
+        // OpenConnection(op=Read) which issues IshProgramMode Enter(0) before the
+        // ISH walk (analysis/CPS_VERIFICATION_2026-07-06.md; RcmpIshProgramMode 0x0106).
+        // NOTE: the security-unlock 0x0300/0x0301 handshake already ran in
+        // XNLConnection.initialize(); we do NOT repeat it here.
+        if debug { RadioLog.programmer.debug("[READ] Entering ISH program mode (0x0106 action=0)...") }
+        let enterResult = try await client.ishEnterProgramMode(debug: debug)
+        if debug { RadioLog.programmer.debug("[READ] Program mode enter result: \(String(describing: enterResult), privacy: .public)") }
+        // Not fatal if the radio doesn't require it — some accept ISH reads without
+        // an explicit enter. We proceed regardless and let the walk report reality.
 
         progress(0.08)
 
-        // Step 4: Get radio general settings
-        if debug { RadioLog.programmer.debug("[READ] Reading radio settings...") }
-        let settings = try await client.readGeneralSettings(debug: debug)
+        // Step 4: THE ISH READ WALK — replaces the fabricated cloneRead (0x010A) path.
+        // VERIFIED FROM CPS 2.0 SOURCE (RcmpReadIshTypeSet/IDSet/Item, RcmpWrapper.cs):
+        //   partition -> ReadIshTypeSet(0x0105) -> types
+        //   type      -> ReadIshIDSet(0x0104)   -> ids
+        //   (type,id) -> ReadIshItem(0x0100)    -> record bytes (chunked)
+        //
+        // ⚠️ SEMANTIC MAPPING IS UNVERIFIED-PENDING-HARDWARE. CPS resolves which ISH
+        // (partition,type,id) tuple holds channels vs zones vs contacts via an
+        // internal metadata DB (IshHeader.PartitionNumber map; CodeplugConverter
+        // checks PartitionID==212 / ==135). That mapping is NOT derivable from the
+        // decompile. So here we perform the GENERIC walk, dump every tuple to the
+        // log, and return the raw records. The channel decode below is the ONE piece
+        // whose byte layout is already verified (0x0FFB indexed record, offsets
+        // confirmed on an XPR 3500e 2026-01-31) — we keep it.
+        //
+        // Candidate logical partitions to probe. The codeplug partition number is
+        // not known from source; probe a small range and keep whatever the radio
+        // returns. Absent partitions reply non-success and are skipped.
+        // TODO(ish-mapping): after the first real-radio dump, replace this generic
+        // walk's downstream handling with a confirmed (partition,type)->section map.
+        let candidatePartitions: [UInt8] = [0, 1, 2, 3, 4]
+        if debug { RadioLog.programmer.debug("[READ] Starting generic ISH walk over partitions \(candidatePartitions, privacy: .public)...") }
 
-        // Copy settings to result
-        result.radioID = settings.radioID
-        result.radioAlias = settings.radioAlias
-        result.introScreenLine1 = settings.introLine1
-        result.introScreenLine2 = settings.introLine2
-
-        // Audio settings
-        result.voxEnabled = settings.voxEnabled
-        result.voxSensitivity = settings.voxSensitivity
-        result.voxDelay = settings.voxDelay
-        result.keypadTones = settings.keypadTones
-        result.callAlertTone = settings.callAlertTone
-        result.powerUpTone = settings.powerUpTone
-
-        // Timing settings
-        result.totTime = settings.totTime
-        result.groupCallHangTime = settings.groupCallHangTime
-        result.privateCallHangTime = settings.privateCallHangTime
-
-        // Display settings
-        result.backlightTime = settings.backlightTime
-        result.defaultPowerLevel = settings.defaultPowerHigh
-
-        // Signaling settings
-        result.radioCheckEnabled = settings.radioCheckEnabled
-        result.remoteMonitorEnabled = settings.remoteMonitorEnabled
-        result.callConfirmation = settings.callConfirmation
-
-        // GPS settings
-        result.gpsEnabled = settings.gpsEnabled
-        result.enhancedGNSSEnabled = settings.enhancedGNSS
-
-        // Lone Worker settings
-        result.loneWorkerEnabled = settings.loneWorkerEnabled
-        result.loneWorkerResponseTime = settings.loneWorkerResponseTime
-
-        // Man Down settings
-        result.manDownEnabled = settings.manDownEnabled
-
-        if debug {
-            RadioLog.programmer.debug("[READ] Radio ID: \(result.radioID, privacy: .public)")
-            RadioLog.programmer.debug("[READ] Radio Alias: \(result.radioAlias, privacy: .public)")
+        let ishRecords = try await client.readAllIshRecords(
+            candidatePartitions: candidatePartitions,
+            debug: debug
+        ) { walkProgress in
+            // Map the ISH walk to 8% - 45%
+            progress(0.08 + (0.37 * walkProgress))
         }
 
-        progress(0.12)
+        // Persist the raw ISH dump so the user/analysis can build the semantic map.
+        // Each record's (partition,type,id,size) was also logged at .info level by
+        // readAllIshRecords ("[ISH-DUMP] ...") for live capture.
+        result.ishRecordDump = ishRecords.map { rec in
+            IshRecordDump(
+                partition: rec.partition, type: rec.type, id: rec.id,
+                itemSize: rec.itemSize, data: rec.data
+            )
+        }
+        if debug {
+            RadioLog.programmer.info("[READ] ISH walk returned \(ishRecords.count, privacy: .public) raw records")
+            // Summarise the (partition,type) shape discovered — this is the map the
+            // user confirms against the radio. NOT interpreted as any section yet.
+            var shape: [String: Int] = [:]
+            for r in ishRecords {
+                let key = "p\(r.partition)/t0x\(String(format: "%04X", r.type))"
+                shape[key, default: 0] += 1
+            }
+            for (k, v) in shape.sorted(by: { $0.key < $1.key }) {
+                RadioLog.programmer.info("[READ]   ISH \(k, privacy: .public): \(v, privacy: .public) records")
+            }
+        }
 
-        // Step 5: Read channels using indexed record format (0x0FFB)
-        // This is the correct CPS 2.0 protocol - channels are indexed records
-        if debug { RadioLog.programmer.debug("[READ] Reading channels using indexed record format (0x0FFB)...") }
+        progress(0.45)
 
+        // Step 5: Decode channels via the VERIFIED indexed-record read (0x0FFB inside
+        // XcmpSuperBundle 0x002E — both real opcodes). This path's byte offsets are
+        // hardware-verified, so we keep it as the trustworthy source of channel data
+        // and present it as "Zone 1" until the ISH zone-mapping is confirmed.
+        // (The ISH walk above already captured the same channel bytes generically;
+        //  this decode simply gives us structured ChannelData today.)
+        if debug { RadioLog.programmer.debug("[READ] Decoding channels via indexed record 0x0FFB...") }
         let channelRecords = try await client.readAllChannels(debug: debug) { channelProgress in
-            // Map channel reading progress to 12% - 45%
-            progress(0.12 + (0.33 * channelProgress))
+            progress(0.45 + (0.35 * channelProgress))
         }
 
         if !channelRecords.isEmpty {
-            if debug { RadioLog.programmer.debug("[READ] Successfully read \(channelRecords.count, privacy: .public) channels from indexed records") }
-
-            // Convert ParsedChannelRecord to ChannelData and create a default zone
+            if debug { RadioLog.programmer.debug("[READ] Decoded \(channelRecords.count, privacy: .public) channels from indexed records") }
             var zone = ParsedZone(name: "Zone 1", position: 0)
             for record in channelRecords {
-                let channelData = record.toChannelData(zoneIndex: 0)
-                zone.channels.append(channelData)
-
+                zone.channels.append(record.toChannelData(zoneIndex: 0))
                 if debug && zone.channels.count <= 5 {
                     let msg = "[READ] Channel \(record.index): '\(record.name)' @ \(record.rxFrequencyMHz) MHz"
                     RadioLog.programmer.debug("\(msg, privacy: .public)")
                 }
             }
             result.zones.append(zone)
-        } else {
-            if debug { RadioLog.programmer.debug("[READ] Indexed channel read returned no channels, trying fallback...") }
-
-            // Fallback: Try the old metadata-based approach
-            var allRecordData = Data()
-
-            // Read zone/channel mapping records
-            let mappingRecords: [UInt16] = [0x0084, 0x0093, 0x009D, 0x005E, 0x005F, 0x0060]
-            if let batchData = try await client.readCodeplugRecords(mappingRecords, debug: debug) {
-                if debug { RadioLog.programmer.debug("[READ] Fallback got \(batchData.count, privacy: .public) bytes from mapping records") }
-                allRecordData.append(batchData)
-            }
-
-            if !allRecordData.isEmpty {
-                // Exclude known settings strings like the radio alias
-                var excludeStrings: Set<String> = []
-                if !result.radioAlias.isEmpty && result.radioAlias != "Radio" {
-                    excludeStrings.insert(result.radioAlias)
-                }
-                if !result.introScreenLine1.isEmpty {
-                    excludeStrings.insert(result.introScreenLine1)
-                }
-                if !result.introScreenLine2.isEmpty {
-                    excludeStrings.insert(result.introScreenLine2)
-                }
-                let parsed = parseCodeplugRecordData(allRecordData, excludeStrings: excludeStrings, debug: debug)
-                if !parsed.zones.isEmpty {
-                    result.zones = parsed.zones
-                    if debug { RadioLog.programmer.debug("[READ] Fallback parsed \(result.zones.count, privacy: .public) zones") }
-                }
-            }
+        } else if debug {
+            RadioLog.programmer.debug("[READ] Indexed channel decode returned no channels (see ISH dump above)")
         }
 
-        progress(0.45)
-
-        // Step 6: If CodeplugRead didn't give us zones, try CloneRead method
-        if result.zones.isEmpty {
-            if debug { RadioLog.programmer.debug("[READ] CodeplugRead didn't return zones, trying CloneRead...") }
-
-            // Query zone structure using multiple methods
-            var zoneCount = 0
-
-            // Method 1: Try FeatureSetRequest (0x0037)
-            if let zoneResult = try await client.queryZones(queryType: 0x01, debug: debug) {
-                zoneCount = zoneResult.zoneCount
-                if debug { RadioLog.programmer.debug("[READ] FeatureSet query returned \(zoneCount) zones") }
-            }
-
-            // Method 2: Try reading zone count from radio settings
-            if zoneCount == 0 {
-                if let countReply = try await client.readRadioSetting(dataType: .zoneCount, debug: debug),
-                   let count = countReply.byteValue {
-                    zoneCount = Int(count)
-                    if debug { RadioLog.programmer.debug("[READ] Radio settings returned \(zoneCount) zones") }
-                }
-            }
-
-            // Method 3: Default to scanning
-            let maxZones = zoneCount > 0 ? zoneCount : 16
-            let maxChannelsPerZone = 64
-
-            if debug { RadioLog.programmer.debug("[READ] Will scan up to \(maxZones) zones with CloneRead") }
-
-            var emptyZoneCount = 0
-
-            for zoneIndex in 0..<maxZones {
-                var zone = ParsedZone(name: "Zone \(zoneIndex + 1)", position: zoneIndex)
-
-                // Try to read zone name using CloneRead
-                if let zoneName = try await client.readZoneName(zone: UInt16(zoneIndex), debug: debug) {
-                    zone.name = zoneName
-                    if debug { RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public): \(zoneName, privacy: .public)") }
-                } else if debug {
-                    RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public): No name returned from CloneRead")
-                }
-
-                // Read channels in this zone
-                var channelIndex = 0
-                var emptyChannelCount = 0
-
-                while channelIndex < maxChannelsPerZone {
-                    // Try to read channel name first to see if channel exists
-                    let nameReply = try await client.readChannelData(
-                        zone: UInt16(zoneIndex),
-                        channel: UInt16(channelIndex),
-                        dataType: .channelName
-                    )
-
-                    // Check for error response
-                    if let reply = nameReply {
-                        if debug && channelIndex == 0 {
-                            let msg = "[READ] CloneRead reply for Z\(zoneIndex)C\(channelIndex): error=\(reply.errorCode.rawValue) data=\(reply.data.count) bytes"
-                            RadioLog.programmer.debug("\(msg, privacy: .public)")
-                        }
-                    }
-
-                    let name = nameReply?.stringValue
-
-                    if name == nil || name?.isEmpty == true {
-                        emptyChannelCount += 1
-                        if emptyChannelCount >= 2 {
-                            if debug {
-                                let channelCount = channelIndex - emptyChannelCount + 1
-                                RadioLog.programmer.debug("[READ] Zone \(zoneIndex, privacy: .public) has \(channelCount, privacy: .public) channels")
-                            }
-                            break
-                        }
-                        channelIndex += 1
-                        continue
-                    }
-
-                    emptyChannelCount = 0
-
-                    // Read full channel data
-                    let channelData = try await client.readCompleteChannel(
-                        zone: UInt16(zoneIndex),
-                        channel: UInt16(channelIndex),
-                        debug: debug
-                    )
-
-                    zone.channels.append(channelData)
-                    channelIndex += 1
-
-                    let channelProgress = 0.20 + (0.30 * Double(zoneIndex * 10 + min(channelIndex, 10)) / Double(maxZones * 10))
-                    progress(min(channelProgress, 0.50))
-                }
-
-                if !zone.channels.isEmpty {
-                    result.zones.append(zone)
-                    emptyZoneCount = 0
-                } else {
-                    emptyZoneCount += 1
-                    if !result.zones.isEmpty && emptyZoneCount >= 2 {
-                        if debug { RadioLog.programmer.debug("[READ] Stopping zone scan after \(result.zones.count, privacy: .public) zones") }
-                        break
-                    }
-                }
-            }
-        }
-
-        progress(0.50)
-
-        // Step 6: Read contacts
-        // Progress allocation: 50% to 70%
-        if debug { RadioLog.programmer.debug("[READ] Reading contacts...") }
-        let maxContacts = 256  // Typical max for XPR series
-        var contactIndex = 0
-
-        while contactIndex < maxContacts {
-            guard let contactResult = try await client.readCompleteContact(index: UInt16(contactIndex), debug: debug) else {
-                // No more contacts or couldn't read
-                break
-            }
-
-            let contact = ParsedContact(
-                name: contactResult.name,
-                dmrID: contactResult.dmrID,
-                type: ContactCallType(rawValue: ["Private Call", "Group Call", "All Call"][min(contactResult.callType, 2)]) ?? .group
-            )
-            var mutableContact = contact
-            mutableContact.callReceiveTone = contactResult.callReceiveTone
-            mutableContact.callAlert = contactResult.callAlert
-            result.contacts.append(mutableContact)
-
-            contactIndex += 1
-
-            // Update progress (50% to 70%)
-            let contactProgress = 0.50 + (0.20 * Double(contactIndex) / Double(maxContacts))
-            progress(min(contactProgress, 0.70))
-        }
-
-        if debug { RadioLog.programmer.debug("[READ] Read \(result.contacts.count, privacy: .public) contacts") }
-        progress(0.70)
-
-        // Step 7: Read scan lists
-        // Progress allocation: 70% to 85%
-        if debug { RadioLog.programmer.debug("[READ] Reading scan lists...") }
-        let maxScanLists = 64  // Typical max
-        var scanListIndex = 0
-
-        while scanListIndex < maxScanLists {
-            guard let scanResult = try await client.readCompleteScanList(index: UInt16(scanListIndex), debug: debug) else {
-                break
-            }
-
-            var scanList = ParsedScanList(name: scanResult.name)
-            scanList.talkbackEnabled = scanResult.talkbackEnabled
-            scanList.holdTime = scanResult.holdTime
-
-            // Convert members to ScanListMember
-            for member in scanResult.members {
-                let slm = ScanListMember(zoneIndex: member.zoneIndex, channelIndex: member.channelIndex)
-                scanList.channelMembers.append(slm)
-            }
-
-            result.scanLists.append(scanList)
-            scanListIndex += 1
-
-            // Update progress (70% to 85%)
-            let scanProgress = 0.70 + (0.15 * Double(scanListIndex) / Double(maxScanLists))
-            progress(min(scanProgress, 0.85))
-        }
-
-        if debug { RadioLog.programmer.debug("[READ] Read \(result.scanLists.count) scan lists") }
-        progress(0.85)
-
-        // Step 8: Read RX group lists
-        // Progress allocation: 85% to 95%
-        if debug { RadioLog.programmer.debug("[READ] Reading RX group lists...") }
-        let maxRxGroups = 64  // Typical max
-        var rxGroupIndex = 0
-
-        while rxGroupIndex < maxRxGroups {
-            guard let rxResult = try await client.readCompleteRxGroup(index: UInt16(rxGroupIndex), debug: debug) else {
-                break
-            }
-
-            var rxGroup = ParsedRxGroupList(name: rxResult.name)
-            rxGroup.contactIndices = rxResult.contactIndices
-
-            result.rxGroupLists.append(rxGroup)
-            rxGroupIndex += 1
-
-            // Update progress (85% to 95%)
-            let rxProgress = 0.85 + (0.10 * Double(rxGroupIndex) / Double(maxRxGroups))
-            progress(min(rxProgress, 0.95))
-        }
-
-        if debug { RadioLog.programmer.debug("[READ] Read \(result.rxGroupLists.count) RX group lists") }
+        // TODO(ish-mapping): zones, contacts, scan lists, and RX group lists are NOT
+        // yet decoded. Their ISH (partition,type,id) tuples are present in
+        // result.ishRecordDump but the type->section mapping is unconfirmed. Do NOT
+        // guess a mapping here — decode these only once the real-radio ISH dump has
+        // identified which types carry them. The old cloneRead-based scans for these
+        // sections were removed because cloneRead (0x010A) is a fabricated opcode.
         progress(0.95)
 
         // Final progress
@@ -629,16 +415,11 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
             RadioLog.programmer.info("[READ]   RX Groups: \(result.rxGroupLists.count)")
         }
 
-        // Exit programming mode
-        if debug { RadioLog.programmer.debug("[READ] Exiting programming mode...") }
-        if let connection = xnlConnection {
-            let exitCmd = Data([
-                UInt8(XCMPOpcode.ishProgramMode.rawValue >> 8),
-                UInt8(XCMPOpcode.ishProgramMode.rawValue & 0xFF),
-                ProgramModeAction.exitProgramMode.rawValue  // 0x00
-            ])
-            _ = try? await connection.sendXCMP(exitCmd, timeout: 2.0, debug: debug)
-        }
+        // Exit ISH program mode WITHOUT a radio reset (action 3 = ExitWithoutRadioReset).
+        // A read must not reset the radio out from under the user, and reading never
+        // modifies ISH storage, so no-reset exit is the safe choice.
+        if debug { RadioLog.programmer.debug("[READ] Exiting ISH program mode (no reset)...") }
+        _ = try? await client.ishExitProgramMode(reset: false, debug: debug)
 
         return result
     }
@@ -781,6 +562,23 @@ public actor MOTOTRBOProgrammer: RadioFamilyProgrammer {
     /// 7. Lock PSDT partition (0x010B)
     /// 8. End session (0x010F with Reset flag)
     public func writeCodeplug(_ data: Data, progress: @Sendable (Double) -> Void) async throws {
+        // ⛔️ SAFETY GATE — DO NOT REMOVE WITHOUT SOURCE-VERIFIED WRITE PATH.
+        //
+        // This write path was built from GUESSED opcodes (0x010F component-session,
+        // 0x010B PSDT, 0x0446 transfer-data, linear 512-byte blocks). Verification
+        // against the decompiled CPS 2.0 source (analysis/cps_decompiled/, 2026-07-06)
+        // proved NONE of these opcodes exist in Motorola's RcmpWrapper. The real CPS
+        // write is ISH record-based: IshProgramMode(Enter=0) → IshUnlockPartition(0x108)
+        // → read+diff → WriteIshItem(0x101) per changed record → IshProgramMode(Exit).
+        //
+        // Running THIS code against a radio will fail and MAY BRICK IT (partial ISH
+        // partition modification). It stays hard-disabled until the ISH write path is
+        // implemented AND the READ path is proven working against a live radio first.
+        // See analysis/CPS_VERIFICATION_2026-07-06.md finding C1.
+        throw MOTOTRBOError.notImplemented(
+            "Codeplug write is disabled: the current write path uses unverified opcodes and could brick the radio. "
+            + "A source-verified ISH-based write path must be implemented and read-path-validated first.")
+
         // Ensure connected
         if !(await isConnected) {
             try await connect()
