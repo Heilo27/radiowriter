@@ -2,7 +2,11 @@ import Testing
 import Foundation
 @testable import AudioEngine
 
+// VoicePromptManager is a @MainActor @Observable UI model, so the suite that
+// drives it is a main-actor client. Swift Testing runs @MainActor suites on the
+// main actor; a nonisolated suite cannot touch the manager's state synchronously.
 @Suite("VoicePrompt Tests")
+@MainActor
 struct VoicePromptTests {
 
     @Test("Voice prompt manager starts empty")
