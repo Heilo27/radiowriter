@@ -53,20 +53,18 @@ struct WelcomeView: View {
                 Text("Get Started")
                     .font(.headline)
 
-                Button {
-                    // Scroll to model picker on the right
-                } label: {
-                    Label("New Profile", systemImage: "doc.badge.plus")
-                }
-                .buttonStyle(.link)
-                .accessibilityIdentifier("welcome.newProfile")
+                Label("Choose a radio model on the right to start a new profile.",
+                      systemImage: "arrow.right")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("welcome.newProfileHint")
 
                 Button {
                     coordinator.showingOpenDialog = true
                 } label: {
-                    Label("Open Existing", systemImage: "folder")
+                    Label("Open Existing Profile…", systemImage: "folder")
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.bordered)
                 .accessibilityIdentifier("welcome.openExisting")
 
                 // Show detected radio section
@@ -307,6 +305,12 @@ struct ManualIPSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
+            if !ipAddress.isEmpty && !isValidIPv4(ipAddress) {
+                Text("Enter a valid IPv4 address (e.g. 192.168.10.1)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let result = checkResult {
                 Text(result)
                     .font(.caption)
@@ -330,9 +334,7 @@ struct ManualIPSheet: View {
                             try? await Task.sleep(for: .seconds(1))
                             onConnect(ipAddress)
                         } else {
-                            checkResult = "Could not reach radio at \(ipAddress). Adding anyway..."
-                            try? await Task.sleep(for: .seconds(1))
-                            onConnect(ipAddress)
+                            checkResult = "Could not reach radio at \(ipAddress). Check the address and try again."
                         }
                     }
                 } label: {
@@ -347,11 +349,21 @@ struct ManualIPSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(ipAddress.isEmpty || isChecking)
+                .disabled(!isValidIPv4(ipAddress) || isChecking)
             }
         }
         .padding(24)
         .frame(width: 350)
+    }
+
+    /// Validates a dotted-quad IPv4 address (each octet 0–255).
+    private func isValidIPv4(_ s: String) -> Bool {
+        let parts = s.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return false }
+        return parts.allSatisfy { part in
+            guard !part.isEmpty, part.allSatisfy(\.isNumber), let n = Int(part) else { return false }
+            return n >= 0 && n <= 255
+        }
     }
 
     private func checkXNLPort(ip: String) async -> Bool {

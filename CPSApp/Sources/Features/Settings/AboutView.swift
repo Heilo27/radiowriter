@@ -6,22 +6,6 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with close button
-            HStack {
-                Text("About RadioWriter")
-                    .font(.headline)
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close About window")
-            }
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .border(Color.separator, width: 1)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     // App info
@@ -106,15 +90,15 @@ struct AboutView: View {
                             .font(.headline)
 
                         linkButton("License Agreement", "doc.circle", action: {
-                            // Open license file or web link
+                            openLegalDocument(bundled: "LICENSE", fallback: "https://github.com/radiowriter/blob/main/LICENSE")
                         })
 
                         linkButton("Privacy Policy", "hand.raised.circle", action: {
-                            // Open privacy policy
+                            openLegalDocument(bundled: "PRIVACY_POLICY", fallback: "https://github.com/radiowriter/blob/main/docs/PRIVACY_POLICY.md")
                         })
 
                         linkButton("Terms of Service", "list.clipboard.circle", action: {
-                            // Open terms of service
+                            openLegalDocument(bundled: "TERMS_OF_SERVICE", fallback: "https://github.com/radiowriter/blob/main/docs/TERMS_OF_SERVICE.md")
                         })
                     }
 
@@ -133,9 +117,33 @@ struct AboutView: View {
                 }
                 .padding(24)
             }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityLabel("Close About window")
+            }
+            .padding()
         }
         .frame(minWidth: 500, maxWidth: 600, maxHeight: 700)
         .accessibilityIdentifier("aboutView")
+    }
+
+    /// Opens a legal document — the bundled copy if it shipped in the app,
+    /// otherwise the canonical web version.
+    private func openLegalDocument(bundled name: String, fallback: String) {
+        for ext in ["md", "txt", ""] {
+            if let url = Bundle.main.url(forResource: name, withExtension: ext.isEmpty ? nil : ext) {
+                NSWorkspace.shared.open(url)
+                return
+            }
+        }
+        if let url = URL(string: fallback) {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @ViewBuilder

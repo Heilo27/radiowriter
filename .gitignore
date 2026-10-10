@@ -55,3 +55,14 @@ analysis/*.cab
 # Temporary files
 *.tmp
 *.log
+
+# Proprietary Motorola CPS binaries and decompiled source — DO NOT COMMIT (legal)
+CPS 2.0 dll files/
+analysis/cps_decompiled/
+analysis/specter_v6_2026-07-06/
+*.dll
+
+# Build/test artifacts
+default.profraw
+*.profraw
+analysis/ui_review/

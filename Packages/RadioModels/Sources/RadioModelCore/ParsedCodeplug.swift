@@ -6,7 +6,7 @@ import Foundation
 /// This is the single source of truth for codeplug domain data.
 /// Used by the hardware layer (RadioProgrammer) for read/write operations
 /// and by the app layer for display and editing.
-public struct ParsedCodeplug: Sendable {
+public struct ParsedCodeplug: Sendable, Codable, Equatable {
     // MARK: - Device Information (read-only from radio)
     public var modelNumber: String = ""
     public var serialNumber: String = ""
@@ -73,6 +73,14 @@ public struct ParsedCodeplug: Sendable {
     // MARK: - RX Group Lists
     public var rxGroupLists: [ParsedRxGroupList] = []
 
+    // MARK: - Raw ISH Record Dump (hardware-truth, pending semantic mapping)
+    /// Every ISH record read from the radio during a codeplug read, addressed by
+    /// (partition, type, id). Populated by the verified ISH read walk. The mapping
+    /// of these tuples to logical sections (channels/zones/contacts) is NOT yet
+    /// confirmed and must be derived from a real-radio dump — until then this is the
+    /// raw source of truth. Empty on radios/paths that don't use the ISH walk.
+    public var ishRecordDump: [IshRecordDump] = []
+
     // MARK: - Text Messages (pre-programmed)
     public var textMessages: [PresetTextMessage] = []
 
@@ -95,12 +103,35 @@ public struct ParsedCodeplug: Sendable {
     public init() {}
 }
 
+// MARK: - ISH Record Dump
+
+/// One raw ISH (Item Storage Header) record read from a MOTOTRBO radio, addressed
+/// by (partition, type, id). This is the hardware-truth output of the ISH read walk
+/// before any semantic interpretation. `itemSize` is the radio-reported total size
+/// of the item; `data` is the bytes actually read (may be chunked/truncated).
+public struct IshRecordDump: Sendable, Identifiable, Codable, Equatable {
+    public var id: String { "\(partition)/\(type)/\(recordID)" }
+    public let partition: UInt8
+    public let type: UInt16
+    public let recordID: UInt16
+    public let itemSize: UInt16
+    public let data: Data
+
+    public init(partition: UInt8, type: UInt16, id: UInt16, itemSize: UInt16, data: Data) {
+        self.partition = partition
+        self.type = type
+        self.recordID = id
+        self.itemSize = itemSize
+        self.data = data
+    }
+}
+
 // MARK: - Channel Data
 
 /// A single channel with all its settings.
 /// This is the wire-level representation used for reading/writing to radios
 /// and for display/editing in the UI.
-public struct ChannelData: Sendable {
+public struct ChannelData: Sendable, Codable, Equatable {
     // MARK: - Identity
     public var zoneIndex: Int = 0
     public var channelIndex: Int = 0
@@ -251,7 +282,7 @@ public struct ChannelData: Sendable {
 // MARK: - Zone
 
 /// A zone in the parsed codeplug.
-public struct ParsedZone: Sendable {
+public struct ParsedZone: Sendable, Codable, Equatable {
     public var name: String = "Zone"
     public var position: Int = 0
     public var channels: [ChannelData] = []
@@ -265,7 +296,7 @@ public struct ParsedZone: Sendable {
 // MARK: - Contact
 
 /// A contact in the parsed codeplug.
-public struct ParsedContact: Sendable, Identifiable {
+public struct ParsedContact: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var name: String = "Contact"
     public var contactType: ContactCallType = .group
@@ -281,7 +312,7 @@ public struct ParsedContact: Sendable, Identifiable {
 }
 
 /// Contact call types.
-public enum ContactCallType: String, Sendable, CaseIterable {
+public enum ContactCallType: String, Sendable, CaseIterable, Codable {
     case privateCall = "Private Call"
     case group = "Group Call"
     case allCall = "All Call"
@@ -290,7 +321,7 @@ public enum ContactCallType: String, Sendable, CaseIterable {
 // MARK: - Scan List
 
 /// A scan list in the parsed codeplug.
-public struct ParsedScanList: Sendable, Identifiable {
+public struct ParsedScanList: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var name: String = "Scan List"
     public var channelMembers: [ScanListMember] = []
@@ -305,7 +336,7 @@ public struct ParsedScanList: Sendable, Identifiable {
 }
 
 /// A member of a scan list.
-public struct ScanListMember: Sendable, Identifiable {
+public struct ScanListMember: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var zoneIndex: Int
     public var channelIndex: Int
@@ -319,7 +350,7 @@ public struct ScanListMember: Sendable, Identifiable {
 // MARK: - RX Group List
 
 /// An RX group list in the parsed codeplug.
-public struct ParsedRxGroupList: Sendable, Identifiable {
+public struct ParsedRxGroupList: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var name: String = "RX Group"
     public var contactIndices: [Int] = []  // Indices into contacts array
@@ -332,7 +363,7 @@ public struct ParsedRxGroupList: Sendable, Identifiable {
 // MARK: - Supporting Types
 
 /// Pre-programmed text message
-public struct PresetTextMessage: Sendable, Identifiable {
+public struct PresetTextMessage: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var text: String = ""
 
@@ -342,7 +373,7 @@ public struct PresetTextMessage: Sendable, Identifiable {
 }
 
 /// Emergency system definition
-public struct EmergencySystem: Sendable, Identifiable {
+public struct EmergencySystem: Sendable, Identifiable, Codable, Equatable {
     public var id = UUID()
     public var name: String = "Emergency"
     public var alarmType: UInt8 = 0  // 0=Alarm, 1=AlarmWithCall, 2=AlarmWithVoice, 3=Silent
@@ -355,8 +386,48 @@ public struct EmergencySystem: Sendable, Identifiable {
     public init() {}
 }
 
+// MARK: - Codeplug (.cpsx) Round-Trip Bridge
+
+/// Bridges a parsed-read `ParsedCodeplug` into the raw `.cpsx` payload used by
+/// `Codeplug`/`CodeplugSerializer`, and back out again.
+///
+/// A codeplug read from a radio populates `ParsedCodeplug` (channels/zones/contacts)
+/// but the companion `Codeplug` has an empty `rawData`. Without this bridge, Save
+/// would persist zero channel data — silent data loss. This wraps the JSON-encoded
+/// `ParsedCodeplug` in a marker-prefixed payload so `Codeplug.rawData` carries the
+/// full parsed graph, and `openDocument` can detect and decode it losslessly.
+extension ParsedCodeplug {
+
+    /// Magic marker prefix identifying a `rawData` blob that holds a JSON-encoded
+    /// `ParsedCodeplug` rather than a native binary codeplug image.
+    /// ASCII "RWPC1\n" (RadioWriter Parsed Codeplug v1).
+    public static let parsedRawDataMarker = Data([0x52, 0x57, 0x50, 0x43, 0x31, 0x0A])
+
+    /// Encodes this parsed codeplug into a marker-prefixed `rawData` blob suitable
+    /// for storing in `Codeplug.rawData` and persisting through `CodeplugSerializer`.
+    public func encodedRawData() throws -> Data {
+        let encoder = JSONEncoder()
+        var out = Data(Self.parsedRawDataMarker)
+        out.append(try encoder.encode(self))
+        return out
+    }
+
+    /// Returns true if the given `rawData` blob carries a JSON-encoded parsed codeplug.
+    public static func isParsedRawData(_ data: Data) -> Bool {
+        data.starts(with: parsedRawDataMarker)
+    }
+
+    /// Decodes a `ParsedCodeplug` from a marker-prefixed `rawData` blob.
+    /// Returns nil if the blob is not a parsed-codeplug payload.
+    public static func decoded(fromRawData data: Data) throws -> ParsedCodeplug? {
+        guard isParsedRawData(data) else { return nil }
+        let jsonData = data.subdata(in: parsedRawDataMarker.count..<data.count)
+        return try JSONDecoder().decode(ParsedCodeplug.self, from: jsonData)
+    }
+}
+
 /// Available button functions
-public enum ButtonFunction: String, Sendable, CaseIterable {
+public enum ButtonFunction: String, Sendable, CaseIterable, Codable {
     case none = "None"
     case monitor = "Monitor"
     case scan = "Scan"

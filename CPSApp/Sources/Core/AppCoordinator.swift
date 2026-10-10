@@ -104,8 +104,10 @@ final class AppCoordinator {
     /// Parsed codeplug data with zones and channels (for XPR/MOTOTRBO radios).
     var parsedCodeplug: ParsedCodeplug? {
         didSet {
-            // Mark as dirty if the codeplug content changed (not just from read)
-            if oldValue != nil && parsedCodeplug != nil {
+            // Only mark dirty when the content actually CHANGED — not on the
+            // initial read (nil→value), not on a no-op reassignment, and not when
+            // an undo restores the exact prior state. Requires ParsedCodeplug: Equatable.
+            if let oldValue, let new = parsedCodeplug, oldValue != new {
                 parsedCodeplugDirty = true
             }
         }
@@ -126,6 +128,9 @@ final class AppCoordinator {
 
     /// Whether to show the About window.
     var showingAboutWindow = false
+
+    /// Whether to show the keyboard shortcuts reference window.
+    var showingKeyboardShortcuts = false
 
     // MARK: - Undo/Redo Methods
 
@@ -357,17 +362,22 @@ final class AppCoordinator {
             fileOperationStatus = ""
         }
 
-        // Load and deserialize on background thread
-        let (codeplug, modelID) = try await Task.detached {
+        // Load and deserialize on background thread. If the codeplug's rawData carries
+        // a JSON-encoded ParsedCodeplug (radio-read codeplug saved by this app), decode
+        // it here so the zone/channel editor is repopulated on open.
+        let (codeplug, modelID, parsed) = try await Task.detached {
             let data = try Data(contentsOf: url)
             let serializer = CodeplugSerializer()
             let codeplug = try serializer.deserialize(data)
-            return (codeplug, codeplug.modelIdentifier)
+            let parsed = try ParsedCodeplug.decoded(fromRawData: codeplug.rawData)
+            return (codeplug, codeplug.modelIdentifier, parsed)
         }.value
 
         // Update UI on main thread
         await MainActor.run {
             currentDocument = CodeplugDocument(codeplug: codeplug, modelIdentifier: modelID)
+            parsedCodeplug = parsed
+            parsedCodeplugDirty = false
             documentURL = url
             phase = .editing
         }
@@ -386,6 +396,14 @@ final class AppCoordinator {
             fileOperationStatus = ""
         }
 
+        // If this document was read from a radio, its channel/zone/contact data lives
+        // in `parsedCodeplug`, not in `codeplug.rawData`. Encode the live parsed graph
+        // into rawData now so the latest edits persist to the .cpsx file (otherwise
+        // Save would write an empty codeplug — silent data loss).
+        if let parsed = parsedCodeplug {
+            codeplug.rawData = try parsed.encodedRawData()
+        }
+
         // Serialize and write on background thread
         try await Task.detached {
             let serializer = CodeplugSerializer()
@@ -396,7 +414,31 @@ final class AppCoordinator {
         // Update UI on main thread
         await MainActor.run {
             documentURL = url
+            markAsClean()
         }
+    }
+
+    /// Save to the current file if one exists, otherwise prompt for a location.
+    /// This is the ⌘S entry point.
+    func save() {
+        guard currentDocument?.codeplug != nil else { return }
+        if let url = documentURL {
+            Task {
+                do {
+                    try await saveDocument(to: url)
+                } catch {
+                    connectionState = .error("Save failed: \(error.localizedDescription)")
+                }
+            }
+        } else {
+            showingSaveDialog = true
+        }
+    }
+
+    /// Always prompt for a new location (Save As, ⌘⇧S).
+    func saveAs() {
+        guard currentDocument?.codeplug != nil else { return }
+        showingSaveDialog = true
     }
 
     /// Returns to the welcome screen.
@@ -815,13 +857,6 @@ final class AppCoordinator {
         return newIndex
     }
 
-    /// Clones the entire codeplug (creates a copy in memory for modification).
-    func cloneCodeplug() {
-        // For now, this just ensures the codeplug is ready for modification
-        // In the future, this could create a named "clone" for fleet management
-        // The main use case is already handled - users can modify and write to different radios
-    }
-
     // MARK: - Undoable Codeplug Operations
 
     /// Updates zones with undo support.
@@ -1130,9 +1165,13 @@ final class AppCoordinator {
                         firmwareVersion: parsed.firmwareVersion,
                         lastReadDate: Date()
                     )
+                    // Seed rawData with the encoded parsed graph so the codeplug is
+                    // saveable immediately (Save re-encodes the live parsedCodeplug to
+                    // capture edits, but this guards any path that serializes earlier).
+                    let seededRawData = (try? parsed.encodedRawData()) ?? Data()
                     let codeplug = Codeplug(
                         modelIdentifier: modelIdentifier,
-                        rawData: Data(),  // Raw data will be populated when we implement full record parsing
+                        rawData: seededRawData,
                         metadata: metadata
                     )
 
@@ -1279,6 +1318,25 @@ final class AppCoordinator {
         Task {
             await handleRadioDetected(device)
         }
+    }
+
+    /// Honest, single-source-of-truth assessment of whether the current state can
+    /// be written to a radio — surfaced in the UI *before* the safety gauntlet so
+    /// the user never marches through validation/backup only to hit a dead end.
+    enum WriteReadiness {
+        case ready              // real codeplug + radio connected
+        case noRadio            // writable data, but no radio connected
+        case readOnly           // parsed zone/channel read — not yet writable
+        case noData             // nothing loaded
+
+        var canWrite: Bool { self == .ready }
+    }
+
+    var writeReadiness: WriteReadiness {
+        let hasParsedOnlyData = parsedCodeplug != nil && (currentDocument?.codeplug?.rawData.isEmpty ?? true)
+        if hasParsedOnlyData { return .readOnly }
+        guard currentDocument?.codeplug != nil else { return .noData }
+        return detectedDevices.isEmpty ? .noRadio : .ready
     }
 
     /// Writes the current codeplug to the connected radio.

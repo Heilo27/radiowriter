@@ -61,8 +61,6 @@ struct ProgrammingView: View {
                                 await coordinator.readFromRadio()
                             case .write:
                                 await coordinator.writeToRadio()
-                            case .clone:
-                                break // Not implemented yet
                             }
                         }
                     }
@@ -109,8 +107,11 @@ struct ProgrammingView: View {
             }
         }
         .padding(12)
-        .background(Color.red.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.red.opacity(0.25), lineWidth: 1)
+        )
         .frame(maxWidth: 360, alignment: .leading)
     }
 
@@ -132,13 +133,11 @@ struct ProgrammingView: View {
 enum ProgrammingOperation {
     case read
     case write
-    case clone
 
     var title: String {
         switch self {
         case .read: return "Reading Radio"
         case .write: return "Writing Radio"
-        case .clone: return "Cloning Radio"
         }
     }
 
@@ -146,7 +145,6 @@ enum ProgrammingOperation {
         switch self {
         case .read: return "arrow.down.to.line"
         case .write: return "arrow.up.to.line"
-        case .clone: return "doc.on.doc"
         }
     }
 }

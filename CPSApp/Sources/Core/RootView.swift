@@ -39,6 +39,7 @@ struct RootView: View {
     @State private var csvOperationInProgress = false
     @State private var csvOperationDescription = ""
     @State private var currentCSVTask: Task<Void, Never>?
+    @State private var showingVerificationDetails = false
 
     var body: some View {
         @Bindable var coordinator = coordinator
@@ -133,7 +134,7 @@ struct RootView: View {
         }
         .alert("Write Verification Warning", isPresented: $coordinator.showingVerificationFailureAlert) {
             Button("View Details") {
-                // Could show a sheet with full discrepancy list in future
+                showingVerificationDetails = true
             }
             Button("OK") {
                 coordinator.writeVerificationResult = nil
@@ -353,10 +354,87 @@ struct RootView: View {
                 }
             )
         }
+        // Write Verification Details
+        .sheet(isPresented: $showingVerificationDetails, onDismiss: {
+            coordinator.writeVerificationResult = nil
+        }) {
+            if let result = coordinator.writeVerificationResult {
+                VerificationDetailsView(result: result)
+            }
+        }
         // About Window
         .sheet(isPresented: $coordinator.showingAboutWindow) {
             AboutView()
         }
+        // Keyboard Shortcuts reference
+        .sheet(isPresented: $coordinator.showingKeyboardShortcuts) {
+            KeyboardShortcutsView()
+        }
         .focusedValue(\.appCoordinator, coordinator)
+    }
+}
+
+/// Sheet listing every discrepancy found during write verification.
+struct VerificationDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+    let result: WriteVerificationResult
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Write Verification Details")
+                        .font(.headline)
+                    Text(result.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding()
+
+            Divider()
+
+            if result.discrepancies.isEmpty {
+                ContentUnavailableView {
+                    Label("No Discrepancies", systemImage: "checkmark.circle")
+                } description: {
+                    Text("The read-back data matched what was written.")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(result.discrepancies) { discrepancy in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(discrepancy.category)
+                                .font(.callout.bold())
+                            Text(discrepancy.location)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 16) {
+                            LabeledContent("Expected", value: discrepancy.expected)
+                            LabeledContent("Actual", value: discrepancy.actual)
+                        }
+                        .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(discrepancy.description)
+                }
+                .listStyle(.inset)
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding()
+        }
+        .frame(minWidth: 480, minHeight: 360)
+        .accessibilityIdentifier("verificationDetailsView")
     }
 }

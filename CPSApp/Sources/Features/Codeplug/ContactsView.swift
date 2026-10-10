@@ -169,14 +169,14 @@ struct ContactsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         GroupBox("Basic Information") {
-                            SettingRow("Name", value: contact.name)
-                            SettingRow("Call Type", value: contact.contactType.rawValue)
-                            SettingRow("DMR ID", value: "\(contact.dmrID)")
+                            LabeledContent("Name", value: contact.name)
+                            LabeledContent("Call Type", value: contact.contactType.rawValue)
+                            LabeledContent("DMR ID", value: "\(contact.dmrID)")
                         }
 
                         GroupBox("Settings") {
-                            SettingRow("Call Receive Tone", value: contact.callReceiveTone ? "Enabled" : "Disabled")
-                            SettingRow("Call Alert", value: contact.callAlert ? "Enabled" : "Disabled")
+                            LabeledContent("Call Receive Tone", value: contact.callReceiveTone ? "Enabled" : "Disabled")
+                            LabeledContent("Call Alert", value: contact.callAlert ? "Enabled" : "Disabled")
                         }
                     }
                     .padding()
