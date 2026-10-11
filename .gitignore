@@ -66,3 +66,4 @@ analysis/specter_v6_2026-07-06/
 default.profraw
 *.profraw
 analysis/ui_review/
+.claude/epic/
