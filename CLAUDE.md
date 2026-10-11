@@ -1,16 +1,9 @@
-# radiowriter — Friday Context
-
-## What This Is
-Native macOS app for programming Motorola MOTOTRBO radios. Read/write codeplug configurations without Motorola's Windows-only CPS software.
-
-## Stack
-Swift · Xcode · macOS · USB serial
-
-## Critical Rules
-- Incorrect codeplugs can brick radios — protocol handling must be exact
-- All protocol handling is reverse-engineered; no official Motorola libraries
-- Test on non-operational radio before production use
-- Related to MotorolaCPS — check which is active before starting work
-
-## Ticketmaster ID
-`radiowriter`
+# radiowriter
+Native macOS app to read/write Motorola MOTOTRBO codeplugs without the Windows-only CPS.
+Stack: Swift, Xcode, USB serial
+Rules:
+- A bad codeplug can brick a radio; protocol handling must be exact.
+- Protocol is reverse-engineered; no official Motorola libraries.
+- Test on a non-operational radio first.
+- Overlaps MotorolaCPS; check which is active before starting.
+Docs: docs/PROTOCOL_REFERENCE.md, docs/protocols/, LEGAL.md.
